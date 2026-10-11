@@ -15,6 +15,9 @@ export interface ProjectProfile {
 const LIST_KEYS = ['conventions', 'pitfalls', 'verification', 'forbidden'] as const;
 
 export function parseProjectProfile(source: string): ProjectProfile {
+  // A UTF-8 BOM is common in files written on Windows (notepad, PowerShell
+  // `-Encoding UTF8`) and would make the first `name:` line fail the schema.
+  const text = source.replace(/^\uFEFF/, '');
   const profile: ProjectProfile = {
     name: '',
     conventions: [],
@@ -23,7 +26,7 @@ export function parseProjectProfile(source: string): ProjectProfile {
     forbidden: [],
   };
   let list: (typeof LIST_KEYS)[number] | undefined;
-  for (const rawLine of source.split(/\r?\n/)) {
+  for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.replace(/\s+$/, '');
     if (!line.trim() || line.trim().startsWith('#')) continue;
     const item = /^\s+-\s+(.*)$/.exec(line);

@@ -28,6 +28,12 @@ forbidden:
     expect(() => parseProjectProfile('name: x\nextra: 1\n')).toThrow(/schema/);
   });
 
+  it('strips a UTF-8 BOM so Windows-authored profiles parse', () => {
+    const profile = parseProjectProfile('\uFEFFname: camelia\nforbidden:\n  - Do not send telemetry\n');
+    expect(profile.name).toBe('camelia');
+    expect(profile.forbidden).toEqual(['Do not send telemetry']);
+  });
+
   it('compiles a profile from iteration notes', () => {
     const yaml = profileFromIterationNotes('camelia', '- leftover snap test\n');
     expect(parseProjectProfile(yaml).pitfalls[0]).toBe('leftover snap test');

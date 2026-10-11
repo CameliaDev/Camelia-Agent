@@ -73,6 +73,20 @@ export interface HarnessConfig {
    * it, later attempts stay on the grunt model instead of failing the task.
    */
   maxCostPerTask: number;
+  /**
+   * Directory holding per-workspace project profiles (`<name>.yaml`, Iteration 24).
+   * When set, the planner reads the profile for the current workspace before
+   * planning and feeds conventions / pitfalls / verification / forbidden into the
+   * plan prompt. `undefined` keeps the planner profile-free (the pre-24 behaviour).
+   */
+  profileDir?: string;
+  /**
+   * Directory where a per-task run record is written (`<taskId>/record.json`,
+   * Iteration 24). When set, the loop writes model / prompts / context snapshot /
+   * tool results at task end so the run is replayable offline. `undefined` keeps
+   * the loop record-free (the pre-24 behaviour).
+   */
+  runRecordDir?: string;
 }
 
 export const defaultApprovalPolicy: ApprovalPolicy = {

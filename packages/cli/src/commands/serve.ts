@@ -18,6 +18,7 @@ import {
   MockProvider,
   autoApprover,
   mockDemoSpec,
+  paths,
   scriptedTaskScript,
   type ProviderHandle,
   type ScriptedTaskSpec,
@@ -71,6 +72,8 @@ export async function serveCommand(args: ParsedArgs, options: ServeCommandOption
     ...(option(args, 'test-command') ? { testCommand: option(args, 'test-command')! } : {}),
     approvalResponder: autoApprove ? autoApprover() : broker.responder(),
     planApproval: autoApprove || args.flags.has('auto-approve-plan') ? 'auto' : 'always',
+    profileDir: paths.profiles(),
+    runRecordDir: paths.runs(),
     logLevel: (option(args, 'log-level', 'warn') as 'debug' | 'info' | 'warn' | 'error') ?? 'warn',
     logTo: (line) => void process.stderr.write(line),
   });

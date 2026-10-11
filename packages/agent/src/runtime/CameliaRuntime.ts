@@ -79,6 +79,7 @@ import { NodeShell } from '../adapters/NodeShell.js';
 import { createLogger } from '../adapters/logger.js';
 import { loadConfig, type CameliaConfig } from '../config/load.js';
 import { ensureCameliaHome, paths } from '../config/paths.js';
+import { appendAbiMismatch, isAbiMismatchError, migrateAbiMismatch } from './abi.js';
 import { FallbackLLMPort } from '../FallbackLLMPort.js';
 import { ModelRouter } from '../ModelRouter.js';
 import { PluginLoader, type PluginLoadResult, type LoadedProviderPlugin } from '../plugins/PluginLoader.js';
@@ -130,6 +131,16 @@ export interface CameliaRuntimeOptions {
   preset?: string;
   /** Directory of user `*.json` presets. Defaults to `~/.camelia/presets`. */
   presetDir?: string;
+  /**
+   * Directory holding per-workspace project profiles (Iteration 24). Defaults to
+   * `~/.camelia/profiles`; `undefined` keeps planning profile-free.
+   */
+  profileDir?: string;
+  /**
+   * Directory where per-task run records are written (Iteration 24). Defaults to
+   * `~/.camelia/runs`; `undefined` keeps the loop record-free.
+   */
+  runRecordDir?: string;
   /**
    * Directory scanned for plugin directories. When omitted, plugins are **not**
    * loaded — an explicit path is what makes a run's tool set reproducible.
@@ -420,7 +431,24 @@ export class CameliaRuntime {
     if (options.databaseFile && options.databaseFile !== ':memory:') {
       fs.mkdirSync(path.dirname(path.resolve(options.databaseFile)), { recursive: true });
     }
-    const store = new SqliteSessionStore(databaseFile);
+    // ABI-mismatch (Iteration 24, failure mode wiring): when the native binary
+    // was built for a different Node ABI the store cannot open at all, so the
+    // failure is recorded out-of-band (sidecar log); the next successful start
+    // migrates those rows into `failure_modes` (see migrateAbiMismatch below).
+    let store: SqliteSessionStore;
+    try {
+      store = new SqliteSessionStore(databaseFile);
+    } catch (error) {
+      if (isAbiMismatchError(error)) {
+        appendAbiMismatch(paths.logs(), workspace, error);
+      }
+      throw error;
+    }
+    try {
+      await migrateAbiMismatch(store, paths.logs(), workspace);
+    } catch {
+      /* best effort — a stuck sidecar must not block boot */
+    }
     const tracer = new InMemoryTracer();
     const metrics = new InMemoryMetrics();
     const maxRecordedEvents = options.maxRecordedEvents ?? 2_000;
@@ -466,6 +494,8 @@ export class CameliaRuntime {
     // runtime then runs a full self-review on every one-step task).
     const harnessConfig = resolveConfig({
       ...options.harnessConfig,
+      ...(options.profileDir ? { profileDir: options.profileDir } : {}),
+      ...(options.runRecordDir ? { runRecordDir: options.runRecordDir } : {}),
       ...(options.harnessConfig?.plannerMode || preset?.plannerMode
         ? { plannerMode: options.harnessConfig?.plannerMode ?? preset?.plannerMode }
         : {}),

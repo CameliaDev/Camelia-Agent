@@ -51,6 +51,8 @@ import {
 } from '../selfreview/PlanSelfReview.js';
 import type { SubAgentOrchestrator, SubAgentSpec } from '../subagent/SubAgentOrchestrator.js';
 import type { Verifier } from '../verification/Verifier.js';
+import { writeRunRecord } from '../replay/run-record.js';
+import path from 'node:path';
 
 export interface AgentLoopDeps {
   gateway: ModelGateway;
@@ -112,6 +114,11 @@ export class AgentLoop {
    * procedural recipes that influenced the run.
    */
   private recalledMemoryIds = new Set<string>();
+  /**
+   * Tool-call records from every executed step (Iteration 24 — run record).
+   * Sub-agent calls share the gateway but are not part of the parent's record.
+   */
+  private readonly runToolResults: unknown[] = [];
 
   constructor(
     private readonly deps: AgentLoopDeps,
@@ -245,6 +252,7 @@ export class AgentLoop {
         reflect: firstRoute.reflect,
       });
       artifacts.push(...result.artifacts);
+      this.runToolResults.push(result.toolCalls);
 
       // ---- verifying -------------------------------------------------------
       this.transition('verifying', `verify step ${step.idx + 1}`);
@@ -252,6 +260,8 @@ export class AgentLoop {
       verdicts.push(verdict);
       this.iterations += 1;
 
+      // Last executed attempt, for the zero-tool-calls failure classification.
+      let lastStepResult = result;
       let fixAttempt = 1;
       // Decision point 2 — verification failed: think before retrying/replanning.
       if (verdict.status === 'fail') await this.selfReviewAt('verification-fail', plan, intent);
@@ -272,6 +282,8 @@ export class AgentLoop {
           reflect: retryRoute.reflect,
         });
         artifacts.push(...fixResult.artifacts);
+        this.runToolResults.push(fixResult.toolCalls);
+        lastStepResult = fixResult;
         verdict = await this.deps.verifier.verify(step, fixResult);
         verdicts.push(verdict);
         this.iterations += 1;
@@ -279,6 +291,17 @@ export class AgentLoop {
       }
 
       if (verdict.status === 'fail') {
+        // Zero-tool-calls (Iteration 24, failure mode wiring): the step failed
+        // verification and the last attempt never called a tool — the model
+        // declared completion without acting. Recorded against the executor
+        // break-on-no-tools path so the next plan can read it.
+        if (lastStepResult.toolCalls.length === 0) {
+          await this.ctx.infra.store.recordFailureMode({
+            kind: 'zero-tool-calls',
+            mechanism: 'executor: step failed verification with zero tool calls (Executor.execute breaks when the model requests no tools)',
+            workspace: this.ctx.workspace,
+          });
+        }
         // Structural escalation: replan once for the remaining work.
         if (!replanUsed) {
           replanUsed = true;
@@ -499,12 +522,20 @@ export class AgentLoop {
         reflect: resumedRoute.reflect,
       });
       artifacts.push(...result.artifacts);
+      this.runToolResults.push(result.toolCalls);
       const verdict = await this.deps.verifier.verify(step, result);
       verdicts.push(verdict);
       this.iterations += 1;
 
       if (verdict.status === 'fail') {
         await this.selfReviewAt('verification-fail', plan, intent);
+        if (result.toolCalls.length === 0) {
+          await this.ctx.infra.store.recordFailureMode({
+            kind: 'zero-tool-calls',
+            mechanism: 'executor: revised-plan step failed verification with zero tool calls (Executor.execute breaks when the model requests no tools)',
+            workspace: this.ctx.workspace,
+          });
+        }
         step.status = 'failed';
         step.endedAt = this.ctx.ports.clock.now();
         await this.persistStep(step);
@@ -546,6 +577,16 @@ export class AgentLoop {
     });
     this.ctx.infra.metrics.observe('drift.score', assessment.score);
     if (!assessment.drifted) return;
+
+    // Declared-but-ineffective (Iteration 24, failure mode wiring): the model
+    // produced output that diverges from the goal — work was declared, but it is
+    // not moving the task. Recorded against the drift path so the next plan for
+    // this workspace can read it.
+    await this.ctx.infra.store.recordFailureMode({
+      kind: 'declared-but-ineffective',
+      mechanism: `drift: output diverged from the goal (score ${assessment.score}; DriftDetector.assess)`,
+      workspace: this.ctx.workspace,
+    });
 
     this.ctx.infra.bus.emit('reliability.drift_detected', {
       score: assessment.score,
@@ -938,7 +979,7 @@ export class AgentLoop {
     };
   }
 
-  private finish(
+  private async finish(
     status: TaskOutcome['status'],
     startedAt: number,
     artifacts: Artifact[],
@@ -947,13 +988,19 @@ export class AgentLoop {
     stepsCompleted: number,
     unverifiedSteps: number,
     reason?: string,
-  ): TaskOutcome {
+  ): Promise<TaskOutcome> {
     const meta = runMeta(this.ctx);
     if (status === 'done' && !this.state.isTerminal) this.transition('done', 'delivered');
     if (status === 'failed' && !this.state.isTerminal) this.transition('failed', reason ?? 'failed');
     if (status === 'cancelled' && !this.state.isTerminal) this.transition('cancelled', reason ?? 'cancelled');
     if (status === 'failed') this.ctx.infra.bus.emit('task.failed', { reason: reason ?? 'failed', recoverable: false }, meta);
     if (status === 'cancelled') this.ctx.infra.bus.emit('task.cancelled', { reason: reason ?? 'cancelled' }, meta);
+
+    // Offline run record (Iteration 24): model, prompts, context snapshot and
+    // tool results are written so a phase check can replay what the run saw.
+    // The record is a best-effort side effect — a write failure must not change
+    // the task outcome, and the location is logged for later inspection.
+    await this.writeRunRecord();
 
     let summary: string;
     if (status === 'done') {
@@ -983,6 +1030,28 @@ export class AgentLoop {
       durationMs: this.ctx.ports.clock.now() - startedAt,
       reason,
     };
+  }
+
+  /** Best-effort write of the offline run record; never throws into the loop. */
+  private async writeRunRecord(): Promise<void> {
+    const dir = this.deps.config.runRecordDir;
+    if (!dir) return;
+    try {
+      const target = path.join(dir, this.ctx.taskId);
+      await writeRunRecord(target, {
+        model: this.ctx.model,
+        gruntModel: this.ctx.gruntModel === this.ctx.model ? undefined : this.ctx.gruntModel,
+        prompts: this.deps.gateway.promptLog.map((entry) => JSON.stringify(entry)),
+        context: this.deps.context.dump(),
+        toolResults: this.runToolResults,
+      });
+      this.ctx.infra.logger.info('run record written', { dir: target, taskId: this.ctx.taskId });
+    } catch (error) {
+      this.ctx.infra.logger.warn('failed to write run record', {
+        taskId: this.ctx.taskId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private tokensUsed(): number {

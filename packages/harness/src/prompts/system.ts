@@ -9,6 +9,7 @@
 
 import type { ProviderCapabilities } from '@camelia/core';
 import type { ClarifiedIntent, Step } from '@camelia/core';
+import type { ProjectProfile } from '../profile/project-profile.js';
 
 /** Granularity guidance derived from provider capability (whitepaper §5.2). */
 export interface GranularityProfile {
@@ -73,10 +74,16 @@ export interface PlannerPromptOptions {
   toolNames?: readonly string[];
   /** Persona directives from the active agent preset (whitepaper §8.3). */
   directives?: string;
+  /**
+   * Project profile loaded for this workspace (Iteration 24). Its conventions /
+   * pitfalls / verification / forbidden rules are injected so the plan does not
+   * repeat the project's recorded mistakes.
+   */
+  profile?: ProjectProfile;
 }
 
 export function plannerSystemPrompt(options: PlannerPromptOptions): string {
-  const { intent, workspaceSummary, granularity, revision, toolNames = [], directives } = options;
+  const { intent, workspaceSummary, granularity, revision, toolNames = [], directives, profile } = options;
   const lines: string[] = [
     'You are the PLANNER of Camelia, a task-completion-first coding agent.',
     'You do not write code. You decompose the goal into an ordered, verifiable plan.',
@@ -132,6 +139,22 @@ export function plannerSystemPrompt(options: PlannerPromptOptions): string {
   );
 
   if (directives) lines.push('', 'Persona directives (from the active agent preset):', directives);
+  if (profile) {
+    lines.push('', 'Project profile (from ~/.camelia/profiles — obey it):');
+    if (profile.name) lines.push(`  name: ${profile.name}`);
+    if (profile.conventions.length) {
+      lines.push('  conventions:', ...profile.conventions.map((item) => `    - ${item}`));
+    }
+    if (profile.pitfalls.length) {
+      lines.push('  pitfalls (avoid these):', ...profile.pitfalls.map((item) => `    - ${item}`));
+    }
+    if (profile.verification.length) {
+      lines.push('  verification (how this project verifies):', ...profile.verification.map((item) => `    - ${item}`));
+    }
+    if (profile.forbidden.length) {
+      lines.push('  forbidden (never do these):', ...profile.forbidden.map((item) => `    - ${item}`));
+    }
+  }
   if (workspaceSummary) lines.push('', 'Workspace listing (authoritative — do not invent other paths):', workspaceSummary);
   if (revision) {
     lines.push(

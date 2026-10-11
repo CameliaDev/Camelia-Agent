@@ -28,6 +28,10 @@ export const paths = {
   plugins: () => path.join(cameliaHome(), 'plugins'),
   /** Root scanned for standalone `*.json` agent presets. */
   presets: () => path.join(cameliaHome(), 'presets'),
+  /** Per-workspace project profiles (`<name>.yaml`) read into planning (Iteration 24). */
+  profiles: () => path.join(cameliaHome(), 'profiles'),
+  /** Per-task offline run records (`<taskId>/record.json`) written at task end (Iteration 24). */
+  runs: () => path.join(cameliaHome(), 'runs'),
   /** MCP server definitions (whitepaper §8.5). Data only, never executed. */
   mcp: () => path.join(cameliaHome(), 'mcp.json'),
   /** Extra CA bundle, used when the machine sits behind a TLS-inspecting proxy. */
@@ -44,7 +48,7 @@ export const paths = {
  */
 export function ensureCameliaHome(): string {
   const home = cameliaHome();
-  for (const dir of [home, paths.logs(), paths.certs(), paths.backups(), paths.plugins(), paths.presets()]) {
+  for (const dir of [home, paths.logs(), paths.certs(), paths.backups(), paths.plugins(), paths.presets(), paths.profiles(), paths.runs()]) {
     fs.mkdirSync(dir, { recursive: true });
   }
   return home;

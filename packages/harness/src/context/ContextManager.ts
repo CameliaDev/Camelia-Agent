@@ -253,6 +253,26 @@ export class ContextManager {
       slots: { ...this.slots },
     };
   }
+
+  /**
+   * Full context dump for the offline run record (Iteration 24): every entry —
+   * live and compacted — plus the protected slots. Content is what was actually
+   * appended; nothing is truncated here, because the record must show exactly
+   * what the model saw.
+   */
+  dump(): { slots: ProtectedSlots; entries: Array<{ role: string; name?: string; content: string; pinned: boolean; compacted: boolean; tokens: number }> } {
+    return {
+      slots: { ...this.slots },
+      entries: this.entries.map((entry) => ({
+        role: entry.message.role,
+        ...(typeof entry.message.name === 'string' ? { name: entry.message.name } : {}),
+        content: entry.message.content,
+        pinned: entry.pinned,
+        compacted: entry.compacted,
+        tokens: entry.tokens,
+      })),
+    };
+  }
 }
 
 /** Render protected slots into the system message. Never truncated. */

@@ -118,6 +118,18 @@ export class Executor {
         await this.compact('soft-limit');
       }
 
+      // Context exhaustion (Iteration 24, failure mode wiring): when usage has
+      // reached the hard window even after soft compaction, record the mechanism
+      // so the next plan for this workspace can read it. The run continues — a
+      // pinned-heavy context may still be usable — but the failure is on record.
+      if (this.deps.context.tokenUsage() >= this.deps.config.contextWindow) {
+        await this.ctx.infra.store.recordFailureMode({
+          kind: 'context-exhaustion',
+          mechanism: 'executor: context usage reached the window before a model call (ContextManager.tokenUsage >= config.contextWindow)',
+          workspace: this.ctx.workspace,
+        });
+      }
+
       const built = this.deps.context.build(baseSystem);
       const system = built.messages[0]?.content ?? baseSystem;
       const conversation = built.messages.slice(1);

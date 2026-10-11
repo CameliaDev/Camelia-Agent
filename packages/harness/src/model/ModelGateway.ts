@@ -77,6 +77,15 @@ export function parseToolArguments(args: JsonValue | string): JsonValue {
 
 export class ModelGateway {
   private readonly totals = { promptTokens: 0, completionTokens: 0, calls: 0 };
+  /**
+   * Every call's prompt payload, for the offline run record (Iteration 24).
+   *
+   * The full `system` is what was actually sent to the model — including the
+   * profile, workspace listing and tool names the planner injected — so a phase
+   * check can reconstruct what a run saw without a live model. Recorded on entry
+   * (success and failure alike), so a failed call is replayable too.
+   */
+  readonly promptLog: Array<{ purpose: string; model: string; system: string }> = [];
 
   constructor(private readonly ctx: RunContext) {}
 
@@ -139,6 +148,7 @@ export class ModelGateway {
   async call(input: ModelCallInput): Promise<ModelCallResult> {
     const caps = this.capabilities();
     const model = this.modelFor(input);
+    this.promptLog.push({ purpose: input.purpose, model, system: input.system });
     const toolsSuppressed = Boolean(input.tools && !caps.supportsTools);
     const tools = toolsSuppressed ? undefined : input.tools;
     const maxAttempts = Math.max(1, this.ctx.config.maxRetries);

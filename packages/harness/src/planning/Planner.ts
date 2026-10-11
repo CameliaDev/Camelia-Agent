@@ -13,6 +13,7 @@ import type { RunContext } from '../context/RunContext.js';
 import { runMeta } from '../context/RunContext.js';
 import { workspaceSummary } from '../context/workspace-summary.js';
 import { ModelGateway } from '../model/ModelGateway.js';
+import { loadProfileForWorkspace } from '../profile/profile-loader.js';
 import { granularityFor, plannerSystemPrompt } from '../prompts/system.js';
 import { extractJsonObject } from './json.js';
 import { dagDepth, fallbackPlan, normalisePlan, type RawPlan } from './plan-utils.js';
@@ -41,13 +42,15 @@ export class Planner {
     private readonly toolNames: readonly string[] = [],
   ) {}
 
+  /** Profile loaded lazily on the first planning call; shared by plan/revise/replan. */
+  private profilePromise: Promise<import('../profile/project-profile.js').ProjectProfile | undefined> | undefined;
+
   capabilities(): ProviderCapabilities {
     return this.gateway.capabilities();
   }
 
   /** Produce the initial plan. Always returns a plan (fallback on failure). */
-  async plan(intent: ClarifiedIntent, options: PlannerOptions = {}): Promise<Plan> {
-    const meta = runMeta(this.ctx);
+  async plan(intent: ClarifiedIntent, options: PlannerOptions = {}): Promise<Plan> {    const meta = runMeta(this.ctx);
     const mode = this.pickMode(intent);
     this.ctx.infra.bus.emit('plan.started', { mode }, meta);
 
@@ -62,6 +65,11 @@ export class Planner {
       ? `\nThis workspace has ${priorPathFailures} recorded path-hallucination failure(s). Use only the allowed path enum.`
       : '';
 
+    // Project profile (Iteration 24): conventions / pitfalls / verification /
+    // forbidden rules join the plan prompt. A missing or broken profile is logged
+    // and the task continues — it must never block planning.
+    const profile = await this.loadProfile();
+
     try {
       const result = await this.gateway.call({
         purpose: 'plan',
@@ -73,6 +81,7 @@ export class Planner {
           toolNames: this.toolNames,
 
           directives: this.ctx.presetDirectives,
+          profile,
         }) + pathNote,
         messages: [{ role: 'user', content: 'Produce the plan now.' }],
         responseFormat: 'json',
@@ -121,6 +130,7 @@ export class Planner {
     const caps = this.gateway.capabilities();
     const granularity = granularityFor(caps, this.ctx.config.maxSteps);
     const summary = await workspaceSummary(this.ctx.ports.fs, this.ctx.workspace, { maxEntries: 80 });
+    const profile = await this.loadProfile();
 
     try {
       const result = await this.gateway.call({
@@ -133,6 +143,7 @@ export class Planner {
           toolNames: this.toolNames,
           revision: { reason: revision.reason, previousTitles: revision.previousTitles },
           directives: this.ctx.presetDirectives,
+          profile,
         }),
         messages: [{ role: 'user', content: 'Produce the revised plan now.' }],
         responseFormat: 'json',
@@ -186,6 +197,7 @@ export class Planner {
     planMode: 'fast' | 'full',
   ): Promise<Plan> {
     const allowed = intent.expectedPaths;
+    const profile = await this.loadProfile();
     try {
       const result = await this.gateway.call({
         purpose: 'replan',
@@ -199,6 +211,7 @@ export class Planner {
             previousTitles: [],
           },
           directives: this.ctx.presetDirectives,
+          profile,
         }),
         messages: [{ role: 'user', content: 'Produce a plan that uses only the allowed paths.' }],
         responseFormat: 'json',
@@ -225,5 +238,20 @@ export class Planner {
     const files = intent.expectedPaths.filter((p) => p !== '.');
     const trivial = files.length <= 1 && intent.goal.length < 160;
     return trivial ? 'fast' : 'full';
+  }
+
+  /**
+   * Load the workspace profile once and reuse it for every planning call in this
+   * run. Never throws — the loader logs a missing/unreadable/malformed profile
+   * and the loop plans without it (Iteration 24).
+   */
+  private loadProfile(): Promise<import('../profile/project-profile.js').ProjectProfile | undefined> {
+    this.profilePromise ??= loadProfileForWorkspace(
+      this.ctx.ports.fs,
+      this.ctx.config.profileDir,
+      this.ctx.workspace,
+      this.ctx.infra.logger,
+    );
+    return this.profilePromise;
   }
 }

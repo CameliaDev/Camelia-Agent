@@ -8,9 +8,18 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface RunRecord {
+  /** Decision model used for planning/execution calls. */
   model: string;
+  /** Cheap model used for summaries; absent when it equals `model` (Iteration 24). */
+  gruntModel?: string;
+  /**
+   * Every model-call prompt sent this run, as serialised
+   * `{ purpose, model, system }` entries (Iteration 24 — wired from the gateway).
+   */
   prompts: string[];
+  /** Context snapshot at task end (protected slots + live/compacted entries). */
   context: unknown;
+  /** Tool-call records from every executed step. */
   toolResults: unknown[];
 }
 
