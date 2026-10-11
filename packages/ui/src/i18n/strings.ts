@@ -15,6 +15,15 @@ type StringKey =
   | 'sessions.empty'
   | 'sessions.expand'
   | 'sessions.collapse'
+  | 'sessions.pin'
+  | 'sessions.unpin'
+  | 'sessions.favorite'
+  | 'sessions.unfavorite'
+  | 'sessions.delete'
+  | 'sessions.confirmDelete'
+  | 'sessions.cancelDelete'
+  | 'sessions.search'
+  | 'sessions.recent'
   | 'workspace.title'
   | 'provider.title'
   | 'provider.primary'
@@ -24,6 +33,7 @@ type StringKey =
   | 'provider.chosenBecause'
   | 'provider.depth'
   | 'provider.chain'
+  | 'provider.configureKeys'
   | 'checkpoints.title'
   | 'checkpoints.empty'
   | 'checkpoints.restore'
@@ -96,6 +106,36 @@ type StringKey =
   | 'settings.collapseRunRail'
   | 'settings.restoreLayout'
   | 'settings.layoutDefaults'
+  | 'settings.model'
+  | 'settings.provider'
+  | 'settings.modelName'
+  | 'settings.gruntModel'
+  | 'settings.modelHint.live'
+  | 'settings.modelHint.offline'
+  | 'settings.apiKey'
+  | 'settings.apiKey.configured'
+  | 'settings.apiKey.missing'
+  | 'settings.apiKey.local'
+  | 'settings.apiKey.placeholder'
+  | 'settings.modelSave'
+  | 'settings.modelSaved'
+  | 'settings.connection.live'
+  | 'settings.connection.offline'
+  | 'settings.diagnostics'
+  | 'settings.openEngineLog'
+  | 'settings.restartDesktop'
+  | 'connection.panel'
+  | 'connection.engineUrl'
+  | 'connection.session'
+  | 'connection.scene'
+  | 'connection.fixture'
+  | 'connection.openLog'
+  | 'connection.restart'
+  | 'connection.copy'
+  | 'connection.copied'
+  | 'connection.offlineBanner'
+  | 'connection.offlineBanner.hint'
+  | 'connection.waiting'
   | 'settings.about'
   | 'settings.about.preface'
   | 'settings.about.license'
@@ -146,6 +186,15 @@ const en: Record<StringKey, string> = {
   'sessions.empty': 'No sessions in this workspace yet.',
   'sessions.expand': 'Expand sessions',
   'sessions.collapse': 'Collapse sessions',
+  'sessions.pin': 'Pin',
+  'sessions.unpin': 'Unpin',
+  'sessions.favorite': 'Favorite',
+  'sessions.unfavorite': 'Unfavorite',
+  'sessions.delete': 'Delete',
+  'sessions.confirmDelete': 'Confirm delete',
+  'sessions.cancelDelete': 'Cancel',
+  'sessions.search': 'Search sessions',
+  'sessions.recent': 'Recent',
   'workspace.title': 'Workspace',
   'provider.title': 'Provider path',
   'provider.primary': 'primary',
@@ -155,6 +204,7 @@ const en: Record<StringKey, string> = {
   'provider.chosenBecause': 'chosen because:',
   'provider.depth': 'depth',
   'provider.chain': 'chain:',
+  'provider.configureKeys': 'API keys',
   'checkpoints.title': 'Checkpoints',
   'checkpoints.empty': 'Restore points appear after each completed step.',
   'checkpoints.restore': 'restore',
@@ -227,6 +277,36 @@ const en: Record<StringKey, string> = {
   'settings.collapseRunRail': 'Start with the run rail collapsed',
   'settings.restoreLayout': 'Restore default layout',
   'settings.layoutDefaults': 'Defaults are 260px and 360px, both expanded.',
+  'settings.model': 'Model',
+  'settings.provider': 'Provider',
+  'settings.modelName': 'Decision model',
+  'settings.gruntModel': 'Cheap model',
+  'settings.modelHint.live': 'Saved to ~/.camelia/config.json. Reopen the desktop for the running engine to pick it up.',
+  'settings.modelHint.offline': 'This window is offline, so a typed task cannot be planned. Save a model, then reopen so the desktop can start the local engine.',
+  'settings.apiKey': 'API key',
+  'settings.apiKey.configured': 'Key saved',
+  'settings.apiKey.missing': 'No key yet',
+  'settings.apiKey.local': 'Local model. No key required.',
+  'settings.apiKey.placeholder': 'Paste a key to replace the saved one',
+  'settings.modelSave': 'Save and reopen',
+  'settings.modelSaved': 'Saved. Reopening…',
+  'settings.connection.live': 'Engine connected',
+  'settings.connection.offline': 'Offline — no engine',
+  'settings.diagnostics': 'Diagnostics',
+  'settings.openEngineLog': 'Open engine log',
+  'settings.restartDesktop': 'Restart desktop',
+  'connection.panel': 'Connection',
+  'connection.engineUrl': 'Engine URL',
+  'connection.session': 'Session',
+  'connection.scene': 'Scene',
+  'connection.fixture': 'Fixture (no live engine)',
+  'connection.openLog': 'Open engine log',
+  'connection.restart': 'Restart desktop',
+  'connection.copy': 'Copy',
+  'connection.copied': 'Copied',
+  'connection.offlineBanner': 'Engine disconnected',
+  'connection.offlineBanner.hint': 'The desktop is waiting for the local engine. Open the log if it does not come back, or restart the app.',
+  'connection.waiting': 'Waiting for engine…',
   'settings.about': 'About',
   'settings.about.preface': 'API keys stay in ~/.camelia. This app sends no telemetry.',
   'settings.about.license': 'Apache-2.0',
@@ -278,6 +358,15 @@ const zh: Record<StringKey, string> = {
   'sessions.empty': '此工作区还没有会话。',
   'sessions.expand': '展开会话',
   'sessions.collapse': '收起会话',
+  'sessions.pin': '置顶',
+  'sessions.unpin': '取消置顶',
+  'sessions.favorite': '收藏',
+  'sessions.unfavorite': '取消收藏',
+  'sessions.delete': '删除',
+  'sessions.confirmDelete': '确认删除',
+  'sessions.cancelDelete': '取消',
+  'sessions.search': '搜索会话',
+  'sessions.recent': '最近',
   'workspace.title': '工作区',
   'provider.title': '模型链路',
   'provider.primary': '主',
@@ -287,6 +376,7 @@ const zh: Record<StringKey, string> = {
   'provider.chosenBecause': '选择原因：',
   'provider.depth': '层级',
   'provider.chain': '链路：',
+  'provider.configureKeys': '配置密钥',
   'checkpoints.title': '检查点',
   'checkpoints.empty': '每完成一步后会出现恢复点。',
   'checkpoints.restore': '恢复',
@@ -359,6 +449,36 @@ const zh: Record<StringKey, string> = {
   'settings.collapseRunRail': '启动时收起运行栏',
   'settings.restoreLayout': '恢复默认布局',
   'settings.layoutDefaults': '默认 260px 与 360px，均为展开。',
+  'settings.model': '模型',
+  'settings.provider': '服务商',
+  'settings.modelName': '决策模型',
+  'settings.gruntModel': '便宜模型',
+  'settings.modelHint.live': '已写入 ~/.camelia/config.json。重新打开桌面后，正在运行的引擎才会用上新模型。',
+  'settings.modelHint.offline': '当前窗口离线，输入任务不会生成计划。先保存模型，再重新打开，桌面才会启动本机引擎。',
+  'settings.apiKey': 'API 密钥',
+  'settings.apiKey.configured': '已保存密钥',
+  'settings.apiKey.missing': '尚未配置密钥',
+  'settings.apiKey.local': '本地模型，不需要密钥。',
+  'settings.apiKey.placeholder': '粘贴新密钥以替换已保存的密钥',
+  'settings.modelSave': '保存并重新打开',
+  'settings.modelSaved': '已保存，正在重新打开……',
+  'settings.connection.live': '已连接引擎',
+  'settings.connection.offline': '离线，未连接引擎',
+  'settings.diagnostics': '诊断',
+  'settings.openEngineLog': '打开引擎日志',
+  'settings.restartDesktop': '重新打开桌面',
+  'connection.panel': '连接',
+  'connection.engineUrl': '引擎地址',
+  'connection.session': '会话',
+  'connection.scene': '场景',
+  'connection.fixture': '演示模式（无实时引擎）',
+  'connection.openLog': '打开引擎日志',
+  'connection.restart': '重新打开桌面',
+  'connection.copy': '复制',
+  'connection.copied': '已复制',
+  'connection.offlineBanner': '引擎已断开',
+  'connection.offlineBanner.hint': '桌面正在等待本机引擎。若迟迟未恢复，可打开日志排查，或重新打开应用。',
+  'connection.waiting': '正在等待引擎…',
   'settings.about': '关于',
   'settings.about.preface': 'API 密钥存于 ~/.camelia。本应用零遥测。',
   'settings.about.license': 'Apache-2.0',

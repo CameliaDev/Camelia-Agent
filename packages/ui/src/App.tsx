@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Composer } from './components/Composer.js';
+import { EngineBanner } from './components/EngineBanner.js';
 import { Conversation } from './components/Conversation.js';
 import { RailDivider } from './components/RailDivider.js';
 import { RightRail } from './components/RightRail.js';
@@ -97,6 +98,7 @@ export function App(): ReactNode {
       >
         <SessionRail />
         <main className="flex min-h-0 min-w-0 flex-col">
+          <EngineBanner />
           <Conversation />
           <Composer />
         </main>

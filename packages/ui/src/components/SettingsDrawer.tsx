@@ -3,14 +3,24 @@
  * @module
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { makeCommand } from '../state/store.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { type LanguagePref, type MotionPref, type TopBarMode } from '../state/local-prefs.js';
 import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
+import { readKeyStatus, readModelSettings, relaunchDesktop, writeModelSettings, writeProviderKey, type KeyStatus } from '../window/model-settings.js';
+import { openEngineLog, readEngineTrust } from '../window/engine.js';
+import { isTauri } from '../window/shell.js';
 import { Icon } from './primitives.js';
+
+const MODEL_PROVIDERS: Array<{ id: string; models: string[] }> = [
+  { id: 'aliyun', models: ['qwen-plus', 'qwen-turbo', 'qwen-max'] },
+  { id: 'ollama', models: ['qwen2.5-coder:7b'] },
+  { id: 'opencode-zen', models: [] },
+  { id: 'openrouter', models: [] },
+];
 
 const NO_REJECTIONS: Array<{ token: string; reason: string }> = [];
 
@@ -65,6 +75,8 @@ export function SettingsDrawer(): ReactNode {
               </ul>
             </div>
           ) : null}
+
+          <ModelSection tr={tr} />
 
           <section className="space-y-3">
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.appearance')}</h3>
@@ -211,6 +223,8 @@ export function SettingsDrawer(): ReactNode {
             </p>
           </section>
 
+          <DiagnosticsSection tr={tr} />
+
           <section className="space-y-2">
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.about')}</h3>
             <p className="text-[12px] text-ink-2">Camelia 0.1.0</p>
@@ -222,4 +236,213 @@ export function SettingsDrawer(): ReactNode {
       </aside>
     </div>
   );
+}
+
+function ModelSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }): ReactNode {
+  const status = useUiStore((s) => s.status);
+  const connected = status === 'live' || status === 'finished';
+  const [provider, setProvider] = useState('aliyun');
+  const [model, setModel] = useState('qwen-plus');
+  const [gruntModel, setGruntModel] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [keys, setKeys] = useState<Record<string, KeyStatus>>({});
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readModelSettings().then((value) => {
+      if (cancelled || !value) return;
+      setProvider(value.preferredProvider || 'aliyun');
+      setModel(value.model || suggestionFor(value.preferredProvider || 'aliyun'));
+      setGruntModel(value.gruntModel);
+    });
+    void readKeyStatus().then((value) => {
+      if (!cancelled && value) setKeys(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const suggestions = MODEL_PROVIDERS.find((item) => item.id === provider)?.models ?? [];
+  const key = keys[provider];
+  const localProvider = provider === 'ollama';
+
+  return (
+    <section className="space-y-3">
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.model')}</h3>
+      <p className="text-[12px] text-ink-2">
+        {connected ? tr('settings.connection.live') : tr('settings.connection.offline')}
+      </p>
+      <label className="block text-[12px] text-ink-2">
+        {tr('settings.provider')}
+        <select
+          aria-label={tr('settings.provider')}
+          className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 text-[12px] text-ink"
+          value={provider}
+          onChange={(event) => {
+            const next = event.target.value;
+            setProvider(next);
+            setModel(suggestionFor(next));
+            setApiKey('');
+          }}
+        >
+          {MODEL_PROVIDERS.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.id}
+            </option>
+          ))}
+        </select>
+      </label>
+      {localProvider ? (
+        <p className="text-[12px] text-ink-2">{tr('settings.apiKey.local')}</p>
+      ) : (
+        <label className="block text-[12px] text-ink-2">
+          {tr('settings.apiKey')}
+          <span className="ml-2 font-mono text-[10.5px] text-ink-3">
+            {key?.configured ? `${tr('settings.apiKey.configured')} ${key.hint}` : tr('settings.apiKey.missing')}
+          </span>
+          <input
+            aria-label={tr('settings.apiKey')}
+            type="password"
+            autoComplete="off"
+            className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 font-mono text-[12px] text-ink"
+            value={apiKey}
+            placeholder={key?.configured ? tr('settings.apiKey.placeholder') : 'sk-…'}
+            onChange={(event) => setApiKey(event.target.value)}
+          />
+        </label>
+      )}
+      <label className="block text-[12px] text-ink-2">
+        {tr('settings.modelName')}
+        <input
+          aria-label={tr('settings.modelName')}
+          list="camelia-model-suggestions"
+          className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 font-mono text-[12px] text-ink"
+          value={model}
+          onChange={(event) => setModel(event.target.value)}
+        />
+        <datalist id="camelia-model-suggestions">
+          {suggestions.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+      </label>
+      <label className="block text-[12px] text-ink-2">
+        {tr('settings.gruntModel')}
+        <input
+          aria-label={tr('settings.gruntModel')}
+          className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 font-mono text-[12px] text-ink"
+          value={gruntModel}
+          placeholder="qwen2.5-coder:7b"
+          onChange={(event) => setGruntModel(event.target.value)}
+        />
+      </label>
+      <p className="text-[10.5px] leading-5 text-ink-3">
+        {connected ? tr('settings.modelHint.live') : tr('settings.modelHint.offline')}
+      </p>
+      <button
+        type="button"
+        disabled={busy || model.trim().length === 0}
+        className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent disabled:opacity-40"
+        onClick={() => {
+          setBusy(true);
+          setNote('');
+          void (async () => {
+            const typedKey = apiKey.trim();
+            if (!localProvider && typedKey) {
+              const keyError = await writeProviderKey(provider, typedKey);
+              if (keyError) return keyError;
+            }
+            return writeModelSettings({
+              preferredProvider: provider,
+              model: model.trim(),
+              gruntModel: gruntModel.trim(),
+            });
+          })().then(async (error) => {
+            if (error) {
+              setNote(error);
+              setBusy(false);
+              return;
+            }
+            setNote(tr('settings.modelSaved'));
+            const relaunchError = await relaunchDesktop();
+            if (relaunchError) {
+              setNote(relaunchError);
+              setBusy(false);
+            }
+          });
+        }}
+      >
+        {tr('settings.modelSave')}
+      </button>
+      {note ? <p className="text-[12px] text-ink-2">{note}</p> : null}
+    </section>
+  );
+}
+
+
+function DiagnosticsSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }): ReactNode {
+  const trust = readEngineTrust();
+  const desktop = isTauri();
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <section className="space-y-3">
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.diagnostics')}</h3>
+      {trust.expectsLiveEngine ? (
+        <dl className="space-y-1.5 text-[12px] text-ink-2">
+          <div>
+            <dt className="text-[10.5px] uppercase tracking-[0.08em] text-ink-3">{tr('connection.engineUrl')}</dt>
+            <dd className="font-mono text-[11px] break-all">{trust.engineUrl}</dd>
+          </div>
+          <div>
+            <dt className="text-[10.5px] uppercase tracking-[0.08em] text-ink-3">{tr('connection.session')}</dt>
+            <dd className="font-mono text-[11px]">{trust.sessionId || '—'}</dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="text-[12px] text-ink-2">
+          {tr('connection.fixture')}
+          {trust.scene ? <span className="mt-1 block font-mono text-[11px] text-ink-3">{trust.scene}</span> : null}
+        </p>
+      )}
+      {desktop ? (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
+            onClick={() => {
+              void openEngineLog().then((result) => setNote(result.error ?? result.path ?? ''));
+            }}
+          >
+            {tr('settings.openEngineLog')}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent disabled:opacity-40"
+            onClick={() => {
+              setBusy(true);
+              void relaunchDesktop().then((error) => {
+                if (error) {
+                  setNote(error);
+                  setBusy(false);
+                }
+              });
+            }}
+          >
+            {tr('settings.restartDesktop')}
+          </button>
+        </div>
+      ) : null}
+      {note ? <p className="break-all font-mono text-[11px] text-ink-3">{note}</p> : null}
+    </section>
+  );
+}
+
+function suggestionFor(provider: string): string {
+  return MODEL_PROVIDERS.find((item) => item.id === provider)?.models[0] ?? '';
 }

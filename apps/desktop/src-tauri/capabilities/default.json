@@ -20,6 +20,13 @@
     "core:window:allow-set-position",
     "core:window:allow-set-size",
     "core:window:allow-set-resizable",
-    "core:window:allow-start-resize-dragging"
+    "core:window:allow-start-resize-dragging",
+    "allow-open-engine-log",
+    "allow-read-engine-log",
+    "allow-read-model-settings",
+    "allow-write-model-settings",
+    "allow-read-key-status",
+    "allow-write-provider-key",
+    "allow-relaunch-app"
   ]
 }

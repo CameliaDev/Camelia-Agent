@@ -6,8 +6,10 @@ Camelia 的**桌面外壳**（Tauri 2.x，Rust + WebView2）。硬约束禁止 E
 
 ## 职责
 
-- **开窗**：创建主窗口（1440×900，暗色主题，最小 1024×680）。
-- **注入启动参数**：在页面脚本执行前写入 `window.__CAMELIA_BOOT__`，让外壳（而非可被用户篡改的 URL）决定应用投影什么状态。当前用于选择演示场景；同一条通道将来承载真实引擎端点与要续接的会话。
+- **开窗**：创建主窗口（1280×820，暗色主题，最小 1024×680）。
+- **注入启动参数**：在页面脚本执行前写入 `window.__CAMELIA_BOOT__`，让外壳（而非可被用户篡改的 URL）决定应用投影什么状态。同一条通道承载演示场景、真实引擎端点与要续接的会话。
+
+- **诊断通道**：向 WebView 暴露 `open_engine_log` / `read_engine_log` / `relaunch_app`（以及模型与密钥读写）。顶栏连接徽章与设置里的「诊断」可打开 `~/.camelia/logs/engine.log`，引擎断开时显示恢复横幅。
 
 ## 边界
 
@@ -18,7 +20,7 @@ Camelia 的**桌面外壳**（Tauri 2.x，Rust + WebView2）。硬约束禁止 E
 | 来源 | 作用 |
 | --- | --- |
 | `--engine-url=<url>` 或环境变量 `CAMELIA_ENGINE_URL` | 连到真实 `camelia serve` 引擎（SSE）；与 `--scene` 同时存在时**优先引擎** |
-| `--scene=<id>` 或环境变量 `CAMELIA_SCENE` | 选择投影的场景（`empty` / `connecting` / `planning` / `diff` / `running` / `approval` / `failure` / `error` / `done`） |
+| `--scene=<id>` 或环境变量 `CAMELIA_SCENE` | 选择投影的场景（`empty` / `connecting` / `planning` / `plan` / `diff` / `running` / `approval` / `failure` / `error` / `done`） |
 | `--session-id=<id>` 或环境变量 `CAMELIA_SESSION_ID` | 续接指定会话 |
 | 缺省 | 投影 `empty`——已发布应用绝不显示一个从未收到的任务 |
 

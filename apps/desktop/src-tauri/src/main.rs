@@ -98,19 +98,84 @@ fn is_leap(y: u64) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
-/// Find the project root by walking up from the current exe until we find
-/// `packages/cli/dist/bin.js`.
+/// Camelia home: `~/.camelia`.
+fn camelia_home() -> std::path::PathBuf {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_else(|_| ".".to_string());
+    std::path::Path::new(&home).join(".camelia")
+}
+
+/// Find `packages/cli/dist/bin.js`.
+///
+/// An installed exe lives under `%LOCALAPPDATA%\Camelia`, so walking up from
+/// the binary never reaches a checkout. `CAMELIA_CLI` and `~/.camelia/desktop.json`
+/// (`{"cli":"..."}`) name the checkout explicitly; the walk remains for a
+/// binary that still sits inside the repo.
 fn find_engine_path() -> Option<std::path::PathBuf> {
+    if let Ok(raw) = std::env::var("CAMELIA_CLI") {
+        let candidate = std::path::PathBuf::from(raw.trim());
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    if let Some(candidate) = cli_from_desktop_config() {
+        return Some(candidate);
+    }
     let exe = std::env::current_exe().ok()?;
     let mut dir = exe.parent()?.to_path_buf();
     for _ in 0..10 {
         let candidate = dir.join("packages/cli/dist/bin.js");
-        if candidate.exists() {
+        if candidate.is_file() {
             return Some(candidate);
         }
         dir = dir.parent()?.to_path_buf();
     }
     None
+}
+
+fn cli_from_desktop_config() -> Option<std::path::PathBuf> {
+    let path = camelia_home().join("desktop.json");
+    let raw = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let cli = value.get("cli")?.as_str()?.trim();
+    let candidate = std::path::PathBuf::from(cli);
+    if candidate.is_file() { Some(candidate) } else { None }
+}
+
+fn config_path() -> std::path::PathBuf {
+    camelia_home().join("config.json")
+}
+
+fn keys_path() -> std::path::PathBuf {
+    camelia_home().join("keys.json")
+}
+
+fn read_config_object() -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let path = config_path();
+    if !path.exists() {
+        return Ok(serde_json::Map::new());
+    }
+    let raw = std::fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    match serde_json::from_str::<serde_json::Value>(&raw).map_err(|err| err.to_string())? {
+        serde_json::Value::Object(map) => Ok(map),
+        _ => Err("config.json is not an object".into()),
+    }
+}
+
+fn clean_model_id(value: &str, allow_empty: bool) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return if allow_empty { Ok(String::new()) } else { Err("model is required".into()) };
+    }
+    if trimmed.len() > 80 {
+        return Err("model id is too long".into());
+    }
+    let ok = trimmed.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | ':' | '/' | '-' | '@'));
+    if !ok {
+        return Err(format!("invalid model id: {trimmed}"));
+    }
+    Ok(trimmed.to_string())
 }
 
 /// Find node executable. Prefer the system install over any sandbox runtime.
@@ -267,6 +332,111 @@ fn open_engine_log() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn read_model_settings() -> Result<serde_json::Value, String> {
+    let map = read_config_object()?;
+    let preferred = map
+        .get("preferredProvider")
+        .and_then(|value| value.as_str())
+        .unwrap_or("aliyun");
+    let model = map.get("model").and_then(|value| value.as_str()).unwrap_or("");
+    let grunt = map.get("gruntModel").and_then(|value| value.as_str()).unwrap_or("");
+    Ok(serde_json::json!({
+        "preferredProvider": preferred,
+        "model": model,
+        "gruntModel": grunt,
+    }))
+}
+
+#[tauri::command]
+fn write_model_settings(preferred_provider: String, model: String, grunt_model: String) -> Result<(), String> {
+    const PROVIDERS: &[&str] = &["aliyun", "ollama", "opencode-zen", "openrouter"];
+    let provider = preferred_provider.trim();
+    if !PROVIDERS.contains(&provider) {
+        return Err(format!("unknown provider: {provider}"));
+    }
+    let model = clean_model_id(&model, false)?;
+    let grunt = clean_model_id(&grunt_model, true)?;
+    let mut map = read_config_object()?;
+    map.insert("preferredProvider".into(), serde_json::Value::String(provider.to_string()));
+    map.insert("model".into(), serde_json::Value::String(model));
+    if grunt.is_empty() {
+        map.remove("gruntModel");
+    } else {
+        map.insert("gruntModel".into(), serde_json::Value::String(grunt));
+    }
+    let home = camelia_home();
+    std::fs::create_dir_all(&home).map_err(|err| err.to_string())?;
+    let body = serde_json::to_string_pretty(&serde_json::Value::Object(map)).map_err(|err| err.to_string())?;
+    std::fs::write(config_path(), format!("{body}\n")).map_err(|err| err.to_string())
+}
+
+fn read_keys_object() -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let path = keys_path();
+    if !path.exists() {
+        return Ok(serde_json::Map::new());
+    }
+    let raw = std::fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    match serde_json::from_str::<serde_json::Value>(&raw).map_err(|err| err.to_string())? {
+        serde_json::Value::Object(map) => Ok(map),
+        _ => Err("keys.json is not an object".into()),
+    }
+}
+
+fn key_hint(value: &str) -> String {
+    let tail: String = value.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+    if tail.is_empty() { String::new() } else { format!("····{tail}") }
+}
+
+#[tauri::command]
+fn read_key_status() -> Result<serde_json::Value, String> {
+    let map = read_keys_object()?;
+    let mut out = serde_json::Map::new();
+    for id in ["aliyun", "openrouter", "opencode-zen", "ollama"] {
+        if id == "ollama" {
+            out.insert(id.into(), serde_json::json!({ "local": true, "configured": false, "hint": "" }));
+            continue;
+        }
+        let configured = map.get(id).and_then(|value| value.as_str()).filter(|value| !value.is_empty());
+        out.insert(
+            id.into(),
+            serde_json::json!({
+                "local": false,
+                "configured": configured.is_some(),
+                "hint": configured.map(key_hint).unwrap_or_default(),
+            }),
+        );
+    }
+    Ok(serde_json::Value::Object(out))
+}
+
+#[tauri::command]
+fn write_provider_key(provider: String, api_key: String) -> Result<(), String> {
+    const PROVIDERS: &[&str] = &["aliyun", "openrouter", "opencode-zen"];
+    let id = provider.trim();
+    if !PROVIDERS.contains(&id) {
+        return Err(format!("unknown provider: {id}"));
+    }
+    let key = api_key.trim();
+    if key.len() < 8 || key.len() > 512 {
+        return Err("API key length looks wrong".into());
+    }
+    if key.chars().any(|ch| ch.is_control() || ch.is_whitespace()) {
+        return Err("API key contains whitespace".into());
+    }
+    let mut map = read_keys_object()?;
+    map.insert(id.into(), serde_json::Value::String(key.to_string()));
+    let home = camelia_home();
+    std::fs::create_dir_all(&home).map_err(|err| err.to_string())?;
+    let body = serde_json::to_string_pretty(&serde_json::Value::Object(map)).map_err(|err| err.to_string())?;
+    std::fs::write(keys_path(), format!("{body}\n")).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn relaunch_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
+#[tauri::command]
 fn read_engine_log(tail: Option<usize>) -> Result<String, String> {
     let path = engine_log_path();
     let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -338,7 +508,15 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![open_engine_log, read_engine_log])
+        .invoke_handler(tauri::generate_handler![
+            open_engine_log,
+            read_engine_log,
+            read_model_settings,
+            write_model_settings,
+            read_key_status,
+            write_provider_key,
+            relaunch_app
+        ])
         .run(tauri::generate_context!())
         .expect("failed to run the Camelia desktop shell");
 }

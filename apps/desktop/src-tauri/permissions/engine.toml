@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-open-engine-log"
+description = "Open the engine log file in the system text editor."
+commands.allow = ["open_engine_log"]
+
+[[permission]]
+identifier = "allow-read-engine-log"
+description = "Read the tail of the engine log for in-app diagnostics."
+commands.allow = ["read_engine_log"]
