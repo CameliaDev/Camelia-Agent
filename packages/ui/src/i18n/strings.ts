@@ -197,6 +197,20 @@ type StringKey =
   | 'settings.presets.baseUrl'
   | 'settings.presets.templates'
   | 'settings.presets.todo'
+  | 'settings.presets.hint'
+  | 'settings.presets.id'
+  | 'settings.presets.saveUse'
+  | 'settings.presets.saveOnly'
+  | 'settings.presets.saved'
+  | 'settings.presets.savedActive'
+  | 'settings.presets.deleted'
+  | 'settings.presets.restartHint'
+  | 'settings.presets.restartNow'
+  | 'settings.presets.cannotDeleteActive'
+  | 'settings.presets.builtinLocked'
+  | 'settings.presets.nameRequired'
+  | 'settings.presets.modelRequired'
+  | 'settings.presets.urlRequired'
   | 'settings.engine.browserHint'
   | 'lang.en'
   | 'lang.zh';
@@ -302,15 +316,15 @@ const en: Record<StringKey, string> = {
   'settings.provider': 'Provider',
   'settings.modelName': 'Decision model',
   'settings.gruntModel': 'Cheap model',
-  'settings.modelHint.live': 'Saved to ~/.camelia/config.json. Reopen the desktop for the running engine to pick it up.',
+  'settings.modelHint.live': 'Saved to ~/.camelia/config.json. Restart the desktop when you want the running engine to pick it up.',
   'settings.modelHint.offline': 'This window is offline, so a typed task cannot be planned. Save a model, then reopen so the desktop can start the local engine.',
   'settings.apiKey': 'API key',
   'settings.apiKey.configured': 'Key saved',
   'settings.apiKey.missing': 'No key yet',
   'settings.apiKey.local': 'Local model. No key required.',
   'settings.apiKey.placeholder': 'Paste a key to replace the saved one',
-  'settings.modelSave': 'Save and reopen',
-  'settings.modelSaved': 'Saved. Reopening…',
+  'settings.modelSave': 'Save',
+  'settings.modelSaved': 'Saved.',
   'settings.connection.live': 'Engine connected',
   'settings.connection.offline': 'Offline — no engine',
   'settings.diagnostics': 'Diagnostics',
@@ -388,7 +402,21 @@ const en: Record<StringKey, string> = {
   'settings.presets.name': 'Preset name',
   'settings.presets.baseUrl': 'Base URL',
   'settings.presets.templates': 'Templates',
-  'settings.presets.todo': 'TODO: multi-preset CRUD against ~/.camelia/config.json providers[] is not wired yet. Saving still updates the active provider/model/key.',
+  'settings.presets.todo': 'Connection presets save to ~/.camelia/config.json providers[].',
+  'settings.presets.hint': 'Cards map to providers[] in ~/.camelia/config.json. Keys stay in keys.json. Saving does not force a restart.',
+  'settings.presets.id': 'Preset id',
+  'settings.presets.saveUse': 'Save and use',
+  'settings.presets.saveOnly': 'Save',
+  'settings.presets.saved': 'Preset saved.',
+  'settings.presets.savedActive': 'Preset saved and set as preferred.',
+  'settings.presets.deleted': 'Preset deleted.',
+  'settings.presets.restartHint': 'Config updated. Restart the desktop for the engine to load the new provider.',
+  'settings.presets.restartNow': 'Restart now',
+  'settings.presets.cannotDeleteActive': 'Switch to another preset before deleting the one in use.',
+  'settings.presets.builtinLocked': 'Built-in presets stay in the list; clear a custom override by editing instead.',
+  'settings.presets.nameRequired': 'Preset name is required.',
+  'settings.presets.modelRequired': 'Model is required.',
+  'settings.presets.urlRequired': 'Base URL is required.',
   'settings.engine.browserHint': 'Engine log and restart are available in the desktop app.',
   'lang.en': 'English',
   'lang.zh': '中文',
@@ -503,7 +531,7 @@ const zh: Record<StringKey, string> = {
   'settings.apiKey.missing': '尚未配置密钥',
   'settings.apiKey.local': '本地模型，不需要密钥。',
   'settings.apiKey.placeholder': '粘贴新密钥以替换已保存的密钥',
-  'settings.modelSave': '保存并重新打开',
+  'settings.modelSave': '保存',
   'settings.modelSaved': '已保存，正在重新打开……',
   'settings.connection.live': '已连接引擎',
   'settings.connection.offline': '离线，未连接引擎',
@@ -582,7 +610,21 @@ const zh: Record<StringKey, string> = {
   'settings.presets.name': '预设名称',
   'settings.presets.baseUrl': 'Base URL',
   'settings.presets.templates': '模板',
-  'settings.presets.todo': 'TODO：多预设增删改查尚未接入 ~/.camelia/config.json 的 providers[]。保存仍会更新当前启用的服务商 / 模型 / 密钥。',
+  'settings.presets.todo': '连接预设会写入 ~/.camelia/config.json 的 providers[]。',
+  'settings.presets.hint': '卡片对应 ~/.camelia/config.json 的 providers[]，密钥在 keys.json。保存后不会强制重启。',
+  'settings.presets.id': '预设 ID',
+  'settings.presets.saveUse': '保存并启用',
+  'settings.presets.saveOnly': '仅保存',
+  'settings.presets.saved': '预设已保存。',
+  'settings.presets.savedActive': '预设已保存并设为当前使用。',
+  'settings.presets.deleted': '预设已删除。',
+  'settings.presets.restartHint': '配置已更新。重启桌面后，引擎才会加载新的服务商。',
+  'settings.presets.restartNow': '立即重启',
+  'settings.presets.cannotDeleteActive': '请先切换到其他预设，再删除当前使用的预设。',
+  'settings.presets.builtinLocked': '内置预设会留在列表中；如需覆盖请直接编辑。',
+  'settings.presets.nameRequired': '请填写预设名称。',
+  'settings.presets.modelRequired': '请填写模型。',
+  'settings.presets.urlRequired': '请填写 Base URL。',
   'settings.engine.browserHint': '引擎日志与重启仅在桌面端可用。',
   'lang.en': 'English',
   'lang.zh': '中文',

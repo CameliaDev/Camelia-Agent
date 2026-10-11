@@ -2,7 +2,7 @@
  * Settings page — multi-section shell opened from the bottom-left account entry.
  *
  * Sections (wireframe v2): connection presets, language & appearance, engine & logs, about.
- * Connection presets use a CC Switch–style card list; full CRUD against ~/.camelia is TODO.
+ * Connection presets live in ConnectionsSection (config.json providers[] + keys.json).
  * @module
  */
 
@@ -13,7 +13,8 @@ import { useUiStore } from '../state/UiProvider.js';
 import { type LanguagePref, type MotionPref, type TopBarMode } from '../state/local-prefs.js';
 import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
-import { readKeyStatus, readModelSettings, relaunchDesktop, writeModelSettings, writeProviderKey, type KeyStatus } from '../window/model-settings.js';
+import { relaunchDesktop } from '../window/model-settings.js';
+import { ConnectionsSection } from './ConnectionsSection.js';
 import { openEngineLog, readEngineTrust } from '../window/engine.js';
 import { isTauri } from '../window/shell.js';
 import { Avatar, Icon } from './primitives.js';
@@ -28,25 +29,6 @@ const MONO_OPTIONS: Array<{ value: string; label: string }> = [
 
 const NO_REJECTIONS: Array<{ token: string; reason: string }> = [];
 
-/** Built-in templates for the connection-preset form (CC Switch style). */
-const PRESET_TEMPLATES: Array<{ id: string; label: string; baseUrl: string; models: string[] }> = [
-  { id: 'aliyun', label: 'Aliyun', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-plus', 'qwen-turbo', 'qwen-max'] },
-  { id: 'openrouter', label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', models: [] },
-  { id: 'opencode-zen', label: 'Zen', baseUrl: '', models: [] },
-  { id: 'ollama', label: 'Ollama', baseUrl: 'http://127.0.0.1:11434/v1', models: ['qwen2.5-coder:7b'] },
-  { id: 'custom', label: 'Custom', baseUrl: '', models: [] },
-];
-
-interface ConnectionPresetCard {
-  id: string;
-  name: string;
-  providerId: string;
-  baseUrl: string;
-  model: string;
-  active: boolean;
-  keyConfigured: boolean;
-  keyHint?: string;
-}
 
 export function SettingsDrawer(): ReactNode {
   const open = useUiStore((s) => s.settingsOpen);
@@ -132,278 +114,6 @@ export function SettingsDrawer(): ReactNode {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ConnectionsSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }): ReactNode {
-  const status = useUiStore((s) => s.status);
-  const connected = status === 'live' || status === 'finished';
-  const [cards, setCards] = useState<ConnectionPresetCard[]>([]);
-  const [keys, setKeys] = useState<Record<string, KeyStatus>>({});
-  const [editing, setEditing] = useState(false);
-  const [templateId, setTemplateId] = useState('aliyun');
-  const [name, setName] = useState('Aliyun');
-  const [baseUrl, setBaseUrl] = useState(PRESET_TEMPLATES[0]!.baseUrl);
-  const [model, setModel] = useState('qwen-plus');
-  const [gruntModel, setGruntModel] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [todoNote] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const settings = await readModelSettings();
-      const keyStatus = await readKeyStatus();
-      if (cancelled) return;
-      if (keyStatus) setKeys(keyStatus);
-      const provider = settings?.preferredProvider || 'aliyun';
-      const modelName = settings?.model || suggestionFor(provider);
-      const key = keyStatus?.[provider];
-      const template = PRESET_TEMPLATES.find((item) => item.id === provider) ?? PRESET_TEMPLATES[0]!;
-      setCards([
-        {
-          id: 'active',
-          name: template.label,
-          providerId: provider,
-          baseUrl: template.baseUrl,
-          model: modelName,
-          active: true,
-          keyConfigured: key?.configured === true || provider === 'ollama',
-          keyHint: key?.hint,
-        },
-      ]);
-      setTemplateId(provider);
-      setName(template.label);
-      setBaseUrl(template.baseUrl);
-      setModel(modelName);
-      setGruntModel(settings?.gruntModel ?? '');
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const template = PRESET_TEMPLATES.find((item) => item.id === templateId) ?? PRESET_TEMPLATES[0]!;
-  const localProvider = templateId === 'ollama';
-  const key = keys[templateId];
-
-  return (
-    <div className="space-y-4">
-      <p className="text-[12px] text-ink-2">{connected ? tr('settings.connection.live') : tr('settings.connection.offline')}</p>
-      {todoNote ? (
-        <p className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-[11.5px] leading-5 text-warn">
-          {tr('settings.presets.todo')}
-        </p>
-      ) : null}
-
-      <div className="space-y-2" data-preset-list>
-        {cards.map((card) => (
-          <div
-            key={card.id}
-            data-preset-card={card.providerId}
-            className={`rounded-lg border px-3 py-2.5 ${card.active ? 'border-accent/40 bg-accent/[0.06]' : 'border-line bg-base/40'}`}
-          >
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <p className="text-[13px] font-medium text-ink">{card.name}</p>
-                  {card.active ? (
-                    <span className="rounded-full bg-accent/15 px-2 py-[1px] text-[10px] font-medium text-accent">{tr('settings.presets.active')}</span>
-                  ) : null}
-                </div>
-                <p className="mt-1 truncate font-mono text-[11px] text-ink-3" title={card.baseUrl || '—'}>
-                  {card.baseUrl || '—'}
-                </p>
-                <p className="mt-0.5 font-mono text-[11px] text-ink-2">{card.model || '—'}</p>
-              </div>
-              <span className={`shrink-0 rounded-md border px-1.5 py-[1px] text-[10.5px] ${card.keyConfigured ? 'border-ok/30 text-ok' : 'border-line text-ink-3'}`}>
-                {card.keyConfigured ? tr('settings.apiKey.configured') : tr('settings.apiKey.missing')}
-                {card.keyHint ? ` ${card.keyHint}` : ''}
-              </span>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                className="rounded-md border border-line px-2 py-1 text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
-                onClick={() => {
-                  setEditing(true);
-                  setTemplateId(card.providerId);
-                  setName(card.name);
-                  setBaseUrl(card.baseUrl);
-                  setModel(card.model);
-                }}
-              >
-                {tr('settings.presets.edit')}
-              </button>
-              <button
-                type="button"
-                disabled
-                title={tr('settings.presets.todo')}
-                className="rounded-md border border-line px-2 py-1 text-[11px] text-ink-3 opacity-50"
-              >
-                {tr('settings.presets.enable')}
-              </button>
-              <button
-                type="button"
-                disabled
-                title={tr('settings.presets.todo')}
-                className="rounded-md border border-line px-2 py-1 text-[11px] text-ink-3 opacity-50"
-              >
-                {tr('settings.presets.delete')}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {!editing ? (
-        <button
-          type="button"
-          className="rounded-md border border-dashed border-line px-3 py-2 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
-          onClick={() => setEditing(true)}
-        >
-          + {tr('settings.presets.add')}
-        </button>
-      ) : (
-        <div className="space-y-3 rounded-lg border border-line bg-base/50 p-3" data-preset-form>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.presets.templates')}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {PRESET_TEMPLATES.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`rounded-full border px-2.5 py-1 text-[11px] ${
-                  templateId === item.id ? 'border-accent/50 bg-accent/10 text-accent' : 'border-line text-ink-2 hover:border-accent/30'
-                }`}
-                onClick={() => {
-                  setTemplateId(item.id);
-                  setName(item.label);
-                  setBaseUrl(item.baseUrl);
-                  setModel(item.models[0] ?? '');
-                  setApiKey('');
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <label className="block text-[12px] text-ink-2">
-            {tr('settings.presets.name')}
-            <input
-              aria-label={tr('settings.presets.name')}
-              className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 text-[12px] text-ink"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <label className="block text-[12px] text-ink-2">
-            {tr('settings.presets.baseUrl')}
-            <input
-              aria-label={tr('settings.presets.baseUrl')}
-              className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
-              value={baseUrl}
-              onChange={(event) => setBaseUrl(event.target.value)}
-              placeholder="https://…"
-            />
-          </label>
-          {localProvider ? (
-            <p className="text-[12px] text-ink-2">{tr('settings.apiKey.local')}</p>
-          ) : (
-            <label className="block text-[12px] text-ink-2">
-              {tr('settings.apiKey')}
-              <span className="ml-2 font-mono text-[10.5px] text-ink-3">
-                {key?.configured ? `${tr('settings.apiKey.configured')} ${key.hint}` : tr('settings.apiKey.missing')}
-              </span>
-              <input
-                aria-label={tr('settings.apiKey')}
-                type="password"
-                autoComplete="off"
-                className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
-                value={apiKey}
-                placeholder={key?.configured ? tr('settings.apiKey.placeholder') : 'sk-…'}
-                onChange={(event) => setApiKey(event.target.value)}
-              />
-            </label>
-          )}
-          <label className="block text-[12px] text-ink-2">
-            {tr('settings.modelName')}
-            <input
-              aria-label={tr('settings.modelName')}
-              list="camelia-model-suggestions"
-              className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
-              value={model}
-              onChange={(event) => setModel(event.target.value)}
-            />
-            <datalist id="camelia-model-suggestions">
-              {template.models.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
-          </label>
-          <label className="block text-[12px] text-ink-2">
-            {tr('settings.gruntModel')}
-            <input
-              aria-label={tr('settings.gruntModel')}
-              className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
-              value={gruntModel}
-              placeholder="qwen2.5-coder:7b"
-              onChange={(event) => setGruntModel(event.target.value)}
-            />
-          </label>
-          <p className="text-[10.5px] leading-5 text-ink-3">
-            {connected ? tr('settings.modelHint.live') : tr('settings.modelHint.offline')}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              disabled={busy || model.trim().length === 0}
-              className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent disabled:opacity-40"
-              onClick={() => {
-                setBusy(true);
-                setNote('');
-                void (async () => {
-                  const typedKey = apiKey.trim();
-                  if (!localProvider && typedKey) {
-                    const keyError = await writeProviderKey(templateId, typedKey);
-                    if (keyError) return keyError;
-                  }
-                  // TODO(presets): persist named cards + baseUrl into ~/.camelia/config.json providers[].
-                  return writeModelSettings({
-                    preferredProvider: templateId,
-                    model: model.trim(),
-                    gruntModel: gruntModel.trim(),
-                  });
-                })().then(async (error) => {
-                  if (error) {
-                    setNote(error);
-                    setBusy(false);
-                    return;
-                  }
-                  setNote(tr('settings.modelSaved'));
-                  const relaunchError = await relaunchDesktop();
-                  if (relaunchError) {
-                    setNote(relaunchError);
-                    setBusy(false);
-                  }
-                });
-              }}
-            >
-              {tr('settings.modelSave')}
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-3 hover:text-ink"
-              onClick={() => setEditing(false)}
-            >
-              {tr('settings.close')}
-            </button>
-          </div>
-          {note ? <p className="text-[12px] text-ink-2">{note}</p> : null}
-        </div>
-      )}
     </div>
   );
 }
@@ -629,6 +339,3 @@ function AboutSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }):
   );
 }
 
-function suggestionFor(provider: string): string {
-  return PRESET_TEMPLATES.find((item) => item.id === provider)?.models[0] ?? '';
-}

@@ -1,12 +1,22 @@
 [[permission]]
 identifier = "allow-read-model-settings"
-description = "Read the model choice from ~/.camelia/config.json."
+description = "Read the model choice and provider presets from ~/.camelia/config.json."
 commands.allow = ["read_model_settings"]
 
 [[permission]]
 identifier = "allow-write-model-settings"
-description = "Write the model choice into ~/.camelia/config.json."
+description = "Write preferredProvider / model / gruntModel into ~/.camelia/config.json."
 commands.allow = ["write_model_settings"]
+
+[[permission]]
+identifier = "allow-upsert-provider-preset"
+description = "Create or update a provider preset in ~/.camelia/config.json providers[]."
+commands.allow = ["upsert_provider_preset"]
+
+[[permission]]
+identifier = "allow-delete-provider-preset"
+description = "Delete a provider preset from ~/.camelia/config.json providers[]."
+commands.allow = ["delete_provider_preset"]
 
 [[permission]]
 identifier = "allow-read-key-status"

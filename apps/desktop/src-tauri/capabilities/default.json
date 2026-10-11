@@ -25,6 +25,8 @@
     "allow-read-engine-log",
     "allow-read-model-settings",
     "allow-write-model-settings",
+    "allow-upsert-provider-preset",
+    "allow-delete-provider-preset",
     "allow-read-key-status",
     "allow-write-provider-key",
     "allow-relaunch-app"

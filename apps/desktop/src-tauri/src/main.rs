@@ -178,6 +178,123 @@ fn clean_model_id(value: &str, allow_empty: bool) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
+fn clean_provider_id(value: &str) -> Result<String, String> {
+    let trimmed = value.trim().to_ascii_lowercase();
+    if trimmed.is_empty() {
+        return Err("provider id is required".into());
+    }
+    if trimmed.len() > 64 {
+        return Err("provider id is too long".into());
+    }
+    let ok = trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_');
+    if !ok || trimmed.starts_with('-') || trimmed.starts_with('_') {
+        return Err(format!("invalid provider id: {trimmed}"));
+    }
+    Ok(trimmed)
+}
+
+fn clean_base_url(value: &str, allow_empty: bool) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return if allow_empty {
+            Ok(String::new())
+        } else {
+            Err("base URL is required".into())
+        };
+    }
+    if trimmed.len() > 512 {
+        return Err("base URL is too long".into());
+    }
+    if trimmed.chars().any(|ch| ch.is_control() || ch.is_whitespace()) {
+        return Err("base URL contains whitespace".into());
+    }
+    if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+        return Err("base URL must start with http:// or https://".into());
+    }
+    Ok(trimmed.to_string())
+}
+
+fn write_config_map(map: serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
+    let home = camelia_home();
+    std::fs::create_dir_all(&home).map_err(|err| err.to_string())?;
+    let body = serde_json::to_string_pretty(&serde_json::Value::Object(map)).map_err(|err| err.to_string())?;
+    std::fs::write(config_path(), format!("{body}\n")).map_err(|err| err.to_string())
+}
+
+fn write_keys_map(map: serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
+    let home = camelia_home();
+    std::fs::create_dir_all(&home).map_err(|err| err.to_string())?;
+    let body = serde_json::to_string_pretty(&serde_json::Value::Object(map)).map_err(|err| err.to_string())?;
+    std::fs::write(keys_path(), format!("{body}\n")).map_err(|err| err.to_string())
+}
+
+fn providers_from_config(map: &serde_json::Map<String, serde_json::Value>) -> Vec<serde_json::Value> {
+    match map.get("providers") {
+        Some(serde_json::Value::Array(items)) => items
+            .iter()
+            .filter_map(|item| {
+                let obj = item.as_object()?;
+                let id = obj.get("id")?.as_str()?.trim();
+                if id.is_empty() {
+                    return None;
+                }
+                let label = obj
+                    .get("label")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(id)
+                    .trim();
+                let base_url = obj
+                    .get("baseUrl")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim();
+                let kind = obj
+                    .get("kind")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("openai-compatible");
+                let models: Vec<serde_json::Value> = obj
+                    .get("models")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|m| m.as_str())
+                            .map(|m| m.trim())
+                            .filter(|m| !m.is_empty())
+                            .map(|m| serde_json::Value::String(m.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let default_model = obj
+                    .get("defaultModel")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|m| !m.is_empty())
+                    .map(|m| m.to_string());
+                let mut out = serde_json::Map::new();
+                out.insert("id".into(), serde_json::Value::String(id.to_string()));
+                out.insert(
+                    "label".into(),
+                    serde_json::Value::String(if label.is_empty() {
+                        id.to_string()
+                    } else {
+                        label.to_string()
+                    }),
+                );
+                out.insert("kind".into(), serde_json::Value::String(kind.to_string()));
+                out.insert("baseUrl".into(), serde_json::Value::String(base_url.to_string()));
+                out.insert("models".into(), serde_json::Value::Array(models));
+                if let Some(model) = default_model {
+                    out.insert("defaultModel".into(), serde_json::Value::String(model));
+                }
+                Some(serde_json::Value::Object(out))
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 /// Find node executable. Prefer the system install over any sandbox runtime.
 fn find_node() -> Option<String> {
     let preferred = r"C:\Program Files\nodejs\node.exe";
@@ -337,37 +454,170 @@ fn read_model_settings() -> Result<serde_json::Value, String> {
     let preferred = map
         .get("preferredProvider")
         .and_then(|value| value.as_str())
-        .unwrap_or("aliyun");
+        .unwrap_or("ollama");
     let model = map.get("model").and_then(|value| value.as_str()).unwrap_or("");
     let grunt = map.get("gruntModel").and_then(|value| value.as_str()).unwrap_or("");
+    let providers = providers_from_config(&map);
     Ok(serde_json::json!({
         "preferredProvider": preferred,
         "model": model,
         "gruntModel": grunt,
+        "providers": providers,
     }))
 }
 
 #[tauri::command]
 fn write_model_settings(preferred_provider: String, model: String, grunt_model: String) -> Result<(), String> {
-    const PROVIDERS: &[&str] = &["aliyun", "ollama", "opencode-zen", "openrouter"];
-    let provider = preferred_provider.trim();
-    if !PROVIDERS.contains(&provider) {
-        return Err(format!("unknown provider: {provider}"));
-    }
+    let provider = clean_provider_id(&preferred_provider)?;
     let model = clean_model_id(&model, false)?;
     let grunt = clean_model_id(&grunt_model, true)?;
     let mut map = read_config_object()?;
-    map.insert("preferredProvider".into(), serde_json::Value::String(provider.to_string()));
+    map.insert("preferredProvider".into(), serde_json::Value::String(provider));
     map.insert("model".into(), serde_json::Value::String(model));
     if grunt.is_empty() {
         map.remove("gruntModel");
     } else {
         map.insert("gruntModel".into(), serde_json::Value::String(grunt));
     }
-    let home = camelia_home();
-    std::fs::create_dir_all(&home).map_err(|err| err.to_string())?;
-    let body = serde_json::to_string_pretty(&serde_json::Value::Object(map)).map_err(|err| err.to_string())?;
-    std::fs::write(config_path(), format!("{body}\n")).map_err(|err| err.to_string())
+    write_config_map(map)
+}
+
+#[tauri::command]
+fn upsert_provider_preset(
+    id: String,
+    label: String,
+    base_url: String,
+    models: Vec<String>,
+    default_model: Option<String>,
+    activate: Option<bool>,
+    model: Option<String>,
+    grunt_model: Option<String>,
+) -> Result<(), String> {
+    let id = clean_provider_id(&id)?;
+    let label = label.trim();
+    if label.is_empty() || label.len() > 80 {
+        return Err("preset name is required".into());
+    }
+    if label.chars().any(|ch| ch.is_control()) {
+        return Err("preset name contains control characters".into());
+    }
+    let base = clean_base_url(&base_url, id == "ollama")?;
+    let base = if base.is_empty() {
+        "http://127.0.0.1:11434/v1".to_string()
+    } else {
+        base
+    };
+    let cleaned_models: Vec<String> = models
+        .iter()
+        .map(|m| m.trim())
+        .filter(|m| !m.is_empty())
+        .map(|m| clean_model_id(m, false))
+        .collect::<Result<Vec<_>, _>>()?;
+    let default = default_model
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+        .map(|m| clean_model_id(m, false))
+        .transpose()?
+        .or_else(|| cleaned_models.first().cloned());
+
+    let mut entry = serde_json::Map::new();
+    entry.insert("id".into(), serde_json::Value::String(id.clone()));
+    entry.insert("label".into(), serde_json::Value::String(label.to_string()));
+    entry.insert("kind".into(), serde_json::Value::String("openai-compatible".into()));
+    entry.insert("baseUrl".into(), serde_json::Value::String(base));
+    entry.insert(
+        "models".into(),
+        serde_json::Value::Array(
+            cleaned_models
+                .iter()
+                .map(|m| serde_json::Value::String(m.clone()))
+                .collect(),
+        ),
+    );
+    if let Some(ref dm) = default {
+        entry.insert("defaultModel".into(), serde_json::Value::String(dm.clone()));
+    }
+
+    let mut map = read_config_object()?;
+    let mut list = match map.remove("providers") {
+        Some(serde_json::Value::Array(items)) => items,
+        _ => Vec::new(),
+    };
+    let mut replaced = false;
+    for item in list.iter_mut() {
+        if item.get("id").and_then(|v| v.as_str()) == Some(id.as_str()) {
+            if let Some(obj) = item.as_object_mut() {
+                for (k, v) in entry.iter() {
+                    obj.insert(k.clone(), v.clone());
+                }
+            } else {
+                *item = serde_json::Value::Object(entry.clone());
+            }
+            replaced = true;
+            break;
+        }
+    }
+    if !replaced {
+        list.push(serde_json::Value::Object(entry));
+    }
+    map.insert("providers".into(), serde_json::Value::Array(list));
+
+    if activate.unwrap_or(false) {
+        map.insert("preferredProvider".into(), serde_json::Value::String(id.clone()));
+        let decision = model
+            .as_deref()
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .map(|m| clean_model_id(m, false))
+            .transpose()?
+            .or(default)
+            .ok_or_else(|| "model is required when activating".to_string())?;
+        map.insert("model".into(), serde_json::Value::String(decision));
+        let grunt = grunt_model
+            .as_deref()
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .map(|m| clean_model_id(m, false))
+            .transpose()?;
+        if let Some(g) = grunt {
+            map.insert("gruntModel".into(), serde_json::Value::String(g));
+        }
+    }
+
+    write_config_map(map)
+}
+
+#[tauri::command]
+fn delete_provider_preset(id: String) -> Result<(), String> {
+    let id = clean_provider_id(&id)?;
+    let mut map = read_config_object()?;
+    let list = match map.remove("providers") {
+        Some(serde_json::Value::Array(items)) => items,
+        _ => Vec::new(),
+    };
+    let next: Vec<serde_json::Value> = list
+        .into_iter()
+        .filter(|item| item.get("id").and_then(|v| v.as_str()) != Some(id.as_str()))
+        .collect();
+    if next.is_empty() {
+        map.remove("providers");
+    } else {
+        map.insert("providers".into(), serde_json::Value::Array(next));
+    }
+    if map.get("preferredProvider").and_then(|v| v.as_str()) == Some(id.as_str()) {
+        map.insert(
+            "preferredProvider".into(),
+            serde_json::Value::String("ollama".into()),
+        );
+    }
+    write_config_map(map)?;
+
+    let mut keys = read_keys_object()?;
+    if keys.remove(&id).is_some() {
+        write_keys_map(keys)?;
+    }
+    Ok(())
 }
 
 fn read_keys_object() -> Result<serde_json::Map<String, serde_json::Value>, String> {
@@ -406,15 +656,28 @@ fn read_key_status() -> Result<serde_json::Value, String> {
             }),
         );
     }
+    for (id, value) in map.iter() {
+        if out.contains_key(id) {
+            continue;
+        }
+        let configured = value.as_str().filter(|v| !v.is_empty());
+        out.insert(
+            id.clone(),
+            serde_json::json!({
+                "local": false,
+                "configured": configured.is_some(),
+                "hint": configured.map(key_hint).unwrap_or_default(),
+            }),
+        );
+    }
     Ok(serde_json::Value::Object(out))
 }
 
 #[tauri::command]
 fn write_provider_key(provider: String, api_key: String) -> Result<(), String> {
-    const PROVIDERS: &[&str] = &["aliyun", "openrouter", "opencode-zen"];
-    let id = provider.trim();
-    if !PROVIDERS.contains(&id) {
-        return Err(format!("unknown provider: {id}"));
+    let id = clean_provider_id(&provider)?;
+    if id == "ollama" {
+        return Err("ollama does not use an API key".into());
     }
     let key = api_key.trim();
     if key.len() < 8 || key.len() > 512 {
@@ -424,11 +687,8 @@ fn write_provider_key(provider: String, api_key: String) -> Result<(), String> {
         return Err("API key contains whitespace".into());
     }
     let mut map = read_keys_object()?;
-    map.insert(id.into(), serde_json::Value::String(key.to_string()));
-    let home = camelia_home();
-    std::fs::create_dir_all(&home).map_err(|err| err.to_string())?;
-    let body = serde_json::to_string_pretty(&serde_json::Value::Object(map)).map_err(|err| err.to_string())?;
-    std::fs::write(keys_path(), format!("{body}\n")).map_err(|err| err.to_string())
+    map.insert(id, serde_json::Value::String(key.to_string()));
+    write_keys_map(map)
 }
 
 #[tauri::command]
@@ -513,6 +773,8 @@ fn main() {
             read_engine_log,
             read_model_settings,
             write_model_settings,
+            upsert_provider_preset,
+            delete_provider_preset,
             read_key_status,
             write_provider_key,
             relaunch_app

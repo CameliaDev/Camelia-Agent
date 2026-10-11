@@ -127,7 +127,8 @@ describe('App — empty scene', () => {
     fireEvent.click(screen.getByRole('button', { name: /添加预设/ }));
     expect(screen.getByLabelText('决策模型')).toBeInTheDocument();
     expect(screen.getByLabelText('API 密钥')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '保存并重新打开' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存并启用' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '仅保存' })).toBeInTheDocument();
   });
 });
 
