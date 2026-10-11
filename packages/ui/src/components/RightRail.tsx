@@ -18,6 +18,7 @@ import { contextUsage } from '@camelia/agent/view';
 import { clock, count, ms, pct } from '../lib/format.js';
 import { STEP_META, TONE_BG, TONE_TEXT, type Tone } from '../lib/status.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { localizePlanText } from '../i18n/plan-copy.js';
 import { t } from '../i18n/strings.js';
 import { MemoryPanel } from './MemoryPanel.js';
 import { Chip, Icon, ProgressBar, SectionHeader, StatusDot } from './primitives.js';
@@ -68,33 +69,6 @@ function RunIdentity(): ReactNode {
   );
 }
 
-function SettingsButton({ collapsed = false }: { collapsed?: boolean }): ReactNode {
-  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  const tr = useTr();
-  return (
-    <button
-      type="button"
-      aria-label={tr('settings.title')}
-      title={tr('settings.title')}
-      className={
-        collapsed
-          ? 'group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink'
-          : 'flex w-full items-center gap-2 px-3 py-2 text-[12px] text-ink-2 hover:bg-hover hover:text-ink'
-      }
-      onClick={() => setSettingsOpen(true)}
-    >
-      <Icon name="settings" size={collapsed ? 16 : 14} />
-      {collapsed ? (
-        <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
-          {tr('settings.title')}
-        </span>
-      ) : (
-        <span>{tr('settings.title')}</span>
-      )}
-    </button>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // run / progress
 // ---------------------------------------------------------------------------
@@ -104,7 +78,18 @@ function RunSection({ task }: { task: TaskView }): ReactNode {
   const usage = contextUsage(task.context);
   return (
     <section className="border-b border-line">
-      <SectionHeader icon="layers" title={tr('run.title')} right={<span className="font-mono text-[10.5px] text-ink-3">{pct(task.progress)}</span>} />
+      <SectionHeader
+        icon="layers"
+        title={tr('run.title')}
+        right={
+          <span className="flex items-center gap-2">
+            <span className="w-14">
+              <ProgressBar value={task.progress} tone={task.status === 'done' ? 'ok' : task.status === 'failed' ? 'bad' : 'accent'} />
+            </span>
+            <span className="font-mono text-[10.5px] text-ink-3">{pct(task.progress)}</span>
+          </span>
+        }
+      />
       <div className="space-y-2.5 px-3 pb-3">
         <div className="grid grid-cols-3 gap-2">
           {[
@@ -147,6 +132,7 @@ function RunSection({ task }: { task: TaskView }): ReactNode {
 
 function StepsSection({ task }: { task: TaskView }): ReactNode {
   const tr = useTr();
+  const lang = useUiStore((s) => s.localPrefs.language);
   return (
     <section className="border-b border-line">
       <SectionHeader
@@ -158,7 +144,7 @@ function StepsSection({ task }: { task: TaskView }): ReactNode {
         {task.steps.length === 0 ? (
           <p className="text-[11.5px] text-ink-3">No plan yet — the planner has not returned.</p>
         ) : (
-          <ol className="space-y-1">
+          <ol data-rail-steps className="space-y-1">
             {task.steps.map((step) => {
               const meta = STEP_META[step.status];
               const active = step.idx === task.currentStepIdx && (step.status === 'running' || step.status === 'verifying');
@@ -181,7 +167,7 @@ function StepsSection({ task }: { task: TaskView }): ReactNode {
                   <div className="min-w-0 flex-1">
                     <p className={`truncate text-[11.5px] ${active ? 'text-ink' : step.status === 'pending' ? 'text-ink-3' : 'text-ink-2'}`}>
                       <span className="mr-1.5 font-mono text-[10px] text-ink-3">{step.idx + 1}</span>
-                      {step.title}
+                      {localizePlanText(lang, step.title)}
                     </p>
                     <p className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-3">
                       <span className={TONE_TEXT[meta.tone]}>{meta.label}</span>
@@ -255,7 +241,14 @@ function ContextSection({ task }: { task: TaskView }): ReactNode {
       <SectionHeader
         icon="gauge"
         title={tr('context.title')}
-        right={<span className="font-mono text-[10.5px] text-ink-3">{pct(usage)}</span>}
+        right={
+          <span className="flex items-center gap-2">
+            <span className="w-14">
+              <ProgressBar value={usage} tone={usage > softRatio ? 'warn' : 'accent'} />
+            </span>
+            <span className="font-mono text-[10.5px] text-ink-3">{pct(usage)}</span>
+          </span>
+        }
       />
       <div className="space-y-2.5 px-3 pb-3">
         <div>
@@ -463,37 +456,37 @@ export function RightRail(): ReactNode {
 
   if (collapsed) {
     return (
-      <aside data-rail="right" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-l border-line bg-elevated/30 py-3">
+      <aside data-rail="right" data-rail-collapsed="true" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-l border-line bg-elevated/30 py-3">
         <button
           type="button"
-          title={tr('events.hint')}
-          aria-label={tr('events.hint')}
+          data-open-right-rail
+          title={tr('right.expand')}
+          aria-label={tr('right.expand')}
           className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
           onClick={() => setLocalPrefs({ rightCollapsed: false })}
         >
           <Icon name="expand" size={16} className="rotate-180" />
           <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
-            {tr('events.hint')}
+            {tr('right.expand')}
           </span>
         </button>
         <StatusDot tone={status === 'live' ? 'accent' : status === 'offline' ? 'muted' : 'warn'} />
-        <div className="mt-auto">
-          <SettingsButton collapsed />
-        </div>
+        <Icon name="gauge" size={14} className="text-ink-3" />
+        <Icon name="terminal" size={14} className="text-ink-3" />
       </aside>
     );
   }
 
   return (
-    <aside data-rail="right" className="flex h-full w-full min-w-0 flex-col overflow-y-auto border-l border-line bg-elevated/30">
+    <aside data-rail="right" data-rail-collapsed="false" className="camelia-right-rail flex h-full w-full min-w-0 flex-col overflow-y-auto border-l border-line bg-elevated/30">
       <div className="flex items-start justify-between gap-2 border-b border-line">
         <div className="min-w-0 flex-1">
           <RunIdentity />
         </div>
         <button
           type="button"
-          aria-label="Collapse run rail"
-          title="Collapse run rail"
+          aria-label={tr('right.collapse')}
+          title={tr('right.collapse')}
           className="mr-2 mt-2 grid h-6 w-6 shrink-0 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
           onClick={() => setLocalPrefs({ rightCollapsed: true })}
         >
@@ -514,9 +507,6 @@ export function RightRail(): ReactNode {
       )}
       <MemoryPanel />
       <EventSection timeline={timeline} />
-      <div className="sticky bottom-0 mt-auto border-t border-line bg-elevated">
-        <SettingsButton />
-      </div>
     </aside>
   );
 }

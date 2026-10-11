@@ -61,6 +61,10 @@ export const PATHS: Record<string, string> = {
   minimize: '<path d="M3.4 11.6h9.2"/>',
   maximize: '<rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1"/>',
   restore: '<path d="M6 4.2h6.4V10.6M4.2 6H10v6.4"/>',
+  pin: '<path d="M6.2 2.2h3.6v3.4l1.4 1.6H4.8l1.4-1.6V2.2z"/><path d="M8 7.2v6.2"/>',
+  star: '<path d="M8 2.2 9.6 6.1 13.6 6.5 10.6 9.2 11.5 13.4 8 11.2 4.5 13.4 5.4 9.2 2.4 6.5 6.4 6.1 8 2.2z"/>',
+  trash: '<path d="M3.2 4.4h9.6"/><path d="M6.2 4.4V3h3.6v1.4"/><path d="M4.4 4.4l.6 8.4h6l.6-8.4"/>',
+  user: '<circle cx="8" cy="5.6" r="2.4"/><path d="M3.2 13.2c0-2.4 2.1-4.2 4.8-4.2s4.8 1.8 4.8 4.2"/>',
 };
 
 export const ICON_NAMES = Object.keys(PATHS);
@@ -70,11 +74,13 @@ export function Icon({
   size = 15,
   className = '',
   filled = false,
+  strokeWidth = 2,
 }: {
   name: keyof typeof PATHS | string;
   size?: number;
   className?: string;
   filled?: boolean;
+  strokeWidth?: number;
 }): ReactNode {
   const path = PATHS[name] ?? PATHS.dot;
   return (
@@ -84,7 +90,7 @@ export function Icon({
       viewBox="0 0 16 16"
       fill={filled ? 'currentColor' : 'none'}
       stroke={filled ? 'none' : 'currentColor'}
-      strokeWidth={2}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -179,6 +185,40 @@ export function Card({
   const border = tone ? TONE_TEXT[tone] : '';
   return (
     <div className={`rounded-lg border border-line bg-elevated/70 ${border} ${className}`}>{children}</div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// chat avatars (WeChat-style circles)
+// ---------------------------------------------------------------------------
+
+export function Avatar({
+  kind,
+  size = 32,
+  className = '',
+  title,
+}: {
+  kind: 'user' | 'agent';
+  size?: number;
+  className?: string;
+  title?: string;
+}): ReactNode {
+  const iconSize = Math.max(12, Math.round(size * 0.48));
+  const tone =
+    kind === 'user'
+      ? 'bg-info/15 text-info border-info/30'
+      : 'bg-accent/15 text-accent border-accent/30';
+  return (
+    <span
+      data-avatar={kind}
+      title={title}
+      className={`inline-grid shrink-0 place-items-center rounded-full border ${tone} ${className}`}
+      style={{ width: size, height: size }}
+      aria-hidden={title ? undefined : true}
+    >
+      <Icon name={kind === 'user' ? 'user' : 'camellia'} size={iconSize} />
+    </span>
   );
 }
 

@@ -61,11 +61,14 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
       <div className="flex items-center gap-2">
         <span
           className="grid h-6 w-6 place-items-center rounded-md bg-accent/15 text-accent"
-          title="Warm intelligence, sharp code."
+          title={tr('app.tagline')}
         >
           <Icon name="camellia" size={15} />
         </span>
-        <span className="text-[13px] font-semibold tracking-tight text-ink">Camelia</span>
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="text-[13px] font-semibold tracking-tight text-ink">Camelia</span>
+          <span className="truncate text-[10.5px] text-ink-3">{tr('brand.placeholder')}</span>
+        </span>
       </div>
 
       <span className="h-5 w-px bg-line" />

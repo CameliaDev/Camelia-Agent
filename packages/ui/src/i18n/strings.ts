@@ -177,6 +177,27 @@ type StringKey =
   | 'step.pass'
   | 'step.fail'
   | 'step.unknown'
+  | 'brand.placeholder'
+  | 'account.entry'
+  | 'avatar.user'
+  | 'avatar.agent'
+  | 'right.expand'
+  | 'right.collapse'
+  | 'right.inspect'
+  | 'settings.section.connections'
+  | 'settings.section.appearance'
+  | 'settings.section.engine'
+  | 'settings.section.about'
+  | 'settings.presets.add'
+  | 'settings.presets.edit'
+  | 'settings.presets.enable'
+  | 'settings.presets.delete'
+  | 'settings.presets.active'
+  | 'settings.presets.name'
+  | 'settings.presets.baseUrl'
+  | 'settings.presets.templates'
+  | 'settings.presets.todo'
+  | 'settings.engine.browserHint'
   | 'lang.en'
   | 'lang.zh';
 
@@ -276,7 +297,7 @@ const en: Record<StringKey, string> = {
   'settings.collapseSessions': 'Start with sessions collapsed',
   'settings.collapseRunRail': 'Start with the run rail collapsed',
   'settings.restoreLayout': 'Restore default layout',
-  'settings.layoutDefaults': 'Defaults are 260px and 360px, both expanded.',
+  'settings.layoutDefaults': 'Defaults are 260px left expanded, 360px right collapsed.',
   'settings.model': 'Model',
   'settings.provider': 'Provider',
   'settings.modelName': 'Decision model',
@@ -348,9 +369,31 @@ const en: Record<StringKey, string> = {
   'step.pass': 'PASS',
   'step.fail': 'FAIL',
   'step.unknown': 'UNKNOWN',
+  'brand.placeholder': 'Name & mascot TBD',
+  'account.entry': 'Account & settings',
+  'avatar.user': 'You',
+  'avatar.agent': 'Camelia',
+  'right.expand': 'Show run data',
+  'right.collapse': 'Hide run data',
+  'right.inspect': 'Data',
+  'settings.section.connections': 'Connection presets',
+  'settings.section.appearance': 'Language & appearance',
+  'settings.section.engine': 'Engine & logs',
+  'settings.section.about': 'About',
+  'settings.presets.add': 'Add preset',
+  'settings.presets.edit': 'Edit',
+  'settings.presets.enable': 'Use',
+  'settings.presets.delete': 'Delete',
+  'settings.presets.active': 'In use',
+  'settings.presets.name': 'Preset name',
+  'settings.presets.baseUrl': 'Base URL',
+  'settings.presets.templates': 'Templates',
+  'settings.presets.todo': 'TODO: multi-preset CRUD against ~/.camelia/config.json providers[] is not wired yet. Saving still updates the active provider/model/key.',
+  'settings.engine.browserHint': 'Engine log and restart are available in the desktop app.',
   'lang.en': 'English',
   'lang.zh': '中文',
 };
+
 
 const zh: Record<StringKey, string> = {
   'app.tagline': '温暖的智能，锋利的代码。',
@@ -448,7 +491,7 @@ const zh: Record<StringKey, string> = {
   'settings.collapseSessions': '启动时收起会话栏',
   'settings.collapseRunRail': '启动时收起运行栏',
   'settings.restoreLayout': '恢复默认布局',
-  'settings.layoutDefaults': '默认 260px 与 360px，均为展开。',
+  'settings.layoutDefaults': '默认左侧 260px 展开，右侧 360px 收起。',
   'settings.model': '模型',
   'settings.provider': '服务商',
   'settings.modelName': '决策模型',
@@ -520,6 +563,27 @@ const zh: Record<StringKey, string> = {
   'step.pass': '通过',
   'step.fail': '失败',
   'step.unknown': '未知',
+  'brand.placeholder': '待定：名字 / 吉祥物',
+  'account.entry': '账户与设置',
+  'avatar.user': '你',
+  'avatar.agent': 'Camelia',
+  'right.expand': '展开运行数据',
+  'right.collapse': '收起运行数据',
+  'right.inspect': '数据',
+  'settings.section.connections': '连接预设',
+  'settings.section.appearance': '语言与外观',
+  'settings.section.engine': '引擎与日志',
+  'settings.section.about': '关于',
+  'settings.presets.add': '添加预设',
+  'settings.presets.edit': '编辑',
+  'settings.presets.enable': '启用',
+  'settings.presets.delete': '删除',
+  'settings.presets.active': '当前使用',
+  'settings.presets.name': '预设名称',
+  'settings.presets.baseUrl': 'Base URL',
+  'settings.presets.templates': '模板',
+  'settings.presets.todo': 'TODO：多预设增删改查尚未接入 ~/.camelia/config.json 的 providers[]。保存仍会更新当前启用的服务商 / 模型 / 密钥。',
+  'settings.engine.browserHint': '引擎日志与重启仅在桌面端可用。',
   'lang.en': 'English',
   'lang.zh': '中文',
 };

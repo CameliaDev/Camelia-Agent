@@ -56,7 +56,7 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   leftWidth: RAIL_LEFT_DEFAULT,
   rightWidth: RAIL_RIGHT_DEFAULT,
   leftCollapsed: false,
-  rightCollapsed: false,
+  rightCollapsed: true,
   themeId: 'light',
   language: 'zh',
   topBar: 'pinned',
@@ -100,7 +100,7 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     leftWidth: clampRail('left', raw?.leftWidth ?? RAIL_LEFT_DEFAULT),
     rightWidth: clampRail('right', raw?.rightWidth ?? RAIL_RIGHT_DEFAULT),
     leftCollapsed: raw?.leftCollapsed === true,
-    rightCollapsed: raw?.rightCollapsed === true,
+    rightCollapsed: raw?.rightCollapsed === undefined ? DEFAULT_LOCAL_PREFS.rightCollapsed : raw.rightCollapsed === true,
     themeId,
     language,
     topBar,
@@ -146,6 +146,7 @@ export function applySavedTheme(prefs: LocalPrefs): ThemeApplyResult {
   if (prefs.fontMono) tokens['--font-mono'] = prefs.fontMono;
   if (prefs.themeId === 'warm-dark') clearThemeTokens();
   const result = applyThemeTokens(tokens);
+  if (typeof document !== 'undefined') document.documentElement.dataset.theme = prefs.themeId;
   syncMotion(prefs);
   return result;
 }

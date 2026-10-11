@@ -183,7 +183,7 @@ export function createUiStore(transport: Transport): UiStore {
           leftWidth: 260,
           rightWidth: 360,
           leftCollapsed: false,
-          rightCollapsed: false,
+          rightCollapsed: true,
         });
         saveLocalPrefs(next);
         return { localPrefs: next };

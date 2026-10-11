@@ -21,7 +21,7 @@ import { ActivityBar } from './ActivityBar.js';
 import { PlanReview } from './PlanReview.js';
 import { ApprovalCard, FailureCard, NoticeBanner } from './Reliability.js';
 import { StepCard } from './StepCard.js';
-import { Chip, EmptyState, ErrorState, Icon, LoadingState, SkeletonRows } from './primitives.js';
+import { Avatar, Chip, EmptyState, ErrorState, Icon, LoadingState, SkeletonRows } from './primitives.js';
 
 function ArtifactRow({ artifact }: { artifact: Artifact }): ReactNode {
   const icon = artifact.kind === 'diff' ? 'branch' : artifact.kind === 'stdout' ? 'terminal' : 'file';
@@ -48,7 +48,9 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [showAssumptions, setShowAssumptions] = useState(false);
   return (
-    <div className="relative overflow-hidden rounded-lg border border-accent/25 bg-accent/[0.06] py-3 pl-4 pr-3">
+    <div className="flex items-start gap-2.5" data-message="user">
+      <Avatar kind="user" size={32} title={tr('avatar.user')} />
+      <div className="relative min-w-0 flex-1 overflow-hidden rounded-lg border border-accent/25 bg-accent/[0.06] py-3 pl-4 pr-3">
       <span className="absolute inset-y-0 left-0 w-[3px] bg-accent" />
       <div className="flex items-center gap-2">
         <Icon name="spark" size={13} className="text-accent" />
@@ -113,6 +115,7 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
           ))}
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -121,7 +124,9 @@ function DeliveryCard({ task }: { task: TaskView }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   return (
-    <div className="rounded-lg border border-ok/35 bg-ok/10 p-3">
+    <div className="flex items-start gap-2.5" data-message="agent">
+      <Avatar kind="agent" size={32} title={tr('avatar.agent')} />
+      <div className="min-w-0 flex-1 rounded-lg border border-ok/35 bg-ok/10 p-3">
       <div className="flex items-center gap-2">
         <Icon name="check" size={15} className="text-ok" />
         <span className="text-[12.5px] font-semibold text-ok">{tr('delivery.delivered')}</span>
@@ -139,6 +144,7 @@ function DeliveryCard({ task }: { task: TaskView }): ReactNode {
           </ul>
         </>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -169,17 +175,20 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
       <IntentCard task={task} />
 
       {introNarration.length ? (
-        <div className="border-l-2 border-accent/30 pl-3">
+        <div className="flex items-start gap-2.5" data-message="agent">
+          <Avatar kind="agent" size={32} title={tr('avatar.agent')} />
+          <div className="min-w-0 flex-1 border-l-2 border-accent/30 pl-3">
           {introNarration.map((n) => (
             <p key={n.id} className="text-[12px] leading-[1.7] text-ink-2">
               {n.text}
               {n.streaming ? <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" /> : null}
             </p>
           ))}
+          </div>
         </div>
       ) : null}
 
-      {task.steps.length === 0 ? (
+      {task.steps.length === 0 && task.status !== 'failed' && task.status !== 'cancelled' ? (
         <div className="rounded-lg border border-line bg-elevated/50 p-3">
           <div className="flex items-center gap-2 text-[12px] font-medium text-accent">
             <Icon name="layers" size={13} />
@@ -274,7 +283,7 @@ export function Conversation(): ReactNode {
 
       {center === 'plan' ? <PlanReview task={task} /> : null}
 
-      <div className={`min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 ${center === 'plan' ? 'hidden' : ''}`}>
+      <div data-conversation className={`min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 ${center === 'plan' ? 'hidden' : ''}`}>
         {steering ? (
           <form
             className="rounded-lg border border-info/40 bg-info/10 p-3"

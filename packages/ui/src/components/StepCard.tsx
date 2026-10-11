@@ -15,9 +15,10 @@ import type { NarrationView, StepView, ToolCallView } from '@camelia/agent/view'
 import { clock, ms } from '../lib/format.js';
 import { STEP_META, TONE_TEXT } from '../lib/status.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { localizeAcceptanceKind, localizePlanText } from '../i18n/plan-copy.js';
 import { t } from '../i18n/strings.js';
 import { ToolCard } from './ToolCard.js';
-import { Chip, Icon } from './primitives.js';
+import { Avatar, Chip, Icon } from './primitives.js';
 
 function StepGlyph({ status }: { status: StepView['status'] }): ReactNode {
   if (status === 'running') {
@@ -96,6 +97,7 @@ export function StepCard({
       </div>
 
       <div
+        data-step-card
         className={`mb-3 min-w-0 flex-1 rounded-lg border p-3 ${
           isActive ? 'border-accent/35 bg-elevated/80' : 'border-line bg-elevated/50'
         }`}
@@ -103,16 +105,16 @@ export function StepCard({
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[10.5px] text-ink-3">{tr('step.stepLabel')} {step.idx + 1}</span>
-              <span className={`text-[10.5px] font-medium ${TONE_TEXT[meta.tone]}`}>{statusLabel[step.status] ?? meta.label}</span>
+              <span data-meta className="font-mono text-[10.5px] text-ink-3">{tr('step.stepLabel')} {step.idx + 1}</span>
+              <span data-step-status={step.status} className={`text-[10.5px] font-medium ${TONE_TEXT[meta.tone]}`}>{statusLabel[step.status] ?? meta.label}</span>
               {step.weight > 1 ? <span className="text-[10.5px] text-ink-3">{tr('step.weight')} {step.weight}</span> : null}
             </div>
-            <h3 className="mt-0.5 text-[13px] font-semibold leading-5 text-ink">{step.title}</h3>
-            <p className="mt-0.5 text-[11.5px] leading-5 text-ink-3">{step.goal}</p>
+            <h3 className="mt-0.5 text-[13px] font-semibold leading-5 text-ink">{localizePlanText(lang, step.title)}</h3>
+            <p data-step-goal className="mt-0.5 text-[11.5px] leading-5 text-ink-2">{localizePlanText(lang, step.goal)}</p>
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <span className="font-mono text-[10.5px] text-ink-3">{duration !== undefined ? ms(duration) : isActive ? 'running' : '—'}</span>
+            <span className="font-mono text-[10.5px] text-ink-3">{duration !== undefined ? ms(duration) : isActive ? tr('step.status.running') : '—'}</span>
             {step.verdict ? (
               <Chip tone={step.verdict.status === 'pass' ? 'ok' : step.verdict.status === 'fail' ? 'bad' : 'muted'}>
                 {tr('step.verify')}: {step.verdict.status === 'pass' ? tr('step.pass') : step.verdict.status === 'fail' ? tr('step.fail') : tr('step.unknown')}
@@ -133,13 +135,16 @@ export function StepCard({
         </div>
 
         {narration.length ? (
-          <div className="mt-2 space-y-1.5 border-l-2 border-accent/30 pl-2.5">
+          <div className="mt-2 flex items-start gap-2" data-message="agent">
+            <Avatar kind="agent" size={24} title={tr('avatar.agent')} />
+            <div className="min-w-0 flex-1 space-y-1.5 border-l-2 border-accent/30 pl-2.5">
             {narration.map((n) => (
               <p key={n.id} className="text-[12px] leading-[1.7] text-ink-2">
                 {n.text}
                 {n.streaming ? <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" /> : null}
               </p>
             ))}
+            </div>
           </div>
         ) : null}
 
@@ -152,7 +157,7 @@ export function StepCard({
         ) : null}
 
         {step.acceptance.length ? (
-          <div className="mt-2.5 rounded-md border border-line/70 bg-base/40 px-2.5 py-2">
+          <div data-acceptance className="mt-2.5 rounded-md border border-line/70 bg-base/40 px-2.5 py-2">
             <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
               <Icon name="check" size={11} />
               {tr('step.acceptance')} · {step.acceptance.length}
@@ -161,8 +166,8 @@ export function StepCard({
               {step.acceptance.map((point) => (
                 <li key={point.description} className="flex items-start gap-1.5 text-[11.5px] text-ink-2">
                   <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-ink-3" />
-                  <span className="min-w-0 flex-1">{point.description}</span>
-                  <span className="shrink-0 font-mono text-[10px] text-ink-3">{point.kind}</span>
+                  <span className="min-w-0 flex-1">{localizePlanText(lang, point.description)}</span>
+                  <span data-meta className="shrink-0 font-mono text-[10px] text-ink-3">{localizeAcceptanceKind(lang, point.kind)}</span>
                 </li>
               ))}
             </ul>

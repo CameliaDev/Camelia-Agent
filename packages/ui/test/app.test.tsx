@@ -10,7 +10,7 @@
  * @module
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { App } from '../src/App.js';
@@ -30,6 +30,12 @@ function renderScene(scene: SceneId) {
   return { ...view, store, transport };
 }
 
+function expandRightRail(container: HTMLElement): void {
+  const open = container.querySelector('[data-open-right-rail]') as HTMLElement | null;
+  if (open) fireEvent.click(open);
+}
+
+
 // ---------------------------------------------------------------------------
 // layout contract (§6.4 grid)
 // ---------------------------------------------------------------------------
@@ -39,20 +45,53 @@ describe('App — layout contract', () => {
   // Tailwind classes, so a drag can change them. Defaults stay 260px and 360px.
   // The top bar is an overlay (`h-9`) and pinned visible by default.
   it('renders the top bar and default rail widths from CSS variables', () => {
+    localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('running');
     expect(container.querySelector('.h-9')).not.toBeNull();
     const shell = container.querySelector('[data-shell]') as HTMLElement;
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
-    expect(shell.style.getPropertyValue('--rail-right-w')).toBe('360px');
+    // wireframe v2: right data rail starts collapsed (48px strip)
+    expect(shell.style.getPropertyValue('--rail-right-w')).toBe('48px');
     expect(container.querySelector('[data-rail="left"]')).not.toBeNull();
     expect(container.querySelector('[data-rail="right"]')).not.toBeNull();
-    expect(container.querySelectorAll('[role="separator"]')).toHaveLength(2);
+    expect(container.querySelector('[data-rail-collapsed="true"]')).not.toBeNull();
+    // left divider only while right is collapsed
+    expect(container.querySelectorAll('[role="separator"]')).toHaveLength(1);
+    expect(container.querySelector('[data-open-right-rail]')).not.toBeNull();
+  });
+
+  it('pins and deletes a session from the left list', () => {
+    localStorage.removeItem('camelia.sessionMarks');
+    const { container } = renderScene('running');
+    const rail = container.querySelector('[data-rail="left"]') as HTMLElement;
+    const titles = (): string[] =>
+      [...rail.querySelectorAll('[data-session-title]')].map((node) => node.textContent ?? '');
+    expect(titles()[0]).toBe('Add --json output to the camelia CLI');
+    expect(screen.getAllByRole('button', { name: '置顶' })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: '收藏' })).toHaveLength(3);
+    fireEvent.click(screen.getAllByRole('button', { name: '置顶' })[1]!);
+    expect(titles()[0]).toBe('Harden the context compactor');
+    fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0]!);
+    fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
+    expect(screen.queryByText('Harden the context compactor')).not.toBeInTheDocument();
+    expect(titles()[0]).toBe('Add --json output to the camelia CLI');
   });
 });
 
 // ---------------------------------------------------------------------------
 // empty / loading
 // ---------------------------------------------------------------------------
+
+describe('App — wireframe v2 chrome', () => {
+  it('shows circular message avatars and opens settings from the account entry', () => {
+    localStorage.removeItem('camelia.localPrefs');
+    const { container } = renderScene('running');
+    expect(container.querySelector('[data-message="user"] [data-avatar="user"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-avatar="agent"]').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(container.querySelector('[data-settings-nav="connections"]')).not.toBeNull();
+  });
+});
 
 describe('App — empty scene', () => {
   it('shows the empty state, not a spinner', () => {
@@ -65,6 +104,30 @@ describe('App — empty scene', () => {
     renderScene('empty');
     expect(screen.getByText('此工作区还没有会话。')).toBeInTheDocument();
     expect(screen.getByText('每完成一步后会出现恢复点。')).toBeInTheDocument();
+  });
+
+  it('refuses a typed task instead of attaching the demo plan', () => {
+    renderScene('empty');
+    fireEvent.change(screen.getByPlaceholderText(/描述一个任务/), { target: { value: '写一个 hello' } });
+    fireEvent.click(screen.getByRole('button', { name: '运行' }));
+    expect(screen.queryByText('定位 CLI 入口和报告生成器')).not.toBeInTheDocument();
+    expect(screen.getByText(/未连接引擎/)).toBeInTheDocument();
+  });
+
+  it('offers connection presets in multi-section settings', () => {
+    localStorage.removeItem('camelia.localPrefs');
+    const { container } = renderScene('empty');
+    expect(container.querySelector('[data-account-entry]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(container.querySelector('[data-settings-page]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: '连接预设' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '语言与外观' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '引擎与日志' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '关于' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /添加预设/ }));
+    expect(screen.getByLabelText('决策模型')).toBeInTheDocument();
+    expect(screen.getByLabelText('API 密钥')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存并重新打开' })).toBeInTheDocument();
   });
 });
 
@@ -82,8 +145,9 @@ describe('App — connecting scene', () => {
 
 describe('App — planning scene', () => {
   it('shows a real planning stage, not a bare spinner', () => {
-    renderScene('planning');
+    const { container } = renderScene('planning');
     expect(screen.getAllByText(/Drafting the plan|正在制定计划/).length).toBeGreaterThan(0);
+    expandRightRail(container);
     expect(screen.getByText('No plan yet — the planner has not returned.')).toBeInTheDocument();
   });
 
@@ -104,10 +168,24 @@ describe('App — running scene exposes the whole run', () => {
   });
 
   it('shows the step list with per-step status', () => {
-    renderScene('running');
+    const { container } = renderScene('running');
+    expandRightRail(container);
     expect(screen.getAllByText('步骤').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/STEP 1|步骤 1/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/STEP 4|步骤 4/).length).toBeGreaterThan(0);
+  });
+
+  it('shows demo plan copy in the selected language', () => {
+    const { store } = renderScene('running');
+    act(() => store.getState().setLocalPrefs({ language: 'zh' }));
+    expect(screen.getAllByText('定位 CLI 入口和报告生成器').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('找到参数在哪里解析，验收报告在哪里渲染。').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('文件存在').length).toBeGreaterThan(0);
+    act(() => store.getState().setLocalPrefs({ language: 'en' }));
+    expect(screen.getAllByText('Map the CLI entrypoint and the report generator').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Find where flags are parsed and where the acceptance report is rendered.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('file-exists').length).toBeGreaterThan(0);
+    expect(screen.queryByText('定位 CLI 入口和报告生成器')).not.toBeInTheDocument();
   });
 
   it('shows current step and progress percentage', () => {
@@ -122,20 +200,23 @@ describe('App — running scene exposes the whole run', () => {
   });
 
   it('shows context usage as tokens and a window share', () => {
-    renderScene('running');
+    const { container } = renderScene('running');
+    expandRightRail(container);
     expect(screen.getAllByText('上下文').length).toBeGreaterThan(0);
     expect(screen.getByText(/\/ .* tokens/)).toBeInTheDocument();
   });
 
   it('lets the user inspect what compaction dropped', () => {
-    renderScene('running');
+    const { container } = renderScene('running');
+    expandRightRail(container);
     expect(screen.getByText('1 compaction')).toBeInTheDocument();
     expect(screen.getByText(/located the CLI entrypoint/)).toBeInTheDocument();
     expect(screen.getByText('protected slots that survived')).toBeInTheDocument();
   });
 
   it('shows the original text of the messages compaction dropped', () => {
-    renderScene('running');
+    const { container } = renderScene('running');
+    expandRightRail(container);
     expect(screen.getByText('dropped originals')).toBeInTheDocument();
     // The raw text of a dropped tool call, not just its one-line summary.
     expect(screen.getByText(/export function main\(argv: string\[\]\): number/)).toBeInTheDocument();
@@ -145,7 +226,8 @@ describe('App — running scene exposes the whole run', () => {
   });
 
   it('shows the sub-agent that ran in isolation', () => {
-    renderScene('running');
+    const { container } = renderScene('running');
+    expandRightRail(container);
     expect(screen.getByText('子代理')).toBeInTheDocument();
     expect(screen.getByText(/Locate the format switch/)).toBeInTheDocument();
   });
@@ -158,7 +240,8 @@ describe('App — running scene exposes the whole run', () => {
   });
 
   it('keeps the raw event trail for audit', () => {
-    renderScene('running');
+    const { container } = renderScene('running');
+    expandRightRail(container);
     expect(screen.getAllByText(/^Events$|^事件$/).length).toBeGreaterThan(0);
     // The trail ships collapsed (the rail must not drown the run in raw events); the
     // section header is the affordance that opens it.

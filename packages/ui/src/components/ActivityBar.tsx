@@ -16,7 +16,7 @@ import { ms, pct } from '../lib/format.js';
 import { ACTIVITY_META, TONE_TEXT } from '../lib/status.js';
 import { t } from '../i18n/strings.js';
 import { Chip, Icon, ProgressBar, StatusDot } from './primitives.js';
-import { useUiState } from '../state/UiProvider.js';
+import { useUiState, useUiStore } from '../state/UiProvider.js';
 
 export function ActivityBar({
   task,
@@ -32,6 +32,8 @@ export function ActivityBar({
   onIntervene: () => void;
 }): ReactNode {
   const { localPrefs } = useUiState();
+  const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
+  const rightCollapsed = localPrefs.rightCollapsed;
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
   const meta = ACTIVITY_META[task.activity.kind];
   const label = task.activity.kind === 'waiting-approval' ? tr('approval.waiting') : meta.label;
@@ -43,7 +45,11 @@ export function ActivityBar({
   return (
     <div className="sticky top-0 z-10 border-b border-line bg-base/95 px-4 py-2 backdrop-blur">
       <div className="flex items-center gap-2.5">
-        <span className={`flex items-center gap-1.5 text-[12px] font-semibold ${TONE_TEXT[meta.tone]}`}>
+        <span
+          data-activity={task.activity.kind}
+          data-task-status={task.status}
+          className={`flex items-center gap-1.5 text-[12px] font-semibold ${TONE_TEXT[meta.tone]}`}
+        >
           {running ? <StatusDot tone={meta.tone} pulse /> : <Icon name="dot" size={10} />}
           {label}
         </span>
@@ -55,6 +61,19 @@ export function ActivityBar({
         </span>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {rightCollapsed ? (
+            <button
+              type="button"
+              data-open-right-rail
+              aria-label={tr('right.expand')}
+              title={tr('right.expand')}
+              className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
+              onClick={() => setLocalPrefs({ rightCollapsed: false })}
+            >
+              <Icon name="gauge" size={11} />
+              {tr('right.inspect')}
+            </button>
+          ) : null}
           {waiting ? <Chip tone="warn">{tr('approval.yourCall')}</Chip> : null}
           {task.status === 'paused' ? (
             <button
