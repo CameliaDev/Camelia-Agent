@@ -7,10 +7,12 @@ import { describe, expect, it } from 'vitest';
 
 import { applyThemeTokens } from '../src/theme/apply-theme.js';
 import {
+  LOCAL_PREFS_VERSION,
   clampRail,
   loadLocalPrefs,
   sanitizeLocalPrefs,
   saveLocalPrefs,
+  rightRailUserPatch,
   type LocalPrefs,
 } from '../src/state/local-prefs.js';
 import { createUiStore } from '../src/state/store.js';
@@ -37,11 +39,12 @@ describe('localPrefs', () => {
 
   it('round-trips through storage and stays out of the snapshot', () => {
     saveLocalPrefs({
-      version: 2,
+      version: LOCAL_PREFS_VERSION,
       leftWidth: 300,
       rightWidth: 400,
       leftCollapsed: true,
       rightCollapsed: false,
+      userSetRightRail: true,
       themeId: 'light',
       language: 'zh',
       topBar: 'pinned',
@@ -52,15 +55,15 @@ describe('localPrefs', () => {
     const store = createUiStore(new FixtureTransport({ scene: 'empty' }));
     expect(store.getState().localPrefs.leftWidth).toBe(300);
     expect(store.getState().localPrefs.themeId).toBe('light');
+    expect(store.getState().localPrefs.rightCollapsed).toBe(false);
+    expect(store.getState().localPrefs.userSetRightRail).toBe(true);
     expect(store.getState().snapshot.task).toBeUndefined();
     expect(loadLocalPrefs().topBar).toBe('pinned');
     expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#f3f0ed');
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
-
-  it('migrates pre-v2 prefs to a collapsed right rail once', () => {
-    // Simulate an old install that saved the previous default (expanded).
+  it('migrates pre-v3 prefs (including stuck v2 expanded) to a collapsed right rail', () => {
     localStorage.setItem(
       'camelia.localPrefs',
       JSON.stringify({
@@ -77,23 +80,51 @@ describe('localPrefs', () => {
       }),
     );
     const migrated = loadLocalPrefs();
-    expect(migrated.version).toBe(2);
+    expect(migrated.version).toBe(3);
     expect(migrated.rightCollapsed).toBe(true);
+    expect(migrated.userSetRightRail).toBe(false);
     expect(migrated.leftWidth).toBe(300);
-    // Persisted so a later user expand is not re-forced.
     const stored = JSON.parse(localStorage.getItem('camelia.localPrefs')!);
-    expect(stored.version).toBe(2);
+    expect(stored.version).toBe(3);
     expect(stored.rightCollapsed).toBe(true);
 
-    // After migration, an explicit expand must stick.
-    saveLocalPrefs({ ...migrated, rightCollapsed: false });
+    // Stuck v2: version already 2 but still expanded (the bug 239e7f1 could not fix).
+    localStorage.setItem(
+      'camelia.localPrefs',
+      JSON.stringify({
+        version: 2,
+        leftWidth: 300,
+        rightWidth: 400,
+        leftCollapsed: false,
+        rightCollapsed: false,
+        themeId: 'light',
+        language: 'zh',
+        topBar: 'pinned',
+        motion: 'system',
+        fontMono: '',
+        planApproval: 'always',
+      }),
+    );
+    const fromV2 = loadLocalPrefs();
+    expect(fromV2.version).toBe(3);
+    expect(fromV2.rightCollapsed).toBe(true);
+    expect(fromV2.userSetRightRail).toBe(false);
+
+    saveLocalPrefs({ ...fromV2, ...rightRailUserPatch(false) });
     expect(loadLocalPrefs().rightCollapsed).toBe(false);
+    expect(loadLocalPrefs().userSetRightRail).toBe(true);
   });
 
-  it('keeps a post-v2 expanded right rail', () => {
-    expect(sanitizeLocalPrefs({ version: 2, rightCollapsed: false }).rightCollapsed).toBe(false);
-    expect(sanitizeLocalPrefs({ version: 2, rightCollapsed: true }).rightCollapsed).toBe(true);
+  it('ignores expanded state without userSetRightRail even at current version', () => {
+    expect(sanitizeLocalPrefs({ version: 3, rightCollapsed: false }).rightCollapsed).toBe(true);
+    expect(
+      sanitizeLocalPrefs({ version: 3, rightCollapsed: false, userSetRightRail: true }).rightCollapsed,
+    ).toBe(false);
+    expect(
+      sanitizeLocalPrefs({ version: 3, rightCollapsed: true, userSetRightRail: true }).rightCollapsed,
+    ).toBe(true);
     expect(sanitizeLocalPrefs({}).rightCollapsed).toBe(true);
+    expect(sanitizeLocalPrefs({ version: 2, rightCollapsed: false }).rightCollapsed).toBe(true);
   });
 
   it('shows a rejected token instead of dropping it silently', () => {

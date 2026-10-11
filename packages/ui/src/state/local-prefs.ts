@@ -18,7 +18,7 @@ import { applyPreset, type ThemeId } from '../theme/presets.js';
 export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
 
 /** Bump when a one-shot layout migration must run for existing installs. */
-export const LOCAL_PREFS_VERSION = 2;
+export const LOCAL_PREFS_VERSION = 3;
 
 export const RAIL_LEFT_DEFAULT = 260;
 export const RAIL_RIGHT_DEFAULT = 360;
@@ -41,12 +41,19 @@ export interface WindowGeometry {
 }
 
 export interface LocalPrefs {
-  /** Schema version. Missing / < 2 means pre-v2 shell (right rail was open by default). */
+  /** Schema version. < 3 means a forced right-rail collapse migration is due. */
   version: number;
   leftWidth: number;
   rightWidth: number;
   leftCollapsed: boolean;
   rightCollapsed: boolean;
+  /**
+   * True only after the user explicitly toggles the right rail (ActivityBar /
+   * rail chrome / Settings). Without this flag, expanded state from older
+   * installs is ignored — v2 already stamped version:2 while keeping the old
+   * expanded default, so version alone is not enough.
+   */
+  userSetRightRail: boolean;
   themeId: ThemeId;
   language: LanguagePref;
   topBar: TopBarMode;
@@ -63,6 +70,7 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   rightWidth: RAIL_RIGHT_DEFAULT,
   leftCollapsed: false,
   rightCollapsed: true,
+  userSetRightRail: false,
   themeId: 'light',
   language: 'zh',
   topBar: 'pinned',
@@ -88,6 +96,11 @@ export function railWidth(prefs: LocalPrefs, side: 'left' | 'right'): number {
   return prefs.rightCollapsed ? RAIL_COLLAPSED : prefs.rightWidth;
 }
 
+/** Patch used by chrome toggles so expanded state is remembered across boots. */
+export function rightRailUserPatch(collapsed: boolean): Pick<LocalPrefs, 'rightCollapsed' | 'userSetRightRail'> {
+  return { rightCollapsed: collapsed, userSetRightRail: true };
+}
+
 function storageOf(storage?: Storage): Storage | undefined {
   if (storage) return storage;
   if (typeof localStorage === 'undefined') return undefined;
@@ -109,21 +122,19 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
   const planApproval = raw?.planApproval === 'auto' ? 'auto' : 'always';
   const window = sanitizeWindow(raw?.window);
   const rawVersion = prefsVersionOf(raw);
-  // v2 shell: right rail collapses by default. Pre-v2 installs stored
-  // rightCollapsed:false because that was the old default — force collapse once
-  // on upgrade so the new layout sticks without wiping the rest of their prefs.
-  const migratingToV2 = rawVersion < 2;
-  const rightCollapsed = migratingToV2
-    ? true
-    : raw?.rightCollapsed === undefined
-      ? DEFAULT_LOCAL_PREFS.rightCollapsed
-      : raw.rightCollapsed === true;
+  // v3: force collapse for anyone who has not explicitly toggled the rail.
+  // Covers (a) pre-v2 expanded defaults, (b) v2 installs that stamped
+  // version:2 while keeping rightCollapsed:false from old storage.
+  const migratingToV3 = rawVersion < 3;
+  const userSetRightRail = !migratingToV3 && raw?.userSetRightRail === true;
+  const rightCollapsed = userSetRightRail ? raw?.rightCollapsed === true : true;
   return {
     version: LOCAL_PREFS_VERSION,
     leftWidth: clampRail('left', raw?.leftWidth ?? RAIL_LEFT_DEFAULT),
     rightWidth: clampRail('right', raw?.rightWidth ?? RAIL_RIGHT_DEFAULT),
     leftCollapsed: raw?.leftCollapsed === true,
     rightCollapsed,
+    userSetRightRail,
     themeId,
     language,
     topBar,
@@ -155,7 +166,11 @@ export function loadLocalPrefs(storage?: Storage): LocalPrefs {
     const parsed = sanitizeLocalPrefs(parsedRaw);
     // Persist the migration immediately so a later expand/collapse is not
     // re-forced on the next boot.
-    if (prefsVersionOf(parsedRaw) < LOCAL_PREFS_VERSION) {
+    if (
+      prefsVersionOf(parsedRaw) < LOCAL_PREFS_VERSION ||
+      parsedRaw.userSetRightRail !== parsed.userSetRightRail ||
+      parsedRaw.rightCollapsed !== parsed.rightCollapsed
+    ) {
       bin.setItem(LOCAL_PREFS_KEY, JSON.stringify(parsed));
     }
     return parsed;

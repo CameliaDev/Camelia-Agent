@@ -15,6 +15,7 @@ import type { TaskView } from '@camelia/agent/view';
 import { ms, pct } from '../lib/format.js';
 import { ACTIVITY_META, TONE_TEXT } from '../lib/status.js';
 import { t } from '../i18n/strings.js';
+import { rightRailUserPatch } from '../state/local-prefs.js';
 import { Chip, Icon, ProgressBar, StatusDot } from './primitives.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 
@@ -68,7 +69,7 @@ export function ActivityBar({
               aria-label={tr('right.expand')}
               title={tr('right.expand')}
               className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
-              onClick={() => setLocalPrefs({ rightCollapsed: false })}
+              onClick={() => setLocalPrefs(rightRailUserPatch(false))}
             >
               <Icon name="gauge" size={11} />
               {tr('right.inspect')}

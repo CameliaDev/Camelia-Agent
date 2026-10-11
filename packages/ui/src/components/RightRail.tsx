@@ -18,6 +18,7 @@ import { contextUsage } from '@camelia/agent/view';
 import { clock, count, ms, pct } from '../lib/format.js';
 import { STEP_META, TONE_BG, TONE_TEXT, type Tone } from '../lib/status.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { rightRailUserPatch } from '../state/local-prefs.js';
 import { localizePlanText } from '../i18n/plan-copy.js';
 import { t } from '../i18n/strings.js';
 import { MemoryPanel } from './MemoryPanel.js';
@@ -463,7 +464,7 @@ export function RightRail(): ReactNode {
           title={tr('right.expand')}
           aria-label={tr('right.expand')}
           className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
-          onClick={() => setLocalPrefs({ rightCollapsed: false })}
+          onClick={() => setLocalPrefs(rightRailUserPatch(false))}
         >
           <Icon name="expand" size={16} className="rotate-180" />
           <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
@@ -488,7 +489,7 @@ export function RightRail(): ReactNode {
           aria-label={tr('right.collapse')}
           title={tr('right.collapse')}
           className="mr-2 mt-2 grid h-6 w-6 shrink-0 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
-          onClick={() => setLocalPrefs({ rightCollapsed: true })}
+          onClick={() => setLocalPrefs(rightRailUserPatch(true))}
         >
           <Icon name="collapse" size={13} className="rotate-180" />
         </button>

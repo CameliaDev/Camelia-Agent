@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { makeCommand } from '../state/store.js';
 import { useUiStore } from '../state/UiProvider.js';
-import { type LanguagePref, type MotionPref, type TopBarMode } from '../state/local-prefs.js';
+import { rightRailUserPatch, type LanguagePref, type MotionPref, type TopBarMode } from '../state/local-prefs.js';
 import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
 import { relaunchDesktop } from '../window/model-settings.js';
@@ -248,7 +248,7 @@ function AppearanceSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => strin
           {tr('settings.collapseSessions')}
         </label>
         <label className="flex items-center gap-2 text-[12px] text-ink-2">
-          <input type="checkbox" checked={prefs.rightCollapsed} onChange={(event) => setLocalPrefs({ rightCollapsed: event.target.checked })} />
+          <input type="checkbox" checked={prefs.rightCollapsed} onChange={(event) => setLocalPrefs(rightRailUserPatch(event.target.checked))} />
           {tr('settings.collapseRunRail')}
         </label>
         <button

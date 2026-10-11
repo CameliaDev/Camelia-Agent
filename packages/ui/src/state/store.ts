@@ -184,6 +184,7 @@ export function createUiStore(transport: Transport): UiStore {
           rightWidth: 360,
           leftCollapsed: false,
           rightCollapsed: true,
+          userSetRightRail: true,
         });
         saveLocalPrefs(next);
         return { localPrefs: next };
