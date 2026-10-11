@@ -30,6 +30,7 @@ import type { Command, CommandMap, CommandType, DomainEvent, Id, MemoryLayer } f
 import {
   initialSnapshot,
   reduceEvents,
+  withProviderStatus,
   withSession,
   type ForgetLogView,
   type MemoryHealthView,
@@ -39,18 +40,17 @@ import {
 } from '@camelia/agent/view';
 import { create, type UseBoundStore, type StoreApi } from 'zustand';
 
-import { applyThemeTokens } from '../theme/apply-theme.js';
 import type { ConnectionStatus, Transport } from '../transport/types.js';
 import {
   applySavedTheme,
-  describeTheme,
-  hasSavedLocalPrefs,
   loadLocalPrefs,
   sanitizeLocalPrefs,
   saveLocalPrefs,
+  syncLang,
   syncMotion,
   type LocalPrefs,
 } from './local-prefs.js';
+import { themeLabel } from '../theme/presets.js';
 
 export interface MemoryPanelState {
   /** Layer filter for the visible list. */
@@ -142,7 +142,10 @@ export function createUiStore(transport: Transport): UiStore {
 
   const bootPrefs = loadLocalPrefs();
   syncMotion(bootPrefs);
-  const bootTheme = hasSavedLocalPrefs() ? applySavedTheme(bootPrefs) : null;
+  syncLang(bootPrefs);
+  // Always apply the default (or saved) theme — a fresh profile with no saved
+  // prefs must still render the configured default instead of the dark stylesheet root.
+  const bootTheme = applySavedTheme(bootPrefs);
 
   const store = create<UiState>((set) => ({
     snapshot: initialSnapshot(),
@@ -151,7 +154,7 @@ export function createUiStore(transport: Transport): UiStore {
     localPrefs: bootPrefs,
     settingsOpen: false,
     ...(bootTheme
-      ? { activeTheme: { id: bootPrefs.themeId, label: describeTheme(bootPrefs.themeId), rejected: bootTheme.rejected } }
+      ? { activeTheme: { id: bootPrefs.themeId, label: themeLabel(bootPrefs.themeId), rejected: bootTheme.rejected } }
       : {}),
     setSettingsOpen: (open) => set({ settingsOpen: open }),
     setLocalPrefs: (patch) => {
@@ -160,14 +163,16 @@ export function createUiStore(transport: Transport): UiStore {
         saveLocalPrefs(next);
         const themeChanged = next.themeId !== state.localPrefs.themeId || next.fontMono !== state.localPrefs.fontMono;
         const motionChanged = next.motion !== state.localPrefs.motion;
+        const langChanged = next.language !== state.localPrefs.language;
         if (motionChanged) syncMotion(next);
+        if (langChanged) syncLang(next);
         if (!themeChanged && state.activeTheme) {
           return { localPrefs: next };
         }
         const applied = applySavedTheme(next);
         return {
           localPrefs: next,
-          activeTheme: { id: next.themeId, label: describeTheme(next.themeId), rejected: applied.rejected },
+          activeTheme: { id: next.themeId, label: themeLabel(next.themeId), rejected: applied.rejected },
         };
       });
     },
@@ -271,20 +276,20 @@ export function createUiStore(transport: Transport): UiStore {
   try {
     transport.start({
       onStatus: (status) => store.setState({ status }),
+      onProviderStatus: (providerStatus) => {
+        store.setState((state) => ({ snapshot: withProviderStatus(state.snapshot, providerStatus) }));
+      },
       onBootstrap: (payload) => {
-        // Apply the theme before the state update so React's next paint already
-        // carries it. A theme arriving after paint produces a visible flash of
-        // the default palette, which reads as a bug rather than a theme.
-        if (payload.theme && !hasSavedLocalPrefs()) {
-          const result = applyThemeTokens(payload.theme.tokens);
-          store.setState({
-            activeTheme: { id: payload.theme.id, label: payload.theme.label, rejected: result.rejected },
-          });
-        }
+        // The local theme is authoritative (applied at boot above). The server
+        // sends its built-in theme for non-UI clients; we do not override the
+        // user's chosen default on every fresh start.
         store.setState((state) => ({
           sessions: payload.sessions,
           activeSessionId: payload.session?.id ?? payload.sessions[0]?.id,
-          snapshot: payload.session ? withSession(state.snapshot, payload.session) : state.snapshot,
+          snapshot: withProviderStatus(
+            payload.session ? withSession(state.snapshot, payload.session) : state.snapshot,
+            payload.providerStatus,
+          ),
         }));
       },
       onEvent: applyEvent,

@@ -10,17 +10,14 @@
 import { useState, type ReactNode } from 'react';
 
 import { makeCommand } from '../state/store.js';
-import { useUiState } from '../state/UiProvider.js';
-import { Chip, Icon, KeyHint } from './primitives.js';
-
-const SUGGESTIONS = [
-  'Add a --json flag to the camelia CLI and make the acceptance report consume it.',
-  'Find why the loop detector fires on healthy runs, then fix it.',
-  'Refactor the tool engine so every schema is validated before dispatch.',
-];
+import { useUiState, useUiStore } from '../state/UiProvider.js';
+import { t } from '../i18n/strings.js';
+import { Icon } from './primitives.js';
 
 export function Composer(): ReactNode {
-  const { snapshot, activeSessionId, dispatch, status } = useUiState();
+  const { snapshot, activeSessionId, dispatch } = useUiState();
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [value, setValue] = useState('');
   const task = snapshot.task;
   const running = task !== undefined && task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled';
@@ -43,7 +40,7 @@ export function Composer(): ReactNode {
   };
 
   return (
-    <footer className="shrink-0 border-t border-line bg-elevated/50 px-4 py-3">
+    <footer className="shrink-0 border-t border-line bg-elevated/50 px-4 py-2.5">
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {
@@ -64,9 +61,7 @@ export function Composer(): ReactNode {
               }
             }}
             placeholder={
-              running
-                ? 'Steer the run — the goal is re-anchored, prior work is kept…'
-                : 'Describe a task. Camelia plans, executes, verifies and shows its work…'
+              running ? tr('composer.steerPlaceholder') : tr('composer.placeholder')
             }
             className="min-h-[22px] max-h-40 min-w-0 flex-1 resize-none bg-transparent text-[12.5px] leading-5 text-ink outline-none placeholder:text-ink-3"
           />
@@ -78,32 +73,10 @@ export function Composer(): ReactNode {
             }`}
           >
             <Icon name={running ? 'compass' : 'send'} size={12} />
-            {running ? 'Steer' : 'Run'}
+            {running ? tr('steer') : tr('composer.run')}
           </button>
         </div>
       </form>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Chip tone={status === 'live' ? 'accent' : 'muted'}>
-          {running ? 'steering an active run' : 'no active run'}
-        </Chip>
-        {!running
-          ? SUGGESTIONS.slice(0, 2).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setValue(s)}
-                className="max-w-[46%] truncate rounded-full border border-line px-2 py-[1px] text-[10.5px] text-ink-3 hover:border-accent/40 hover:text-accent"
-              >
-                {s}
-              </button>
-            ))
-          : null}
-        <span className="ml-auto hidden items-center gap-1.5 text-[10px] text-ink-3 sm:flex">
-          <KeyHint>Enter</KeyHint> to send
-          <KeyHint>Shift</KeyHint>+<KeyHint>Enter</KeyHint> for a new line
-        </span>
-      </div>
     </footer>
   );
 }

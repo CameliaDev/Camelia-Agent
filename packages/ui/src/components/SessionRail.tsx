@@ -13,11 +13,14 @@ import type { ReactNode } from 'react';
 import { count, shortId } from '../lib/format.js';
 import { makeCommand } from '../state/store.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
+import { t } from '../i18n/strings.js';
 import { Chip, Icon, SectionHeader } from './primitives.js';
 
 export function SessionRail(): ReactNode {
   const { snapshot, sessions, activeSessionId, status, dispatch } = useUiState();
   const collapsed = useUiStore((s) => s.localPrefs.leftCollapsed);
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const task = snapshot.task;
   const metrics = Object.entries(snapshot.metrics);
@@ -27,14 +30,14 @@ export function SessionRail(): ReactNode {
       <aside data-rail="left" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-r border-line bg-elevated/30 py-3">
         <button
           type="button"
-          title="Expand sessions"
-          aria-label="Expand sessions"
+          title={tr('sessions.expand')}
+          aria-label={tr('sessions.expand')}
           className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
           onClick={() => setLocalPrefs({ leftCollapsed: false })}
         >
           <Icon name="expand" size={16} />
           <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
-            Expand sessions
+            {tr('sessions.expand')}
           </span>
         </button>
         <span className="font-mono text-[10px] text-ink-3" title={`${sessions.length} sessions`}>
@@ -48,14 +51,14 @@ export function SessionRail(): ReactNode {
     <aside data-rail="left" className="flex h-full w-full min-w-0 flex-col overflow-y-auto border-r border-line bg-elevated/30">
       <SectionHeader
         icon="camellia"
-        title="Sessions"
+        title={tr('sessions.title')}
         right={
           <span className="flex items-center gap-1">
             <span className="font-mono text-[10.5px] text-ink-3">{sessions.length}</span>
             <button
               type="button"
-              aria-label="Collapse sessions"
-              title="Collapse sessions"
+              aria-label={tr('sessions.collapse')}
+              title={tr('sessions.collapse')}
               className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
               onClick={() => setLocalPrefs({ leftCollapsed: true })}
             >
@@ -66,7 +69,7 @@ export function SessionRail(): ReactNode {
       />
       <div className="space-y-1 px-2 pb-3">
         {sessions.length === 0 ? (
-          <p className="px-1 text-[11.5px] text-ink-3">No sessions in this workspace yet.</p>
+          <p className="px-1 text-[11.5px] text-ink-3">{tr('sessions.empty')}</p>
         ) : (
           sessions.map((session) => {
             const active = session.id === activeSessionId;
@@ -74,11 +77,11 @@ export function SessionRail(): ReactNode {
               <button
                 key={session.id}
                 type="button"
-                className={`w-full rounded-md border px-2 py-1.5 text-left ${
-                  active ? 'border-accent/35 bg-accent/8' : 'border-transparent hover:border-line hover:bg-hover/40'
+                className={`w-full rounded-md px-2 py-1.5 text-left transition-colors ${
+                  active ? 'bg-accent/10' : 'hover:bg-hover/50'
                 }`}
               >
-                <p className={`truncate text-[11.5px] ${active ? 'text-ink' : 'text-ink-2'}`}>{session.title}</p>
+                <p className={`truncate text-[12px] leading-4 ${active ? 'font-medium text-ink' : 'text-ink-2'}`}>{session.title}</p>
                 <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-ink-3">
                   <span>{session.provider}</span>
                   <span>·</span>
@@ -91,7 +94,7 @@ export function SessionRail(): ReactNode {
       </div>
 
       <section className="border-t border-line">
-        <SectionHeader icon="file" title="Workspace" />
+        <SectionHeader icon="file" title={tr('workspace.title')} />
         <div className="px-3 pb-3">
           <p className="break-all font-mono text-[11px] text-ink-2">{snapshot.session?.workspace ?? '—'}</p>
         </div>
@@ -100,12 +103,14 @@ export function SessionRail(): ReactNode {
       <section className="border-t border-line">
         <SectionHeader
           icon="layers"
-          title="Provider path"
+          title={tr('provider.title')}
           right={
             snapshot.provider.fallbacks.length ? (
               <Chip tone="warn">{snapshot.provider.fallbacks.length} fallback</Chip>
+            ) : snapshot.provider.connected === true ? (
+              <Chip tone="ok">{tr('provider.connected')}</Chip>
             ) : (
-              <Chip tone="muted">primary</Chip>
+              <Chip tone="muted">{tr('provider.primary')}</Chip>
             )
           }
         />
@@ -115,36 +120,42 @@ export function SessionRail(): ReactNode {
               <p className="font-mono text-[11px] text-ink-2">
                 {snapshot.provider.activeProvider} <span className="text-ink-3">·</span> {snapshot.provider.activeModel}
               </p>
-              {snapshot.provider.reason ? <p className="text-[10.5px] text-ink-3">chosen because: {snapshot.provider.reason}</p> : null}
+              {snapshot.provider.reason ? <p className="text-[10.5px] text-ink-3">{tr('provider.chosenBecause')} {snapshot.provider.reason}</p> : null}
             </>
           ) : (
-            <p className="text-[11.5px] text-ink-3">No provider selected yet.</p>
+            <p className="text-[11.5px] text-ink-3">
+              {status === 'connecting' ? tr('provider.connecting') : tr('provider.none')}
+            </p>
           )}
           {snapshot.provider.fallbacks.length ? (
             <ul className="space-y-1">
               {snapshot.provider.fallbacks.map((f, i) => (
                 <li key={`${f.at}-${i}`} className="rounded border border-warn/25 bg-warn/8 px-2 py-1">
                   <p className="font-mono text-[10.5px] text-warn">
-                    depth {f.depth}: {f.from} → {f.to}
+                    {tr('provider.depth')} {f.depth}: {f.from} → {f.to}
                   </p>
                   <p className="text-[10.5px] text-ink-3">{f.reason}</p>
                 </li>
               ))}
             </ul>
           ) : null}
-          <p className="text-[10.5px] text-ink-3">chain: OpenCode Zen → OpenRouter → Ollama</p>
+          <p className="text-[10.5px] text-ink-3">
+            {snapshot.provider.chain?.length
+              ? `${tr('provider.chain')} ${snapshot.provider.chain.join(' → ')}`
+              : null}
+          </p>
         </div>
       </section>
 
       <section className="border-t border-line">
         <SectionHeader
           icon="undo"
-          title="Checkpoints"
+          title={tr('checkpoints.title')}
           right={<span className="font-mono text-[10.5px] text-ink-3">{task?.checkpoints.length ?? 0}</span>}
         />
         <div className="space-y-1 px-3 pb-3">
           {!task || task.checkpoints.length === 0 ? (
-            <p className="text-[11.5px] text-ink-3">Restore points appear after each completed step.</p>
+            <p className="text-[11.5px] text-ink-3">{tr('checkpoints.empty')}</p>
           ) : (
             [...task.checkpoints].reverse().map((cp) => (
               <div key={cp.id} className="flex items-start gap-2 rounded border border-line bg-base/40 px-2 py-1.5">
@@ -162,7 +173,7 @@ export function SessionRail(): ReactNode {
                   onClick={() => dispatch(makeCommand('rollback_step', { taskId: task.id, checkpointId: cp.id }))}
                   className="shrink-0 rounded border border-line px-1.5 py-[1px] text-[10px] text-ink-3 hover:border-warn/40 hover:text-warn"
                 >
-                  restore
+                  {tr('checkpoints.restore')}
                 </button>
               </div>
             ))
@@ -171,10 +182,10 @@ export function SessionRail(): ReactNode {
       </section>
 
       <section className="border-t border-line">
-        <SectionHeader icon="gauge" title="Metrics" />
+        <SectionHeader icon="gauge" title={tr('metrics.title')} />
         <div className="px-3 pb-3">
           {metrics.length === 0 ? (
-            <p className="text-[11.5px] text-ink-3">No metrics emitted.</p>
+            <p className="text-[11.5px] text-ink-3">{tr('metrics.empty')}</p>
           ) : (
             <dl className="space-y-1">
               {metrics.map(([name, value]) => (
@@ -191,7 +202,7 @@ export function SessionRail(): ReactNode {
       <div className="mt-auto border-t border-line px-3 py-2">
         <p className="flex items-center gap-1.5 text-[10px] text-ink-3">
           <span className={`h-1.5 w-1.5 rounded-full ${status === 'live' ? 'bg-accent' : 'bg-ink-3'}`} />
-          keys in ~/.camelia · zero telemetry · Apache-2.0
+          {tr('footer.keys')}
         </p>
       </div>
     </aside>

@@ -21,6 +21,7 @@ interface TauriWindow {
   show: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
   startResizeDragging: (direction: string) => Promise<void>;
+  startDragging: () => Promise<void>;
   outerPosition: () => Promise<{ x: number; y: number }>;
   innerSize: () => Promise<{ width: number; height: number }>;
   setPosition: (pos: LogicalPoint) => Promise<void>;
@@ -59,6 +60,10 @@ export async function windowClose(): Promise<void> {
 
 export async function windowStartResize(direction: string): Promise<void> {
   await currentWindow()?.startResizeDragging(direction);
+}
+
+export async function windowStartDragging(): Promise<void> {
+  await currentWindow()?.startDragging();
 }
 
 export async function readWindowGeometry(): Promise<WindowGeometry | null> {

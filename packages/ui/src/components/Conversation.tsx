@@ -15,7 +15,8 @@ import type { CheckpointView, NarrationView, TaskView, ToolCallView } from '@cam
 
 import { count, ms } from '../lib/format.js';
 import { makeCommand } from '../state/store.js';
-import { useUiState } from '../state/UiProvider.js';
+import { useUiState, useUiStore } from '../state/UiProvider.js';
+import { t } from '../i18n/strings.js';
 import { ActivityBar } from './ActivityBar.js';
 import { PlanReview } from './PlanReview.js';
 import { ApprovalCard, FailureCard, NoticeBanner } from './Reliability.js';
@@ -43,46 +44,60 @@ function rollbackTarget(task: TaskView): CheckpointView | undefined {
 }
 
 function IntentCard({ task }: { task: TaskView }): ReactNode {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const [showAssumptions, setShowAssumptions] = useState(false);
   return (
-    <div className="relative overflow-hidden rounded-lg border border-line bg-elevated/60 py-3 pl-4 pr-3">
+    <div className="relative overflow-hidden rounded-lg border border-accent/25 bg-accent/[0.06] py-3 pl-4 pr-3">
       <span className="absolute inset-y-0 left-0 w-[3px] bg-accent" />
       <div className="flex items-center gap-2">
         <Icon name="spark" size={13} className="text-accent" />
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-ink-3">Your request</span>
+        <span className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-accent">{tr('intent.yourRequest')}</span>
       </div>
       <p className="mt-1.5 text-[13px] leading-6 text-ink">{task.intentRaw}</p>
 
       {task.goal && task.goal !== task.intentRaw ? (
         <p className="mt-2 text-[11.5px] leading-5 text-ink-2">
-          <span className="text-ink-3">Restated goal · </span>
+          <span className="text-ink-3">{tr('intent.restatedGoal')} · </span>
           {task.goal}
         </p>
       ) : null}
 
       {task.assumptions.length || task.constraints.length ? (
-        <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1.5">
-          {task.assumptions.length ? (
-            <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">assumptions</p>
-              <ul className="mt-0.5 space-y-0.5">
-                {task.assumptions.map((a) => (
-                  <li key={a} className="text-[11.5px] text-ink-2">
-                    · {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {task.constraints.length ? (
-            <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">constraints</p>
-              <ul className="mt-0.5 space-y-0.5">
-                {task.constraints.map((c) => (
-                  <li key={c} className="text-[11.5px] text-ink-2">
-                    · {c}
-                  </li>
-                ))}
-              </ul>
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowAssumptions((v) => !v)}
+            className="text-[10.5px] text-ink-3 hover:text-ink-2"
+          >
+            {showAssumptions ? '▾' : '▸'} {task.assumptions.length + task.constraints.length} {tr('intent.assumptions')}
+          </button>
+          {showAssumptions ? (
+            <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1.5">
+              {task.assumptions.length ? (
+                <div className="min-w-0">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{tr('intent.assumptions')}</p>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {task.assumptions.map((a) => (
+                      <li key={a} className="text-[11.5px] text-ink-2">
+                        · {a}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {task.constraints.length ? (
+                <div className="min-w-0">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{tr('intent.constraints')}</p>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {task.constraints.map((c) => (
+                      <li key={c} className="text-[11.5px] text-ink-2">
+                        · {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -93,7 +108,7 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
           {task.interventions.map((i, idx) => (
             <p key={idx} className="text-[11.5px] text-info">
               <Icon name="compass" size={11} className="mr-1 inline" />
-              steered → {i.newGoal}
+              {tr('intent.steered')} {i.newGoal}
             </p>
           ))}
         </div>
@@ -103,18 +118,20 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
 }
 
 function DeliveryCard({ task }: { task: TaskView }): ReactNode {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   return (
     <div className="rounded-lg border border-ok/35 bg-ok/10 p-3">
       <div className="flex items-center gap-2">
         <Icon name="check" size={15} className="text-ok" />
-        <span className="text-[12.5px] font-semibold text-ok">Delivered</span>
-        <Chip tone="ok">{task.steps.filter((s) => s.status === 'done').length}/{task.stepsTotal} steps verified</Chip>
+        <span className="text-[12.5px] font-semibold text-ok">{tr('delivery.delivered')}</span>
+        <Chip tone="ok">{task.steps.filter((s) => s.status === 'done').length}/{task.stepsTotal} {tr('step.done')}</Chip>
         <span className="ml-auto font-mono text-[10.5px] text-ink-3">{ms(task.updatedAt - task.startedAt)}</span>
       </div>
       {task.summary ? <p className="mt-2 text-[12px] leading-6 text-ink-2">{task.summary}</p> : null}
       {task.artifacts.length ? (
         <>
-          <p className="mt-2.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">artifacts</p>
+          <p className="mt-2.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{tr('delivery.artifacts')}</p>
           <ul className="mt-1 space-y-1">
             {task.artifacts.map((a) => (
               <ArtifactRow key={a.path} artifact={a} />
@@ -127,6 +144,8 @@ function DeliveryCard({ task }: { task: TaskView }): ReactNode {
 }
 
 function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx: number, stepId: Id) => void }): ReactNode {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const toolsByStep = new Map<Id, ToolCallView[]>();
   for (const call of Object.values(task.toolCalls)) {
     const list = toolsByStep.get(call.stepId) ?? [];
@@ -140,7 +159,9 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
     narrationByStep.set(entry.stepIdx, list);
   }
 
-  const introNarration = narrationByStep.get(-1) ?? [];
+  const introNarration = (narrationByStep.get(-1) ?? []).filter(
+    (n) => !n.text.trimStart().startsWith('{'),
+  );
   const checkpoint = rollbackTarget(task);
 
   return (
@@ -162,7 +183,7 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
         <div className="rounded-lg border border-line bg-elevated/50 p-3">
           <div className="flex items-center gap-2 text-[12px] font-medium text-accent">
             <Icon name="layers" size={13} />
-            Drafting the plan
+            {tr('step.drafting')}
           </div>
           <SkeletonRows rows={3} />
         </div>
@@ -187,6 +208,8 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
 
 export function Conversation(): ReactNode {
   const { snapshot, status, transportError, dispatch } = useUiState();
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [steering, setSteering] = useState(false);
   const [steerText, setSteerText] = useState('');
   const [center, setCenter] = useState<'plan' | 'conversation'>('conversation');
@@ -210,8 +233,8 @@ export function Conversation(): ReactNode {
     return (
       <EmptyState
         icon="camellia"
-        title="No task yet"
-        hint="Describe what you want built, fixed or investigated. Camelia plans it, executes it step by step, verifies every acceptance point and shows you the whole run."
+        title={tr('welcome.title')}
+        hint={tr('welcome.body')}
       />
     );
   }
@@ -236,7 +259,7 @@ export function Conversation(): ReactNode {
           className={`rounded-md px-2 py-1 text-[11.5px] ${center === 'conversation' ? 'bg-panel text-ink' : 'text-ink-3'}`}
           onClick={() => setCenter('conversation')}
         >
-          Conversation
+          {tr('conversation.tab')}
         </button>
         <button
           type="button"
@@ -245,7 +268,7 @@ export function Conversation(): ReactNode {
           className={`rounded-md px-2 py-1 text-[11.5px] ${center === 'plan' ? 'bg-panel text-ink' : 'text-ink-3'}`}
           onClick={() => setCenter('plan')}
         >
-          Plan
+          {tr('plan.tab')}
         </button>
       </div>
 
@@ -334,7 +357,7 @@ export function Conversation(): ReactNode {
         ) : null}
         {task.status === 'cancelled' ? (
           <p className="rounded-lg border border-line bg-elevated/60 px-3 py-2 text-[12px] text-ink-2">
-            Cancelled. Nothing further will run.
+            {tr('cancelled.note')}
           </p>
         ) : null}
       </div>

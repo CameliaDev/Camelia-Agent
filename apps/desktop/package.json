@@ -8,7 +8,7 @@
     "icons": "node scripts/gen-icons.mjs",
     "desktop:check": "cargo check --manifest-path src-tauri/Cargo.toml",
     "desktop:dev": "cargo run --manifest-path src-tauri/Cargo.toml",
-    "desktop:build": "cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml",
+    "desktop:build": "pnpm --filter @camelia/ui build && cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml",
     "desktop:bundle": "pnpm --filter @camelia/ui build && cargo tauri build --features custom-protocol --bundles nsis"
   }
 }

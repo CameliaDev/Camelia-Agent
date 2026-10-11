@@ -87,6 +87,7 @@ export function plannerSystemPrompt(options: PlannerPromptOptions): string {
   const lines: string[] = [
     'You are the PLANNER of Camelia, a task-completion-first coding agent.',
     'You do not write code. You decompose the goal into an ordered, verifiable plan.',
+    '用中文填写所有自然语言字段（title、goal、acceptance.description）。JSON 键名、工具名、文件路径、kind 值保持英文原样。',
     '',
     'Rules:',
     '1. Every step must be independently verifiable. Attach machine-checkable acceptance points.',
@@ -204,6 +205,7 @@ export function executorSystemPrompt(options: ExecutorPromptOptions): string {
 
   const lines: string[] = [
     'You are the EXECUTOR of Camelia. You complete exactly one step, then stop.',
+    '用中文回复所有叙述性内容（总结、说明、错误描述）。工具调用、JSON、文件路径和代码保持英文原样。',
     '',
     `Step ${stepIndex}/${stepTotal}: ${step.title}`,
     `Objective: ${step.goal}`,
@@ -266,6 +268,7 @@ export interface ClarifyPromptOptions {
 export function clarifySystemPrompt(options: ClarifyPromptOptions): string {
   return [
     'You are the CLARIFIER of Camelia. Restate the user request as an executable goal.',
+    '用中文填写所有自然语言字段（goal、assumptions、constraints）。JSON 键名、文件路径、代码标识符保持英文原样。',
     'Reply with JSON only:',
     '{"goal":"one sentence","assumptions":["..."],"constraints":["..."],"expectedPaths":["src/..."],"complete":true}',
     'Set complete=false only when the request is genuinely impossible to act on without more information.',
@@ -282,6 +285,7 @@ export function clarifySystemPrompt(options: ClarifyPromptOptions): string {
 export function fixupSystemPrompt(step: Step, failures: string[], reflect = false): string {
   const lines = [
     'You are the EXECUTOR of Camelia, fixing a step that FAILED verification.',
+    '用中文回复所有叙述性内容。工具调用、JSON、文件路径和代码保持英文原样。',
     `Step: ${step.title}`,
     `Objective: ${step.goal}`,
     '',

@@ -14,6 +14,8 @@ import type { NarrationView, StepView, ToolCallView } from '@camelia/agent/view'
 
 import { clock, ms } from '../lib/format.js';
 import { STEP_META, TONE_TEXT } from '../lib/status.js';
+import { useUiStore } from '../state/UiProvider.js';
+import { t } from '../i18n/strings.js';
 import { ToolCard } from './ToolCard.js';
 import { Chip, Icon } from './primitives.js';
 
@@ -72,6 +74,16 @@ export function StepCard({
   /** Force every card open regardless of status — used by tests that inspect raw output. */
   defaultOpenTools?: boolean;
 }): ReactNode {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const statusLabel: Record<string, string> = {
+    pending: tr('step.status.pending'),
+    running: tr('step.status.running'),
+    verifying: tr('step.status.verifying'),
+    done: tr('step.status.done'),
+    failed: tr('step.status.failed'),
+    skipped: tr('step.status.skipped'),
+  };
   const meta = STEP_META[step.status];
   const duration = step.startedAt !== undefined && step.endedAt !== undefined ? step.endedAt - step.startedAt : undefined;
   const isActive = step.status === 'running' || step.status === 'verifying';
@@ -91,9 +103,9 @@ export function StepCard({
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[10.5px] text-ink-3">STEP {step.idx + 1}</span>
-              <span className={`text-[10.5px] font-medium ${TONE_TEXT[meta.tone]}`}>{meta.label}</span>
-              {step.weight > 1 ? <span className="text-[10.5px] text-ink-3">weight {step.weight}</span> : null}
+              <span className="font-mono text-[10.5px] text-ink-3">{tr('step.stepLabel')} {step.idx + 1}</span>
+              <span className={`text-[10.5px] font-medium ${TONE_TEXT[meta.tone]}`}>{statusLabel[step.status] ?? meta.label}</span>
+              {step.weight > 1 ? <span className="text-[10.5px] text-ink-3">{tr('step.weight')} {step.weight}</span> : null}
             </div>
             <h3 className="mt-0.5 text-[13px] font-semibold leading-5 text-ink">{step.title}</h3>
             <p className="mt-0.5 text-[11.5px] leading-5 text-ink-3">{step.goal}</p>
@@ -103,7 +115,7 @@ export function StepCard({
             <span className="font-mono text-[10.5px] text-ink-3">{duration !== undefined ? ms(duration) : isActive ? 'running' : '—'}</span>
             {step.verdict ? (
               <Chip tone={step.verdict.status === 'pass' ? 'ok' : step.verdict.status === 'fail' ? 'bad' : 'muted'}>
-                verify: {step.verdict.status}
+                {tr('step.verify')}: {step.verdict.status === 'pass' ? tr('step.pass') : step.verdict.status === 'fail' ? tr('step.fail') : tr('step.unknown')}
               </Chip>
             ) : null}
             {onRollback && step.status === 'done' ? (
@@ -114,7 +126,7 @@ export function StepCard({
                 className="inline-flex items-center gap-1 rounded border border-line px-1.5 py-[1px] text-[10px] text-ink-3 hover:border-warn/40 hover:text-warn"
               >
                 <Icon name="undo" size={10} />
-                roll back
+                {tr('step.rollback')}
               </button>
             ) : null}
           </div>
@@ -143,7 +155,7 @@ export function StepCard({
           <div className="mt-2.5 rounded-md border border-line/70 bg-base/40 px-2.5 py-2">
             <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
               <Icon name="check" size={11} />
-              acceptance · {step.acceptance.length}
+              {tr('step.acceptance')} · {step.acceptance.length}
             </div>
             <ul className="mt-1 space-y-0.5">
               {step.acceptance.map((point) => (
@@ -156,7 +168,10 @@ export function StepCard({
             </ul>
             {step.verdict ? (
               <p className={`mt-1.5 text-[11px] ${step.verdict.status === 'pass' ? 'text-ok' : step.verdict.status === 'fail' ? 'text-bad' : 'text-ink-3'}`}>
-                {step.verdict.reason} · verified {clock(step.endedAt ?? step.startedAt ?? 0)}
+                {step.verdict.reason
+                  .replace(/^PASS\b/, tr('step.pass'))
+                  .replace(/^FAIL\b/, tr('step.fail'))
+                  .replace(/· verified/, `· ${tr('step.status.verifying')}`)} · {clock(step.endedAt ?? step.startedAt ?? 0)}
               </p>
             ) : null}
           </div>

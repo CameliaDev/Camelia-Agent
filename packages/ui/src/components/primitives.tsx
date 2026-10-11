@@ -19,9 +19,9 @@ export const PATHS: Record<string, string> = {
   camellia: [0, 72, 144, 216, 288]
     .map(
       (deg) =>
-        `<path d="M8 1.8c.85 1.15.85 2.15 0 3-.85-1.15-.85-2.15 0-3z" transform="rotate(${deg} 8 8)"/>`,
+        `<path fill="currentColor" stroke="none" d="M8 2.6c1.4 0 2.4 1.1 2.4 2.4 0 1.5-1.1 2.8-2.4 2.8S5.6 6.5 5.6 5C5.6 3.7 6.6 2.6 8 2.6z" transform="rotate(${deg} 8 8)"/>`,
     )
-    .join('') + '<circle cx="8" cy="8" r="1.05"/>',
+    .join('') + '<circle fill="currentColor" stroke="none" cx="8" cy="8" r="1.1"/>',
   play: '<path d="M5.2 3.2v9.6l7-4.8-7-4.8z"/>',
   pause: '<path d="M5.2 3.2v9.6M10.8 3.2v9.6"/>',
   stop: '<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.2"/>',

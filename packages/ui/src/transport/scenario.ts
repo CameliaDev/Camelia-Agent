@@ -35,7 +35,7 @@ import type {
   Verdict,
 } from '@camelia/core';
 
-import type { SessionView } from '@camelia/agent/view';
+import type { ProviderStatus, SessionView } from '@camelia/agent/view';
 
 /** Named, reproducible UI states. `?scene=<id>` selects one. */
 export type SceneId =
@@ -100,6 +100,18 @@ export const SESSION_LIST: SessionView[] = [
 ];
 
 export const BOOTSTRAP_PROVIDER = { activeProvider: 'openrouter', activeModel: 'qwen3-coder:free' };
+
+/**
+ * The scripted engine's provider-connection state — the fixture's stand-in for
+ * `GET /health`. Kept in lockstep with `BOOTSTRAP_PROVIDER` so the scripted path
+ * exercises the same header states the live engine produces.
+ */
+export const BOOTSTRAP_PROVIDER_STATUS: ProviderStatus = {
+  state: 'connected',
+  id: BOOTSTRAP_PROVIDER.activeProvider,
+  model: BOOTSTRAP_PROVIDER.activeModel,
+  chain: ['opencode-zen', 'openrouter', 'ollama'],
+};
 
 // ---------------------------------------------------------------------------
 // builders

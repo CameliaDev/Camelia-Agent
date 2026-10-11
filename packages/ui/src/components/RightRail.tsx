@@ -18,17 +18,25 @@ import { contextUsage } from '@camelia/agent/view';
 import { clock, count, ms, pct } from '../lib/format.js';
 import { STEP_META, TONE_BG, TONE_TEXT, type Tone } from '../lib/status.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { t } from '../i18n/strings.js';
 import { MemoryPanel } from './MemoryPanel.js';
 import { Chip, Icon, ProgressBar, SectionHeader, StatusDot } from './primitives.js';
 
+function useTr() {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  return (k: Parameters<typeof t>[1]) => t(lang, k);
+}
+
 function RunIdentity(): ReactNode {
+  const tr = useTr();
   const snapshot = useUiStore((s) => s.snapshot);
+  const status = useUiStore((s) => s.status);
   const task = snapshot.task;
   const usage = task ? contextUsage(task.context) : 0;
   const fallbacks = snapshot.provider.fallbacks;
   return (
     <div className="px-3 py-2.5">
-      <p className="truncate text-[12px] font-medium text-ink">{snapshot.session?.title ?? 'No session'}</p>
+      <p className="truncate text-[12px] font-medium text-ink">{snapshot.session?.title ?? tr('right.noSession')}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {snapshot.provider.activeProvider ? (
           <Chip
@@ -45,12 +53,14 @@ function RunIdentity(): ReactNode {
             <span className="font-mono">{snapshot.provider.activeModel}</span>
           </Chip>
         ) : (
-          <span className="text-[11px] text-ink-3">No provider</span>
+          <span className="text-[11px] text-ink-3">
+            {status === 'connecting' ? tr('provider.connecting') : tr('right.noProvider')}
+          </span>
         )}
         {task ? (
           <Chip tone={usage > 0.8 ? 'warn' : 'muted'} title={`${count(task.context.used)} of ${count(task.context.window)} tokens`}>
             <Icon name="gauge" size={10} />
-            ctx {pct(usage)}
+            {tr('run.ctx')} {pct(usage)}
           </Chip>
         ) : null}
       </div>
@@ -60,11 +70,12 @@ function RunIdentity(): ReactNode {
 
 function SettingsButton({ collapsed = false }: { collapsed?: boolean }): ReactNode {
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  const tr = useTr();
   return (
     <button
       type="button"
-      aria-label="Settings"
-      title="Settings"
+      aria-label={tr('settings.title')}
+      title={tr('settings.title')}
       className={
         collapsed
           ? 'group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink'
@@ -75,10 +86,10 @@ function SettingsButton({ collapsed = false }: { collapsed?: boolean }): ReactNo
       <Icon name="settings" size={collapsed ? 16 : 14} />
       {collapsed ? (
         <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
-          Settings
+          {tr('settings.title')}
         </span>
       ) : (
-        <span>Settings</span>
+        <span>{tr('settings.title')}</span>
       )}
     </button>
   );
@@ -89,18 +100,19 @@ function SettingsButton({ collapsed = false }: { collapsed?: boolean }): ReactNo
 // ---------------------------------------------------------------------------
 
 function RunSection({ task }: { task: TaskView }): ReactNode {
+  const tr = useTr();
   const usage = contextUsage(task.context);
   return (
     <section className="border-b border-line">
-      <SectionHeader icon="layers" title="Run" right={<span className="font-mono text-[10.5px] text-ink-3">{pct(task.progress)}</span>} />
+      <SectionHeader icon="layers" title={tr('run.title')} right={<span className="font-mono text-[10.5px] text-ink-3">{pct(task.progress)}</span>} />
       <div className="space-y-2.5 px-3 pb-3">
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: 'steps', value: `${task.steps.filter((s) => s.status === 'done').length}/${task.stepsTotal || 0}` },
-            { label: 'tools', value: String(Object.keys(task.toolCalls).length) },
-            { label: 'context', value: pct(usage) },
-            { label: 'tokens', value: task.routing ? String(task.routing.tokens) : '—' },
-            { label: 'cost', value: task.routing ? `$${task.routing.estimatedUsd.toFixed(4)}` : '—' },
+            { label: tr('run.steps'), value: `${task.steps.filter((s) => s.status === 'done').length}/${task.stepsTotal || 0}` },
+            { label: tr('run.tools'), value: String(Object.keys(task.toolCalls).length) },
+            { label: tr('run.context'), value: pct(usage) },
+            { label: tr('run.tokens'), value: task.routing ? String(task.routing.tokens) : '—' },
+            { label: tr('run.cost'), value: task.routing ? `$${task.routing.estimatedUsd.toFixed(4)}` : '—' },
           ].map((cell) => (
             <div key={cell.label} className="rounded-md border border-line bg-base/40 px-2 py-1.5">
               <p className="text-[10px] uppercase tracking-[0.08em] text-ink-3">{cell.label}</p>
@@ -111,9 +123,9 @@ function RunSection({ task }: { task: TaskView }): ReactNode {
 
         <div>
           <div className="mb-1 flex items-center justify-between text-[10.5px] text-ink-3">
-            <span>weighted progress</span>
+            <span>{tr('run.weightedProgress')}</span>
             <span className="font-mono">
-              {task.currentStepIdx >= 0 ? `at step ${task.currentStepIdx + 1}` : 'not started'}
+              {task.currentStepIdx >= 0 ? `${tr('run.atStep')} ${task.currentStepIdx + 1}` : tr('run.notStarted')}
             </span>
           </div>
           <ProgressBar value={task.progress} tone={task.status === 'done' ? 'ok' : task.status === 'failed' ? 'bad' : 'accent'} />
@@ -134,11 +146,12 @@ function RunSection({ task }: { task: TaskView }): ReactNode {
 // ---------------------------------------------------------------------------
 
 function StepsSection({ task }: { task: TaskView }): ReactNode {
+  const tr = useTr();
   return (
     <section className="border-b border-line">
       <SectionHeader
         icon="branch"
-        title="Steps"
+        title={tr('run.stepsList')}
         right={<span className="font-mono text-[10.5px] text-ink-3">{task.steps.length}</span>}
       />
       <div className="px-3 pb-3">
@@ -231,6 +244,7 @@ function DroppedOriginal({ message }: { message: DroppedMessage }): ReactNode {
 }
 
 function ContextSection({ task }: { task: TaskView }): ReactNode {
+  const tr = useTr();
   const [openIdx, setOpenIdx] = useState<number | null>(task.context.compactions.length ? task.context.compactions.length - 1 : null);
   const ctx = task.context;
   const usage = contextUsage(ctx);
@@ -240,7 +254,7 @@ function ContextSection({ task }: { task: TaskView }): ReactNode {
     <section className="border-b border-line">
       <SectionHeader
         icon="gauge"
-        title="Context"
+        title={tr('context.title')}
         right={<span className="font-mono text-[10.5px] text-ink-3">{pct(usage)}</span>}
       />
       <div className="space-y-2.5 px-3 pb-3">
@@ -271,7 +285,7 @@ function ContextSection({ task }: { task: TaskView }): ReactNode {
 
         {ctx.compactions.length === 0 ? (
           <p className="text-[11.5px] text-ink-3">
-            Nothing has been compressed yet. When the window fills, protected slots (goal, constraints, todos, artifacts) survive.
+            {tr('context.nothingCompressed')}
           </p>
         ) : (
           <div className="space-y-1.5">
@@ -368,17 +382,18 @@ function SubAgentCard({ agent }: { agent: SubAgentView }): ReactNode {
 }
 
 function SubAgentsSection({ task }: { task: TaskView }): ReactNode {
+  const tr = useTr();
   return (
     <section className="border-b border-line">
       <SectionHeader
         icon="bot"
-        title="Sub-agents"
+        title={tr('subagents.title')}
         right={<span className="font-mono text-[10.5px] text-ink-3">{task.subAgents.length}</span>}
       />
       <div className="space-y-1.5 px-3 pb-3">
         {task.subAgents.length === 0 ? (
           <p className="text-[11.5px] text-ink-3">
-            No sub-agent has been spawned. Isolated subtasks run here so the main context stays clean.
+            {tr('subagents.empty')}
           </p>
         ) : (
           task.subAgents.map((agent) => <SubAgentCard key={agent.id} agent={agent} />)
@@ -393,29 +408,45 @@ function SubAgentsSection({ task }: { task: TaskView }): ReactNode {
 // ---------------------------------------------------------------------------
 
 function EventSection({ timeline }: { timeline: TimelineEntry[] }): ReactNode {
-  const shown = timeline.slice(-60).reverse();
+  const tr = useTr();
+  const [open, setOpen] = useState(false);
+  const shown = timeline.slice(-30).reverse();
   return (
     <section>
       <SectionHeader
         icon="terminal"
-        title="Events"
-        right={<span className="font-mono text-[10.5px] text-ink-3">{timeline.length}</span>}
+        title={tr('events.title')}
+        right={
+          <span className="flex items-center gap-1.5">
+            <span className="font-mono text-[10.5px] text-ink-3">{timeline.length}</span>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="text-ink-3 hover:text-ink"
+              aria-label={open ? 'Collapse events' : 'Expand events'}
+            >
+              <Icon name="chevron" size={11} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+            </button>
+          </span>
+        }
       />
-      <div className="px-3 pb-3">
-        {shown.length === 0 ? (
-          <p className="text-[11.5px] text-ink-3">The bus is quiet.</p>
-        ) : (
-          <ul className="space-y-[3px]">
-            {shown.map((entry, i) => (
-              <li key={`${entry.at}-${i}`} className="flex items-baseline gap-2 font-mono text-[10.5px]">
-                <span className="shrink-0 text-ink-3/70">{clock(entry.at)}</span>
-                <span className="shrink-0 text-accent-2">{entry.type}</span>
-                {entry.summary ? <span className="min-w-0 truncate text-ink-3">{entry.summary}</span> : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {open ? (
+        <div className="px-3 pb-3">
+          {shown.length === 0 ? (
+            <p className="text-[11.5px] text-ink-3">{tr('events.quiet')}</p>
+          ) : (
+            <ul className="space-y-[3px]">
+              {shown.map((entry, i) => (
+                <li key={`${entry.at}-${i}`} className="flex items-baseline gap-2 font-mono text-[10.5px]">
+                  <span className="shrink-0 text-ink-3/70">{clock(entry.at)}</span>
+                  <span className="shrink-0 text-accent-2">{entry.type}</span>
+                  {entry.summary ? <span className="min-w-0 truncate text-ink-3">{entry.summary}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -423,6 +454,7 @@ function EventSection({ timeline }: { timeline: TimelineEntry[] }): ReactNode {
 // ---------------------------------------------------------------------------
 
 export function RightRail(): ReactNode {
+  const tr = useTr();
   const task = useUiStore((s) => s.snapshot.task);
   const timeline = useUiStore((s) => s.snapshot.timeline);
   const collapsed = useUiStore((s) => s.localPrefs.rightCollapsed);
@@ -434,14 +466,14 @@ export function RightRail(): ReactNode {
       <aside data-rail="right" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-l border-line bg-elevated/30 py-3">
         <button
           type="button"
-          title="Expand run rail"
-          aria-label="Expand run rail"
+          title={tr('events.hint')}
+          aria-label={tr('events.hint')}
           className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
           onClick={() => setLocalPrefs({ rightCollapsed: false })}
         >
           <Icon name="expand" size={16} className="rotate-180" />
           <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
-            Expand run rail
+            {tr('events.hint')}
           </span>
         </button>
         <StatusDot tone={status === 'live' ? 'accent' : status === 'offline' ? 'muted' : 'warn'} />
@@ -477,7 +509,7 @@ export function RightRail(): ReactNode {
         </>
       ) : (
         <div className="border-b border-line px-3 py-4 text-[11.5px] text-ink-3">
-          Run, steps, context and sub-agents appear here once a task starts.
+          {tr('events.hint')}
         </div>
       )}
       <MemoryPanel />

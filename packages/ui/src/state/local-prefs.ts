@@ -13,7 +13,7 @@
  */
 
 import { applyThemeTokens, clearThemeTokens, type ThemeApplyResult } from '../theme/apply-theme.js';
-import { applyPreset, themeLabel, type ThemeId } from '../theme/presets.js';
+import { applyPreset, type ThemeId } from '../theme/presets.js';
 
 export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
 
@@ -27,6 +27,7 @@ export const RAIL_RIGHT_MAX = 560;
 
 export type TopBarMode = 'auto' | 'pinned' | 'hidden';
 export type MotionPref = 'system' | 'reduce';
+export type LanguagePref = 'en' | 'zh';
 
 export interface WindowGeometry {
   x: number;
@@ -42,6 +43,7 @@ export interface LocalPrefs {
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   themeId: ThemeId;
+  language: LanguagePref;
   topBar: TopBarMode;
   motion: MotionPref;
   /** Passed through `--font-mono`. Empty keeps the stylesheet stack. */
@@ -55,14 +57,16 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   rightWidth: RAIL_RIGHT_DEFAULT,
   leftCollapsed: false,
   rightCollapsed: false,
-  themeId: 'warm-dark',
-  topBar: 'auto',
+  themeId: 'light',
+  language: 'zh',
+  topBar: 'pinned',
   motion: 'system',
   fontMono: '',
   planApproval: 'always',
 };
 
 const THEME_IDS: readonly ThemeId[] = ['warm-dark', 'cool-dark', 'light', 'high-contrast'];
+const LANGS: readonly LanguagePref[] = ['en', 'zh'];
 const TOP_BAR_MODES: readonly TopBarMode[] = ['auto', 'pinned', 'hidden'];
 const MOTION_PREFS: readonly MotionPref[] = ['system', 'reduce'];
 
@@ -84,14 +88,9 @@ function storageOf(storage?: Storage): Storage | undefined {
   return localStorage;
 }
 
-export function hasSavedLocalPrefs(storage?: Storage): boolean {
-  const bin = storageOf(storage);
-  if (!bin) return false;
-  return bin.getItem(LOCAL_PREFS_KEY) !== null;
-}
-
 export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined): LocalPrefs {
   const themeId = THEME_IDS.includes(raw?.themeId as ThemeId) ? (raw?.themeId as ThemeId) : DEFAULT_LOCAL_PREFS.themeId;
+  const language = LANGS.includes(raw?.language as LanguagePref) ? (raw?.language as LanguagePref) : DEFAULT_LOCAL_PREFS.language;
   const topBar = TOP_BAR_MODES.includes(raw?.topBar as TopBarMode) ? (raw?.topBar as TopBarMode) : DEFAULT_LOCAL_PREFS.topBar;
   const motion = MOTION_PREFS.includes(raw?.motion as MotionPref) ? (raw?.motion as MotionPref) : DEFAULT_LOCAL_PREFS.motion;
   const fontMono = typeof raw?.fontMono === 'string' ? raw.fontMono.slice(0, 200) : '';
@@ -103,6 +102,7 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     leftCollapsed: raw?.leftCollapsed === true,
     rightCollapsed: raw?.rightCollapsed === true,
     themeId,
+    language,
     topBar,
     motion,
     fontMono,
@@ -155,6 +155,7 @@ export function syncMotion(prefs: LocalPrefs): void {
   document.documentElement.dataset.motion = prefs.motion;
 }
 
-export function describeTheme(id: ThemeId): string {
-  return themeLabel(id);
+export function syncLang(prefs: LocalPrefs): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.lang = prefs.language === 'zh' ? 'zh-CN' : 'en';
 }

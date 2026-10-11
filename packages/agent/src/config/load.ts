@@ -159,6 +159,26 @@ export function loadConfig(options: LoadConfigOptions = {}): CameliaConfig {
     } satisfies ProviderProfile;
   });
 
+  // Append extra providers defined only in config.json (not in defaults).
+  const knownIds = new Set(providers.map((p) => p.id));
+  if (fileConfig?.providers) {
+    for (const extra of fileConfig.providers) {
+      if (!extra.id || knownIds.has(extra.id)) continue;
+      const fromKeys = keys?.[extra.id];
+      providers.push({
+        id: extra.id,
+        label: extra.label ?? extra.id,
+        kind: extra.kind ?? 'openai-compatible',
+        baseUrl: extra.baseUrl ?? '',
+        models: extra.models ?? [],
+        defaultModel: extra.defaultModel,
+        capabilities: extra.capabilities,
+        headers: extra.headers,
+        apiKey: fromKeys ?? extra.apiKey,
+      } satisfies ProviderProfile);
+    }
+  }
+
   return {
     providers,
     model: fileConfig?.model,

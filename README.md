@@ -5,6 +5,19 @@
 
 Camelia 不是「会聊天的代码工具」，而是「能把任务做到尽善尽美」的 Agent：用户给一个目标，Camelia 规划、执行、自检、纠错、交付，并在每一步都可观测、可干预、可回滚、可回放。
 
+## 运行环境
+
+- **Node.js 22**（`>=22.11`，仓库以 `.nvmrc` / `.node-version` / `package.json#engines` / CI / Dockerfile 统一锁定）
+- **pnpm 9.14.4**（`packageManager` 字段，可用 `corepack enable` 自动接管）
+
+`better-sqlite3` 是原生模块，**必须与运行时的 Node 大版本一致**。切换 Node 大版本后请先执行 `pnpm rebuild better-sqlite3`，否则会报 `NODE_MODULE_VERSION` 不匹配。
+
+```bash
+nvm use            # 读取 .nvmrc → Node 22
+pnpm install
+pnpm rebuild better-sqlite3
+```
+
 ## 三条命令跑起来
 
 ```bash

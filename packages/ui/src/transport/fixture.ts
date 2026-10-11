@@ -22,6 +22,7 @@ import { initialSnapshot, reduceEvents, type ProjectionSnapshot } from '@camelia
 
 import {
   BOOTSTRAP_PROVIDER,
+  BOOTSTRAP_PROVIDER_STATUS,
   PRIMARY_SESSION,
   SESSION_LIST,
   buildScenario,
@@ -103,6 +104,7 @@ export class FixtureTransport implements Transport {
       session: bare ? undefined : PRIMARY_SESSION,
       sessions: bare ? [] : SESSION_LIST,
       provider: bare ? undefined : BOOTSTRAP_PROVIDER,
+      providerStatus: bare ? undefined : BOOTSTRAP_PROVIDER_STATUS,
     };
   }
 

@@ -31,6 +31,8 @@ import type {
   VerdictStatus,
 } from '@camelia/core';
 
+import type { ProviderStatus } from './wire.js';
+
 /** Bounded so a pathological event storm cannot grow the browser snapshot forever. */
 const MAX_TIMELINE = 400;
 const MAX_NOTICES = 50;
@@ -155,6 +157,15 @@ export interface ProviderView {
   /** Set when the active provider was chosen for a stated reason. */
   reason?: string;
   fallbacks: { from: string; to: string; reason: string; depth: number; at: number }[];
+  /**
+   * Whether the engine resolved a working provider (from `GET /health` / the bootstrap
+   * frame). `undefined` means *not yet known* — distinct from `false`, which means the
+   * engine answered and has no provider. The UI must not collapse the two, or a booting
+   * engine would look like a broken one.
+   */
+  connected?: boolean;
+  /** Every provider on the configured fallback chain, in order. */
+  chain?: string[];
 }
 
 export interface CheckpointView {
@@ -320,6 +331,35 @@ export function initialSnapshot(): ProjectionSnapshot {
 
 export function withSession(snapshot: ProjectionSnapshot, session: SessionView): ProjectionSnapshot {
   return { ...snapshot, session };
+}
+
+/**
+ * Fold the engine's provider-connection state into the snapshot.
+ *
+ * Kept separate from `reduceEvents` because it does not come from the event stream: the
+ * connection state is a property of the engine instance, reported on bootstrap / `/health`.
+ * Once a run starts, `provider.selected` carries the same ids and the two agree — this
+ * only fills the gap *before* the first task.
+ */
+export function withProviderStatus(
+  snapshot: ProjectionSnapshot,
+  status: ProviderStatus | undefined,
+): ProjectionSnapshot {
+  if (!status) return snapshot;
+  const connected = status.state === 'connected';
+  return {
+    ...snapshot,
+    provider: {
+      ...snapshot.provider,
+      connected,
+      chain: status.chain,
+      // A known-connected engine that has no session yet should still name its provider;
+      // one already set by a run's events wins (it reflects the routing actually taken).
+      ...(connected && !snapshot.provider.activeProvider
+        ? { activeProvider: status.id, activeModel: status.model }
+        : {}),
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

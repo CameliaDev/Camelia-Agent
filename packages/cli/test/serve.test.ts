@@ -181,6 +181,45 @@ describe('EngineServer — health and bootstrap', () => {
     expect(health.clients).toBe(0);
   });
 
+  // Iteration 25: the shell must be able to tell "no provider" from "not asked yet"
+  // without starting a task, so the connection state rides on /health and bootstrap.
+  it('reports the live provider status on /health', async () => {
+    const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('health-provider') });
+    servers.push(server);
+    runtimes.push(runtime);
+
+    const response = await fetch(`${address.url}${ENGINE_ROUTES.health}`);
+    const health = (await response.json()) as EngineHealth;
+    const status = health.providerStatus;
+    expect(status).toBeDefined();
+
+    // Derived from the runtime's own chain, so it cannot drift from what a run would use.
+    const chain = runtime.providerChain();
+    const active = chain.find((entry) => entry.active);
+    expect(status!.state).toBe(active ? 'connected' : 'unavailable');
+    expect(status!.chain).toEqual(chain.map((entry) => entry.id));
+    if (active) {
+      expect(status!.id).toBe(active.id);
+      expect(status!.model).toBe(runtime.modelInfo.model);
+    }
+  });
+
+  it('carries the provider status on the bootstrap frame, before any event', async () => {
+    const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('bootstrap-provider') });
+    servers.push(server);
+    runtimes.push(runtime);
+
+    const reader = await SseReader.open(`${address.url}${ENGINE_ROUTES.events}`);
+    readers.push(reader);
+    await reader.waitFor((frames) => frames.some((f) => f.event === SSE_FRAME.bootstrap));
+
+    const payload = JSON.parse(reader.frames[0]!.data) as {
+      providerStatus?: { state: string; chain: string[] };
+    };
+    expect(payload.providerStatus).toBeDefined();
+    expect(payload.providerStatus!.chain).toEqual(runtime.providerChain().map((entry) => entry.id));
+  });
+
   it('sends bootstrap before any domain event, then reports live', async () => {
     const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('bootstrap') });
     servers.push(server);

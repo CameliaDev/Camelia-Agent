@@ -97,3 +97,91 @@ describe('createUiStore — failure handling', () => {
     expect(store.getState().transportError).toBe('engine unreachable');
   });
 });
+
+// ---------------------------------------------------------------------------
+// provider connection state (Iteration 25)
+// ---------------------------------------------------------------------------
+
+/** A transport that captures its handlers so a test can drive the callbacks directly. */
+function manualTransport(): { transport: Transport; handlers: () => TransportHandlers } {
+  let captured: TransportHandlers | undefined;
+  return {
+    transport: {
+      kind: 'sse',
+      sent: [],
+      start(handlers: TransportHandlers): void {
+        captured = handlers;
+      },
+      stop(): void {},
+      send(): void {},
+    },
+    handlers: () => {
+      if (!captured) throw new Error('transport was never started');
+      return captured;
+    },
+  };
+}
+
+describe('createUiStore — provider status', () => {
+  it('seeds the connection state from bootstrap, before any task exists', () => {
+    const { transport, handlers } = manualTransport();
+    const store = createUiStore(transport);
+
+    // No task has run — the header still has to say whether a provider resolved.
+    expect(store.getState().snapshot.task).toBeUndefined();
+
+    handlers().onBootstrap({
+      sessions: [],
+      providerStatus: { state: 'connected', id: 'aliyun', model: 'qwen-plus', chain: ['aliyun', 'ollama'] },
+    });
+
+    const provider = store.getState().snapshot.provider;
+    expect(provider.connected).toBe(true);
+    expect(provider.activeProvider).toBe('aliyun');
+    expect(provider.activeModel).toBe('qwen-plus');
+    expect(provider.chain).toEqual(['aliyun', 'ollama']);
+  });
+
+  it('accepts a provider status arriving out of band via onProviderStatus', () => {
+    const { transport, handlers } = manualTransport();
+    const store = createUiStore(transport);
+    handlers().onProviderStatus?.({ state: 'connected', id: 'ollama', model: 'qwen2.5-coder:7b', chain: ['ollama'] });
+    expect(store.getState().snapshot.provider.activeProvider).toBe('ollama');
+  });
+
+  it('records an unavailable engine without inventing a provider name', () => {
+    const { transport, handlers } = manualTransport();
+    const store = createUiStore(transport);
+    handlers().onBootstrap({ sessions: [], providerStatus: { state: 'unavailable', chain: [] } });
+    const provider = store.getState().snapshot.provider;
+    expect(provider.connected).toBe(false);
+    expect(provider.activeProvider).toBeUndefined();
+  });
+
+  it('leaves the connection state unknown when bootstrap carries no provider status', () => {
+    const { transport, handlers } = manualTransport();
+    const store = createUiStore(transport);
+    handlers().onBootstrap({ sessions: [] });
+    // `undefined`, not `false`: the UI must be able to tell "still connecting" from
+    // "the engine answered and has no provider".
+    expect(store.getState().snapshot.provider.connected).toBeUndefined();
+  });
+
+  it('lets a run event override the boot-time provider', () => {
+    const { transport, handlers } = manualTransport();
+    const store = createUiStore(transport);
+    handlers().onBootstrap({
+      sessions: [],
+      providerStatus: { state: 'connected', id: 'aliyun', model: 'qwen-plus', chain: ['aliyun'] },
+    });
+    handlers().onEvent({
+      type: 'provider.selected',
+      payload: { providerId: 'openrouter', model: 'qwen3-coder:free', reason: 'cheap-first' },
+      traceId: 'trc',
+      ts: 1,
+    } as never);
+    const provider = store.getState().snapshot.provider;
+    expect(provider.activeProvider).toBe('openrouter');
+    expect(provider.connected).toBe(true);
+  });
+});

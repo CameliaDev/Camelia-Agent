@@ -92,7 +92,7 @@ export function App(): ReactNode {
         className="camelia-rails grid h-full min-h-0"
         style={{
           gridTemplateColumns: 'var(--rail-left-w) minmax(0, 1fr) var(--rail-right-w)',
-          paddingTop: topVisible ? 48 : 0,
+          paddingTop: topVisible ? 36 : 0,
         }}
       >
         <SessionRail />

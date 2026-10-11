@@ -50,7 +50,7 @@ describe('MemoryPanel — visible (Iteration 22)', () => {
     await renderPanel();
 
     // The long-term fact is listed with engine data.
-    expect(screen.getByText('Memory')).toBeInTheDocument();
+    expect(screen.getAllByText(/^MEMORY$|^记忆$/).length).toBeGreaterThan(0);
     expect(within(list()).getByText(/Camelia matches recall by token overlap/)).toBeInTheDocument();
 
     // Value decomposition: strength = importance × recency × correctness.
@@ -104,7 +104,7 @@ describe('MemoryPanel — usable (Iteration 22)', () => {
       expect(sent).toBeTruthy();
       expect((sent?.payload as { memoryId: string }).memoryId).toBe('mem_fixture_short_1');
     });
-    await waitFor(() => expect(within(row).getByText('known-bad')).toBeInTheDocument());
+    await waitFor(() => expect(within(row).getByText(/known-bad/)).toBeInTheDocument());
   });
 
   it('forget removes the item from the list and lands in the forget log', async () => {

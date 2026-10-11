@@ -1,7 +1,7 @@
 # Camelia 验收报告（自动生成）
 
 > 由 `pnpm acceptance` 生成，数据来自真实测试运行与覆盖率产物，禁止手工填写。
-> 生成时间：2026-10-10T16:28:55.777Z
+> 生成时间：2026-10-11T02:15:11.321Z
 
 ## 一、白皮书 §9 指标
 
@@ -19,9 +19,9 @@
 | M10 | 上下文压缩比 | 压缩后 token / 压缩前 token | ≤ 40% | context 单测通过（压缩比在用例中校验） | ✅ pass |
 | M11 | 工具失败自恢复率 | 工具失败经重试/降级最终成功 | ≥ 85% | 注入用例：瞬态模型失败重试、文件不存在工具错误自纠正、工具超时被界住且任务存活、命令非 0 退出 → 重跑通过（reliability-injection 4 例） | ✅ pass |
 | M12 | 回退链成功率 | 主 Provider 失败后切换备用 | ≥ 95% | agent fallback 单测通过 | ✅ pass |
-| M13 | 核心模块单测覆盖率 | Vitest 行覆盖率（core / harness / agent） | ≥ 80% | core 97.26% / harness 96.23% / agent 88.18% | ✅ pass |
+| M13 | 核心模块单测覆盖率 | Vitest 行覆盖率（core / harness / agent） | ≥ 80% | core 95.86% / harness 94.19% / agent 88.46% | ✅ pass |
 | M14 | 任务可追溯完整性 | 每任务 trace 无孤儿 span | 100% | core trace 单测 + 事件回放 e2e 通过 | ✅ pass |
-| M15 | 冷启动时间 | CLI：进程启动到输出；桌面：进程启动到窗口客户端区域已绘制（像素判定） | ≤ 2.5s | CLI 348ms（--version）；桌面 735ms（Tauri 窗口绘制就绪，中位数 3 次） | ✅ pass |
+| M15 | 冷启动时间 | CLI：进程启动到输出；桌面：进程启动到窗口客户端区域已绘制（像素判定） | ≤ 2.5s | CLI 159ms（--version）；桌面 1912ms（Tauri 窗口绘制就绪，中位数 3 次） | ✅ pass |
 
 状态图例：✅ pass ｜ ⚠️ partial（部分达成 / 用例集规模不足）｜ ❌ fail ｜ ➖ not-measured（需真实模型或 UI）
 
@@ -29,11 +29,11 @@
 
 | 包 | 行 | 语句 | 函数 | 分支 |
 | --- | --- | --- | --- | --- |
-| @camelia/core | 97.26% | 97.26% | 95.34% | 92.42% |
-| @camelia/harness | 96.23% | 96.23% | 98.83% | 87.54% |
-| @camelia/agent | 88.18% | 88.18% | 85.44% | 85.82% |
-| @camelia/cli | 88.14% | 88.14% | 84.28% | 73.34% |
-| @camelia/ui | 94.63% | 94.63% | 84.93% | 79.17% |
+| @camelia/core | 95.86% | 95.86% | 93.89% | 92.45% |
+| @camelia/harness | 94.19% | 94.19% | 98.26% | 86.01% |
+| @camelia/agent | 88.46% | 88.46% | 80.11% | 84.32% |
+| @camelia/cli | 87.43% | 87.43% | 85.07% | 72.66% |
+| @camelia/ui | 84.85% | 84.85% | 71.11% | 76.43% |
 
 ## 三、真实模型复测（Iteration 17）
 
@@ -127,7 +127,7 @@
 | `Camelia_0.1.0_x64-setup.exe` | 2199.3 KB |
 
 - **安装模式 `currentUser`**：按用户安装到 `%LOCALAPPDATA%\Camelia`，不弹 UAC、不需要管理员。
-- **实测记录（Windows 11，2026-10-10）**：静默安装退出码 0 → 安装目录出现 `camelia-desktop.exe` 与 `uninstall.exe` → 注册卸载项 `Camelia 0.1.0`（`InstallLocation=%LOCALAPPDATA%\Camelia`）。
+- **实测记录（Windows 11，2026-10-11）**：静默安装退出码 0 → 安装目录出现 `camelia-desktop.exe` 与 `uninstall.exe` → 注册卸载项 `Camelia 0.1.0`（`InstallLocation=%LOCALAPPDATA%\Camelia`）。
 - **安装版可启动**：`desktop-installed.png`（安装后的 exe，`--scene=running`，投影含压缩面板与「DROPPED ORIGINALS 12/12」）。
 - **安装版可连本地引擎**：`desktop-installed-live.png`（`scripts/desktop-live-shot.ps1` 启动真实 `camelia serve`，把 `--engine-url` 注入安装后的 exe，窗口显示 `shell.exec` 审批门挂起）。
 

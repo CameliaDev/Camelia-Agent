@@ -26,8 +26,13 @@ describe('localPrefs', () => {
 
   it('drops an unknown theme instead of inventing one', () => {
     const prefs = sanitizeLocalPrefs({ themeId: 'nope' as LocalPrefs['themeId'], leftWidth: 300 });
-    expect(prefs.themeId).toBe('warm-dark');
+    expect(prefs.themeId).toBe('light');
     expect(prefs.leftWidth).toBe(300);
+  });
+
+  it('drops an unknown language and keeps a saved one', () => {
+    expect(sanitizeLocalPrefs({ language: 'fr' as LocalPrefs['language'] }).language).toBe('zh');
+    expect(sanitizeLocalPrefs({ language: 'en' }).language).toBe('en');
   });
 
   it('round-trips through storage and stays out of the snapshot', () => {
@@ -37,6 +42,7 @@ describe('localPrefs', () => {
       leftCollapsed: true,
       rightCollapsed: false,
       themeId: 'light',
+      language: 'zh',
       topBar: 'pinned',
       motion: 'reduce',
       fontMono: 'Consolas, monospace',

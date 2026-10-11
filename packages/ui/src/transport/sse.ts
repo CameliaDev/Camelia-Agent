@@ -12,7 +12,7 @@
  */
 
 import type { Command, DomainEvent } from '@camelia/core';
-import { ENGINE_ROUTES, SSE_FRAME, type CommandAck } from '@camelia/agent/view';
+import { ENGINE_ROUTES, SSE_FRAME, type CommandAck, type EngineHealth } from '@camelia/agent/view';
 
 import type { BootstrapPayload, ConnectionStatus, Transport, TransportHandlers } from './types.js';
 
@@ -57,6 +57,12 @@ export class SseTransport implements Transport {
     this.stopped = false;
     handlers.onStatus('connecting');
 
+    // Probe `/health` before the stream: the bootstrap frame answers "which sessions
+    // exist", but a freshly booted engine has no session yet and the header still has to
+    // say whether a provider resolved. The probe is cheap, non-blocking and best-effort —
+    // a failure just means the bootstrap frame is the only source.
+    void this.probeHealth();
+
     const factory = this.options.eventSource ?? defaultEventSource;
     const source = factory(this.eventsUrl);
     this.source = source;
@@ -98,6 +104,29 @@ export class SseTransport implements Transport {
     this.stopped = true;
     this.source?.close();
     this.source = undefined;
+  }
+
+  /**
+   * Ask the engine directly whether a provider is connected.
+   *
+   * Deliberately uses the *global* `fetch` rather than the injectable `fetchImpl`: that
+   * one is the command channel, and a probe sharing it would consume a call the caller
+   * (and its tests) expect to belong to a command. Best-effort by design — any failure is
+   * swallowed, since the stream's bootstrap frame carries the same data.
+   */
+  private async probeHealth(): Promise<void> {
+    const fetchImpl = globalThis.fetch;
+    if (!fetchImpl) return;
+    try {
+      const url = `${this.options.baseUrl.replace(/\/+$/, '')}${ENGINE_ROUTES.health}`;
+      const response = await fetchImpl(url);
+      if (!response.ok) return;
+      const health = (await response.json()) as EngineHealth;
+      if (this.stopped || !health.providerStatus) return;
+      this.handlers?.onProviderStatus?.(health.providerStatus);
+    } catch {
+      // The stream is the primary channel; a failed probe is not an error worth showing.
+    }
   }
 
   send(command: Command): void {

@@ -36,12 +36,33 @@ export const SSE_FRAME = {
 
 export type SseFrameName = (typeof SSE_FRAME)[keyof typeof SSE_FRAME];
 
+/**
+ * Whether the engine actually resolved a working provider when it booted.
+ *
+ * `connected` is the one fact the UI cannot derive from the event stream: events only
+ * describe the *current session's* routing, so a freshly launched engine with sessions
+ * but no run yet would otherwise have nothing to show (whitepaper §6.1 — the UI shows
+ * engine truth, never a guess).
+ */
+export interface ProviderStatus {
+  /** `connected` when the runtime resolved an active provider; `unavailable` otherwise. */
+  state: 'connected' | 'unavailable';
+  /** Id of the provider that will be used for the next run. */
+  id?: string;
+  /** Model the router picked for the next run. */
+  model?: string;
+  /** Ids of every provider along the configured fallback chain, in order. */
+  chain: string[];
+}
+
 /** `GET /health` response body. */
 export interface EngineHealth {
   ok: boolean;
   sessionId?: Id;
   provider?: string;
   model?: string;
+  /** Rich provider state — supersedes the bare `provider` field for UI consumption. */
+  providerStatus?: ProviderStatus;
   /** Number of clients currently attached to `/events`. */
   clients: number;
 }
@@ -67,5 +88,28 @@ export function toSessionView(session: Session): SessionView {
     workspace: session.workspace,
     provider: session.provider,
     model: session.model,
+  };
+}
+
+/** The chain entry shape `CameliaRuntime.providerChain()` returns. */
+export interface ProviderChainEntry {
+  id: string;
+  label: string;
+  model: string;
+  active: boolean;
+}
+
+/**
+ * Resolve the engine's provider status from its own runtime view — the single place the
+ * "is a provider connected?" question is answered, so `/health`, the SSE bootstrap frame
+ * and any future consumer cannot disagree.
+ */
+export function toProviderStatus(chain: ProviderChainEntry[], model?: string): ProviderStatus {
+  const active = chain.find((entry) => entry.active);
+  return {
+    state: active ? 'connected' : 'unavailable',
+    ...(active ? { id: active.id } : {}),
+    ...(active ? { model: model ?? active.model } : {}),
+    chain: chain.map((entry) => entry.id),
   };
 }

@@ -14,7 +14,9 @@ import type { TaskView } from '@camelia/agent/view';
 
 import { ms, pct } from '../lib/format.js';
 import { ACTIVITY_META, TONE_TEXT } from '../lib/status.js';
+import { t } from '../i18n/strings.js';
 import { Chip, Icon, ProgressBar, StatusDot } from './primitives.js';
+import { useUiState } from '../state/UiProvider.js';
 
 export function ActivityBar({
   task,
@@ -29,7 +31,10 @@ export function ActivityBar({
   onCancel: () => void;
   onIntervene: () => void;
 }): ReactNode {
+  const { localPrefs } = useUiState();
+  const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
   const meta = ACTIVITY_META[task.activity.kind];
+  const label = task.activity.kind === 'waiting-approval' ? tr('approval.waiting') : meta.label;
   const elapsed = Math.max(0, task.updatedAt - task.startedAt);
   const inActivity = Math.max(0, task.updatedAt - task.activity.since);
   const running = task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled' && task.status !== 'paused';
@@ -40,7 +45,7 @@ export function ActivityBar({
       <div className="flex items-center gap-2.5">
         <span className={`flex items-center gap-1.5 text-[12px] font-semibold ${TONE_TEXT[meta.tone]}`}>
           {running ? <StatusDot tone={meta.tone} pulse /> : <Icon name="dot" size={10} />}
-          {meta.label}
+          {label}
         </span>
         <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{task.activity.detail}</span>
 
@@ -50,7 +55,7 @@ export function ActivityBar({
         </span>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {waiting ? <Chip tone="warn">your call</Chip> : null}
+          {waiting ? <Chip tone="warn">{tr('approval.yourCall')}</Chip> : null}
           {task.status === 'paused' ? (
             <button
               type="button"
@@ -58,7 +63,7 @@ export function ActivityBar({
               className="inline-flex items-center gap-1 rounded border border-accent/40 px-2 py-[3px] text-[11px] text-accent hover:bg-accent/10"
             >
               <Icon name="play" size={11} />
-              Resume
+              {tr('resume')}
             </button>
           ) : (
             <button
@@ -68,7 +73,7 @@ export function ActivityBar({
               className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Icon name="pause" size={11} />
-              Pause
+              {tr('pause')}
             </button>
           )}
           <button
@@ -77,7 +82,7 @@ export function ActivityBar({
             className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-info/40 hover:text-info"
           >
             <Icon name="compass" size={11} />
-            Steer
+            {tr('steer')}
           </button>
           <button
             type="button"
@@ -86,7 +91,7 @@ export function ActivityBar({
             className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-bad/40 hover:text-bad disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Icon name="stop" size={11} />
-            Cancel
+            {tr('cancel')}
           </button>
         </div>
       </div>

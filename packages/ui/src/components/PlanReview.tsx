@@ -14,9 +14,11 @@ import type { TaskView } from '@camelia/agent/view';
 
 import { makeCommand } from '../state/store.js';
 import { useUiState } from '../state/UiProvider.js';
+import { t } from '../i18n/strings.js';
 
 export function PlanReview({ task }: { task: TaskView }): ReactNode {
-  const { dispatch } = useUiState();
+  const { dispatch, localPrefs } = useUiState();
+  const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
   const [editing, setEditing] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftPath, setDraftPath] = useState('');
@@ -43,7 +45,7 @@ export function PlanReview({ task }: { task: TaskView }): ReactNode {
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3" data-plan-review>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[13px] font-semibold text-ink">Review the plan</h2>
+          <h2 className="text-[13px] font-semibold text-ink">{tr('approval.review')}</h2>
           <p className="mt-0.5 text-[12px] text-ink-2">
             {task.goal ?? task.intentRaw}
           </p>
@@ -54,21 +56,21 @@ export function PlanReview({ task }: { task: TaskView }): ReactNode {
             className="rounded-md bg-accent px-2.5 py-1.5 text-[11.5px] font-medium text-base"
             onClick={() => dispatch(makeCommand('approve_plan', { taskId: task.id, scope: 'once' }))}
           >
-            Approve once
+            {tr('approval.once')}
           </button>
           <button
             type="button"
             className="rounded-md border border-line px-2.5 py-1.5 text-[11.5px] text-ink"
             onClick={() => dispatch(makeCommand('approve_plan', { taskId: task.id, scope: 'session' }))}
           >
-            Approve for session
+            {tr('approval.session')}
           </button>
           <button
             type="button"
             className="rounded-md border border-bad/40 px-2.5 py-1.5 text-[11.5px] text-bad"
             onClick={() => setRejecting((value) => !value)}
           >
-            Reject
+            {tr('approval.reject')}
           </button>
         </div>
       </div>
@@ -129,7 +131,7 @@ export function PlanReview({ task }: { task: TaskView }): ReactNode {
                       setDraftPath(path);
                     }}
                   >
-                    Edit
+                    {tr('step.edit')}
                   </button>
                   <button
                     type="button"
@@ -137,7 +139,7 @@ export function PlanReview({ task }: { task: TaskView }): ReactNode {
                     className="rounded border border-line px-1.5 text-[11px] text-bad"
                     onClick={() => send([{ op: 'delete', stepId: step.id }])}
                   >
-                    Delete
+                    {tr('step.delete')}
                   </button>
                 </div>
               </div>
@@ -171,7 +173,7 @@ export function PlanReview({ task }: { task: TaskView }): ReactNode {
         className="rounded-md border border-dashed border-line px-2.5 py-1.5 text-[11.5px] text-ink-2"
         onClick={() => send([{ op: 'insert', title: 'New step', path: '' }])}
       >
-        Add step
+        {tr('step.add')}
       </button>
     </div>
   );

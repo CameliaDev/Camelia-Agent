@@ -971,4 +971,42 @@
   - 记忆面板内的 recall 历史：仍开。
   - 长会话上的 promote 阈值和 recall_noise：仍没有真实长会话。仍开。
 
+## Iteration 24 — 回放与画像入环、失效机制落表、实测收口
+
+三阶段串行。分层仍是 `ui → agent → harness → core`。测试总数不得低于 1004 的硬门槛本轮打在 **1023**（core 121 · harness 441 · agent 242 · cli 72 · ui 141 · e2e 7）。
+
+### 阶段 1 — 回放与画像接入真实循环
+- **任务结束写运行目录**：`AgentLoop.finish()` 改 async，结束前 best-effort `writeRunRecord`，落点 `~/.camelia/runs/<taskId>/record.json`（`{model, gruntModel?, prompts[], context dump, toolResults[]}`）。写失败只记日志、不改任务 outcome。`ContextManager.dump()` 输出 slots 与全部 entries（含 compacted）；模型取自网关 `promptLog`（call 入口记 purpose/model/system）。CLI `run`/`serve` 组合根显式传 `profileDir` / `runRecordDir`，来自 `paths.profiles()` / `paths.runs()`。
+- **规划读画像**：新增 `profile/profile-loader.ts`：候选名 = workspace basename（含大小写变体）的 `.yaml/.yml`，未命中则扫描目录内 yaml 的 `name:` 字段等于 basename 或为其前缀（≥4 字符）——真实存在的 `~/.camelia/profiles/camelia.yaml` 因此能匹配 workspace `Camelia-Agent`。解析失败/不可读只 warn 并返回 undefined，任务继续。`plannerSystemPrompt` 新增 `profile` 段（name/conventions/pitfalls/verification/forbidden），Planner 在 plan/revise/replanOffList 三处惰性共用。
+- **BOM 修复**：PowerShell 写出的 yaml 带 `\uFEFF` 会让首行 `name:` 正则失配——解析器开头剥 BOM。
+- 真机 e2e：默认 home 下真实任务写出 record.json（7 prompts / 1 toolResults / context 4 entries）；临时 CAMELIA_HOME + BOM 版 camelia.yaml 下重建后 plan prompt 含 Project profile / forbidden / conventions / pitfalls。
+
+### 阶段 2 — 其余失效模式由机制写入 `failure_modes`
+- `context-exhaustion`：`Executor` 每次模型调用前，`ContextManager.tokenUsage() >= config.contextWindow` 即记一行（soft compact 之后仍超窗才记），任务继续。
+- `zero-tool-calls`：`AgentLoop` 验证最终失败且最后一次执行 `toolCalls.length === 0` 即记（run 与 runRemaining 两处），mechanism 指向 Executor 无工具即 break 的路径。
+- `declared-but-ineffective`：`checkDrift` 判定 drifted 即记，mechanism 含 score 与 `DriftDetector.assess`。
+- `abi-mismatch`：store 打不开时写不进表——新增 `agent/src/runtime/abi.ts`：`isAbiMismatchError`（NODE_MODULE_VERSION 等标记）+ boot 时写 out-of-band sidecar `~/.camelia/logs/abi-mismatch.jsonl`，下次 store 可用后 `migrateAbiMismatch` 把同 workspace 行迁入 `failure_modes` 并删 sidecar。best-effort，失败不挡启动。
+- 四种全部用确定性测试造出（ScriptedLLM，不靠现场模型）：`iteration24-failure-modes.test.ts`（3）+ `abi.test.ts`（6）。
+
+### 阶段 3 — Iteration 23 没测的三件实测
+- **Windows 贴靠（真机）**：重建 exe（`desktop:build`，exe 新于 UI dist）后启动 `camelia-desktop.exe`，用 computer-use 在真实屏幕上把窗口顶部依次拖到屏幕上沿（最大化）、左沿（左半屏）、右沿（右半屏）。三次拖拽动作真实执行；效果在用户屏幕确认。
+- **现场小样本（Ollama `qwen2.5-coder:7b`，样本小）**：3 个 `--yes` 用例——s1 file-exists **通过**（16.8s，hello.txt 内容正确）、s3 md 标题 **通过**（10.3s，notes.md `# Notes`）、s2 js 模块 **失败**（28.6s：fs.write 报告成功但任务判定 failed——todos 第二步始终 pending、重试 3 轮未过，失败回滚把文件清掉）。计划门 1 例：无 `--yes` 时输出停在 `awaiting-approval` ✅。grunt `llama3.2:3b` 未装，每次 execute 走 not_found → 回退决策模型（warn 日志确证）。
+- **静态 vs 动态路由 token 合计**：**未测**。harness/CLI 没有路由开关，本机 grunt 未装导致名义动态每次都回退决策模型，现场数据即全决策路由 token 数（三例 prompts 合计约 43k 字符 ≈ 10.9k tokens），无法分出真动态节省量；不据此回滚廉价优先。现场样本未见廉价优先把弱结果定住（s2 是 todo 编排失败，非弱验收被定住）。
+- `node scripts/usable-check.mjs` **6/6**。`pnpm acceptance` 刷新 ACCEPTANCE.md：M1–M15 全 pass（M12 修复见下，M15 稳态桌面 1912ms）。
+
+### 行为演变（旧断言因新行为而改）
+- `AgentLoop.finish()` 由同步变 async；调用方（run/runRemaining）随之 await。
+- `HarnessConfig` 新增可选 `profileDir` / `runRecordDir`（undefined 保持旧行为，测试不受污染）。
+- `migrateAbiMismatch` 参数收窄为 `Pick<SessionStore,'recordFailureMode'>`，测试以最小 stub 驱动。
+
+### 测试与门禁
+- `pnpm typecheck` 10/10、`pnpm lint` 6/6、`pnpm build` 5/5。
+- `pnpm test`：core 121 · harness 441 · agent 242 · cli 72 · ui 141 · e2e 7 = **1023**（基线 1004）。
+- 新增：阶段 1（8+1）、阶段 2（3+6）、M12 修复补 `toSessionView` 投影测试（1）。
+- **M12 回归与修复**：补 abi.ts catch 分支后 agent 全局 functions 仍 79.54% < 80 阈值（缺口 0.46%）；补 `toSessionView` 投影单测后 functions 80.11% 过线，M12 转 ✅。M15 重建后首次冷跑 8811ms（杀软/缓存），稳态探针 1912–1931ms ≤2.5s。
+
+### 本轮仍开放
+- Iteration 22 三项：agent 覆盖率本轮实测 88.46%（未专门回升）；记忆面板内 recall 时间线；真实长会话上的 promote 阈值与 recall_noise。均按任务书保持开放，未补假数据。
+- s2 现场失败（todo 编排后回滚清文件）只记录未修——不在本轮范围。
+
 

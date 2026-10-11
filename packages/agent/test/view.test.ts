@@ -32,6 +32,8 @@ import {
   contextUsage,
   initialSnapshot,
   reduceEvents,
+  toProviderStatus,
+  withProviderStatus,
   withSession,
   type ProjectionSnapshot,
 } from '../src/view/index.js';
@@ -474,6 +476,92 @@ describe('projection — determinism and bounds', () => {
 });
 
 // ---------------------------------------------------------------------------
+// provider connection state (Iteration 25)
+// ---------------------------------------------------------------------------
+
+describe('toProviderStatus', () => {
+  it('marks connected and names the active provider', () => {
+    const status = toProviderStatus(
+      [
+        { id: 'aliyun', label: 'Aliyun', model: 'qwen-plus', active: true },
+        { id: 'ollama', label: 'Ollama', model: 'qwen2.5-coder:7b', active: false },
+      ],
+      'qwen-plus',
+    );
+    expect(status).toEqual({
+      state: 'connected',
+      id: 'aliyun',
+      model: 'qwen-plus',
+      chain: ['aliyun', 'ollama'],
+    });
+  });
+
+  it('falls back to the active entry model when the router reports none', () => {
+    const status = toProviderStatus([{ id: 'ollama', label: 'Ollama', model: 'qwen2.5-coder:7b', active: true }]);
+    expect(status.model).toBe('qwen2.5-coder:7b');
+  });
+
+  it('reports unavailable when no entry is active', () => {
+    const status = toProviderStatus([{ id: 'ollama', label: 'Ollama', model: 'qwen2.5-coder', active: false }]);
+    expect(status.state).toBe('unavailable');
+    expect(status.id).toBeUndefined();
+    expect(status.model).toBeUndefined();
+    expect(status.chain).toEqual(['ollama']);
+  });
+});
+
+describe('withProviderStatus', () => {
+  it('records the connection state and the chain', () => {
+    const snapshot = withProviderStatus(initialSnapshot(), {
+      state: 'connected',
+      id: 'aliyun',
+      model: 'qwen-plus',
+      chain: ['aliyun', 'ollama'],
+    });
+    expect(snapshot.provider.connected).toBe(true);
+    expect(snapshot.provider.activeProvider).toBe('aliyun');
+    expect(snapshot.provider.activeModel).toBe('qwen-plus');
+    expect(snapshot.provider.chain).toEqual(['aliyun', 'ollama']);
+  });
+
+  it('distinguishes "not asked yet" from "no provider"', () => {
+    // No status → the field stays undefined, so the UI can render "connecting" rather
+    // than claiming the engine has no provider.
+    expect(initialSnapshot().provider.connected).toBeUndefined();
+
+    const unavailable = withProviderStatus(initialSnapshot(), {
+      state: 'unavailable',
+      chain: [],
+    });
+    expect(unavailable.provider.connected).toBe(false);
+    expect(unavailable.provider.activeProvider).toBeUndefined();
+  });
+
+  it('never overwrites a provider a run has already selected', () => {
+    // A run's `provider.selected` event carries the routing actually taken, including a
+    // fallback; the boot-time status must not clobber it with the configured primary.
+    const afterRun = fold([
+      env('provider.selected', { providerId: 'openrouter', model: 'qwen3-coder:free', reason: 'cheap-first' }, 1),
+    ]);
+    const withStatus = withProviderStatus(afterRun, {
+      state: 'connected',
+      id: 'aliyun',
+      model: 'qwen-plus',
+      chain: ['aliyun', 'ollama'],
+    });
+    expect(withStatus.provider.activeProvider).toBe('openrouter');
+    expect(withStatus.provider.activeModel).toBe('qwen3-coder:free');
+    // The connection fact is still recorded.
+    expect(withStatus.provider.connected).toBe(true);
+  });
+
+  it('is a no-op without a status payload', () => {
+    const base = initialSnapshot();
+    expect(withProviderStatus(base, undefined)).toBe(base);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // remaining lifecycle events (status, plan revision, recovery, housekeeping)
 // ---------------------------------------------------------------------------
 
@@ -709,5 +797,21 @@ describe('projection — remaining lifecycle events', () => {
     expect(summaries.get('memory.reactivated')).toContain('a');
     expect(summaries.get('memory.downgraded')).toContain('task-verification-gap');
     expect(summaries.get('tool.usage_injected')).toContain('git');
+  });
+});
+import { toSessionView } from '../src/view/wire.js';
+
+describe('toSessionView (Iteration 24)', () => {
+  it('projects a persisted Session to the UI row shape', () => {
+    const view = toSessionView({
+      id: 'sess-1',
+      title: 't',
+      workspace: 'C:/ws',
+      provider: 'ollama',
+      model: 'qwen2.5-coder:7b',
+      createdAt: 0,
+      updatedAt: 0,
+    });
+    expect(view).toEqual({ id: 'sess-1', title: 't', workspace: 'C:/ws', provider: 'ollama', model: 'qwen2.5-coder:7b' });
   });
 });

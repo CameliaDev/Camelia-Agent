@@ -7,7 +7,7 @@
   "description": "Camelia — Warm intelligence, sharp code. A task-completion-first AI coding agent.",
   "packageManager": "pnpm@9.14.4",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.11"
   },
   "scripts": {
     "build": "turbo run build",

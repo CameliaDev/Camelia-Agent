@@ -19,9 +19,11 @@ import type { CameliaRuntime } from '@camelia/agent';
 import {
   ENGINE_ROUTES,
   SSE_FRAME,
+  toProviderStatus,
   toSessionView,
   type CommandAck,
   type EngineHealth,
+  type ProviderStatus,
 } from '@camelia/agent/view';
 
 import type { ApprovalBroker } from './ApprovalBroker.js';
@@ -151,11 +153,13 @@ export class EngineServer {
     }
 
     if (method === 'GET' && path === ENGINE_ROUTES.health) {
+      const providerStatus = this.providerStatus();
       const health: EngineHealth = {
         ok: true,
         sessionId: this.options.runtime.session.id,
         provider: this.options.runtime.session.provider,
         model: this.options.runtime.session.model,
+        providerStatus,
         clients: this.clients.size,
       };
       this.sendJson(res, 200, health, req);
@@ -236,19 +240,32 @@ export class EngineServer {
     }
   }
 
+  /**
+   * The engine's own answer to "is a provider connected?".
+   *
+   * Derived from the live runtime rather than the persisted session: the session row is
+   * whatever the last run wrote, so on a fresh boot it would report a provider that the
+   * current config may no longer resolve (whitepaper §6.1 — never show a state that did
+   * not happen).
+   */
+  private providerStatus(): ProviderStatus {
+    return toProviderStatus(this.options.runtime.providerChain(), this.options.runtime.modelInfo.model);
+  }
+
   private async bootstrap(): Promise<{
     session: ReturnType<typeof toSessionView>;
     sessions: ReturnType<typeof toSessionView>[];
     provider: { activeProvider?: string; activeModel?: string };
+    providerStatus: ProviderStatus;
   }> {
     const runtime = this.options.runtime;
     const sessions = await runtime.store.listSessions();
-    const chain = runtime.providerChain();
-    const active = chain.find((p) => p.active);
+    const providerStatus = this.providerStatus();
     return {
       session: toSessionView(runtime.session),
       sessions: sessions.map(toSessionView),
-      provider: { activeProvider: active?.id, activeModel: runtime.modelInfo.model },
+      provider: { activeProvider: providerStatus.id, activeModel: providerStatus.model },
+      providerStatus,
     };
   }
 

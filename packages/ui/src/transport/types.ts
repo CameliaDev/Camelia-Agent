@@ -9,7 +9,7 @@
  */
 
 import type { Command, DomainEvent } from '@camelia/core';
-import type { SessionView } from '@camelia/agent/view';
+import type { ProviderStatus, SessionView } from '@camelia/agent/view';
 
 export type ConnectionStatus = 'connecting' | 'live' | 'finished' | 'offline';
 
@@ -18,6 +18,15 @@ export interface BootstrapPayload {
   session?: SessionView;
   sessions: SessionView[];
   provider?: { activeProvider?: string; activeModel?: string };
+  /**
+   * Whether the engine resolved a working provider at boot, plus the chain it will walk.
+   *
+   * Sent on bootstrap because it is a property of *this engine instance*, not a change
+   * to observe: the first run's `provider.selected` event only arrives after the user
+   * submits a task, so without this the header would have to invent a state (whitepaper
+   * §6.1 — the UI shows engine truth and nothing else).
+   */
+  providerStatus?: ProviderStatus;
   /**
    * The active theme's tokens, already validated by the loader's whitelist.
    *
@@ -32,6 +41,15 @@ export interface TransportHandlers {
   onEvent: (event: DomainEvent) => void;
   onStatus: (status: ConnectionStatus) => void;
   onBootstrap: (payload: BootstrapPayload) => void;
+  /**
+   * The engine's provider-connection state, resolved out of band.
+   *
+   * The live transport gets this from `GET /health` so the header can be accurate before
+   * the first task runs; the fixture never calls it (it already knows its scripted
+   * provider). Distinct from the `provider.selected` *event*, which describes the routing
+   * decision of a run that has actually started.
+   */
+  onProviderStatus?: (status: ProviderStatus) => void;
   /**
    * A transport-level failure the user should know about — distinct from a *task*
    * failure, which arrives as a domain event. The fixture never calls it; the live

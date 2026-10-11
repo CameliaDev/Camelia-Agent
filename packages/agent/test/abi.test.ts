@@ -86,4 +86,42 @@ describe('abi-mismatch detection', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('append never throws when the log location is unusable', () => {
+    // logsDir points at a regular file — mkdirSync fails; the boot-time sidecar
+    // write must stay silent so the original store error survives.
+    const dir = path.join(os.tmpdir(), 'camelia-abi-notadir');
+    try {
+      fs.writeFileSync(dir, 'not-a-dir');
+      expect(() => appendAbiMismatch(dir, 'C:/ws', new Error('x'))).not.toThrow();
+    } finally {
+      fs.rmSync(dir, { force: true });
+    }
+  });
+
+  it('migrates past malformed sidecar lines and tolerates store write failures', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'camelia-abi-'));
+    try {
+      const logsDir = path.join(dir, 'logs');
+      fs.mkdirSync(logsDir, { recursive: true });
+      // One malformed line (skipped), one good line.
+      fs.writeFileSync(
+        path.join(logsDir, 'abi-mismatch.jsonl'),
+        'this-is-not-json\n' + JSON.stringify({ ts: 1, workspace: 'C:/ws', mechanism: 'abi-mismatch: boom' }) + '\n',
+        'utf8',
+      );
+      let calls = 0;
+      const store = {
+        async recordFailureMode(): Promise<void> {
+          calls += 1;
+          throw new Error('store write failed');
+        },
+      };
+      // Must not throw despite the store rejection.
+      await migrateAbiMismatch(store, logsDir, 'C:/ws');
+      expect(calls).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

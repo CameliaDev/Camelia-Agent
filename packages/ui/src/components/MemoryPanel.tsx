@@ -22,7 +22,13 @@ import type { MemoryView } from '@camelia/agent/view';
 
 import { clock, pct } from '../lib/format.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { t } from '../i18n/strings.js';
 import { Chip, Icon, SectionHeader } from './primitives.js';
+
+function useTr() {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  return (k: Parameters<typeof t>[1]) => t(lang, k);
+}
 
 const LAYER_TABS: Array<{ id: MemoryLayer | 'all'; label: string }> = [
   { id: 'all', label: 'All' },
@@ -32,11 +38,17 @@ const LAYER_TABS: Array<{ id: MemoryLayer | 'all'; label: string }> = [
   { id: 'procedural', label: 'Proc' },
 ];
 
-const LAYER_TONE: Record<MemoryLayer, 'muted' | 'accent' | 'info' | 'warn' | 'ok'> = {
-  working: 'accent',
-  short: 'info',
-  long: 'muted',
-  procedural: 'ok',
+const LAYER_TAG_CLASS: Record<MemoryLayer, string> = {
+  working: 'bg-accent/12 text-accent',
+  short: 'bg-info/12 text-info',
+  long: 'bg-ink/6 text-ink-2',
+  procedural: 'bg-ok/12 text-ok',
+};
+
+const CORRECTNESS_CLASS: Record<string, string> = {
+  bad: 'text-bad',
+  ok: 'text-ok',
+  muted: 'text-ink-3',
 };
 
 /** Round a 0..1 score to two decimals without the float noise. */
@@ -83,45 +95,47 @@ function MemoryRow({
 }): ReactNode {
   const correctnessTone = item.correctness === 0 ? 'bad' : item.correctness >= 1 ? 'ok' : 'muted';
   return (
-    <li className="rounded-md border border-line bg-base/40 px-2 py-1.5">
+    <li className="rounded-md border border-line bg-base/40 px-2.5 py-2">
       <div className="flex items-center gap-1.5">
-        <Chip tone={LAYER_TONE[item.layer]}>{item.layer}</Chip>
-        <Chip tone="muted">{item.kind}</Chip>
-        <Chip tone={correctnessTone}>
-          {item.correctness === 0 ? 'known-bad' : item.correctness >= 1 ? 'validated' : 'unproven'}
-        </Chip>
-        <span className="ml-auto flex items-center gap-1.5">
-          {item.layer === 'short' ? (
-            <button
-              type="button"
-              onClick={() => onPromote(item.id)}
-              title="Promote to long-term"
-              className="rounded border border-line px-1.5 py-[1px] font-mono text-[10px] text-ink-3 hover:border-ok/40 hover:text-ok"
-            >
-              promote
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => onIncorrect(item.id)}
-            title="Mark as incorrect — stops recall until evidence clears it"
-            className="rounded border border-line px-1.5 py-[1px] font-mono text-[10px] text-ink-3 hover:border-warn/40 hover:text-warn"
-          >
-            incorrect
-          </button>
-          <button
-            type="button"
-            onClick={() => onForget(item.id)}
-            title="Forget — recorded in the forget log"
-            className="rounded border border-line px-1.5 py-[1px] font-mono text-[10px] text-ink-3 hover:border-bad/40 hover:text-bad"
-          >
-            forget
-          </button>
+        <span className={`rounded px-1.5 py-px text-[10px] font-medium leading-4 ${LAYER_TAG_CLASS[item.layer]}`}>
+          {item.layer}
+        </span>
+        <span className="text-[10px] text-ink-3">{item.kind}</span>
+        <span className={`text-[10px] ${CORRECTNESS_CLASS[correctnessTone]}`}>
+          {item.correctness === 0 ? '· known-bad' : item.correctness >= 1 ? '· validated' : '· unproven'}
         </span>
       </div>
-      <p className="mt-1 line-clamp-2 text-[11.5px] leading-5 text-ink-2">{item.content}</p>
+      <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-5 text-ink-2">{item.content}</p>
       <ValueLine item={item} />
       <EvidenceLine item={item} />
+      <div className="mt-1.5 flex items-center justify-end gap-2 border-t border-line/50 pt-1">
+        {item.layer === 'short' ? (
+          <button
+            type="button"
+            onClick={() => onPromote(item.id)}
+            title="Promote to long-term"
+            className="font-mono text-[10px] text-ink-3 hover:text-ok"
+          >
+            promote
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => onIncorrect(item.id)}
+          title="Mark as incorrect — stops recall until evidence clears it"
+          className="font-mono text-[10px] text-ink-3 hover:text-warn"
+        >
+          incorrect
+        </button>
+        <button
+          type="button"
+          onClick={() => onForget(item.id)}
+          title="Forget — recorded in the forget log"
+          className="font-mono text-[10px] text-ink-3 hover:text-bad"
+        >
+          forget
+        </button>
+      </div>
     </li>
   );
 }
@@ -190,6 +204,7 @@ function ForgetLogSection({
 export function MemoryPanel(): ReactNode {
   const memory = useUiStore((s) => s.memory);
   const actions = useUiStore((s) => s.memoryActions);
+  const tr = useTr();
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
@@ -204,7 +219,7 @@ export function MemoryPanel(): ReactNode {
     <section className="border-b border-line">
       <SectionHeader
         icon="layers"
-        title="Memory"
+        title={tr('memory.title')}
         right={
           <span className="flex items-center gap-1.5">
             {noiseRate !== undefined ? (

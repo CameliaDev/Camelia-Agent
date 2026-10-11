@@ -16,8 +16,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = 'C:/Users/37963/Desktop/Camelia-Agent';
+// 仓库根由本文件位置推导（scripts/ 的上一级），不依赖当前工作目录
+const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[\\/]$/, '');
 const CLI = `${ROOT}/packages/cli/dist/bin.js`;
 
 const results = [];

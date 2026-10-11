@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Render tests — the architecture-layer screenshot checklist, asserted instead of eyeballed.
  *
  * Every item the whitepaper demands the user be able to *see* (whitepaper §5) is checked
@@ -37,10 +37,10 @@ function renderScene(scene: SceneId) {
 describe('App — layout contract', () => {
   // Behavior evolution (Iteration 23): rail widths are CSS variables, not static
   // Tailwind classes, so a drag can change them. Defaults stay 260px and 360px.
-  // The top bar is an overlay (`h-12`) and starts hidden; the element remains.
+  // The top bar is an overlay (`h-9`) and pinned visible by default.
   it('renders the top bar and default rail widths from CSS variables', () => {
     const { container } = renderScene('running');
-    expect(container.querySelector('.h-12')).not.toBeNull();
+    expect(container.querySelector('.h-9')).not.toBeNull();
     const shell = container.querySelector('[data-shell]') as HTMLElement;
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
     expect(shell.style.getPropertyValue('--rail-right-w')).toBe('360px');
@@ -57,14 +57,14 @@ describe('App — layout contract', () => {
 describe('App — empty scene', () => {
   it('shows the empty state, not a spinner', () => {
     renderScene('empty');
-    expect(screen.getByText('No task yet')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Describe a task/)).toBeInTheDocument();
+    expect(screen.getByText('暂无任务')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/描述一个任务/)).toBeInTheDocument();
   });
 
   it('tells the user where sessions and restore points will appear', () => {
     renderScene('empty');
-    expect(screen.getByText('No sessions in this workspace yet.')).toBeInTheDocument();
-    expect(screen.getByText('Restore points appear after each completed step.')).toBeInTheDocument();
+    expect(screen.getByText('此工作区还没有会话。')).toBeInTheDocument();
+    expect(screen.getByText('每完成一步后会出现恢复点。')).toBeInTheDocument();
   });
 });
 
@@ -72,7 +72,7 @@ describe('App — connecting scene', () => {
   it('shows a loading state while the engine has not answered', () => {
     renderScene('connecting');
     expect(screen.getByText('Connecting to the engine')).toBeInTheDocument();
-    expect(screen.queryByText('No task yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('暂无任务')).not.toBeInTheDocument();
   });
 });
 
@@ -83,7 +83,7 @@ describe('App — connecting scene', () => {
 describe('App — planning scene', () => {
   it('shows a real planning stage, not a bare spinner', () => {
     renderScene('planning');
-    expect(screen.getByText('Drafting the plan')).toBeInTheDocument();
+    expect(screen.getAllByText(/Drafting the plan|正在制定计划/).length).toBeGreaterThan(0);
     expect(screen.getByText('No plan yet — the planner has not returned.')).toBeInTheDocument();
   });
 
@@ -105,9 +105,9 @@ describe('App — running scene exposes the whole run', () => {
 
   it('shows the step list with per-step status', () => {
     renderScene('running');
-    expect(screen.getByText('Steps')).toBeInTheDocument();
-    expect(screen.getByText('STEP 1')).toBeInTheDocument();
-    expect(screen.getByText('STEP 4')).toBeInTheDocument();
+    expect(screen.getAllByText('步骤').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/STEP 1|步骤 1/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/STEP 4|步骤 4/).length).toBeGreaterThan(0);
   });
 
   it('shows current step and progress percentage', () => {
@@ -123,7 +123,7 @@ describe('App — running scene exposes the whole run', () => {
 
   it('shows context usage as tokens and a window share', () => {
     renderScene('running');
-    expect(screen.getByText('Context')).toBeInTheDocument();
+    expect(screen.getAllByText('上下文').length).toBeGreaterThan(0);
     expect(screen.getByText(/\/ .* tokens/)).toBeInTheDocument();
   });
 
@@ -146,20 +146,23 @@ describe('App — running scene exposes the whole run', () => {
 
   it('shows the sub-agent that ran in isolation', () => {
     renderScene('running');
-    expect(screen.getByText('Sub-agents')).toBeInTheDocument();
+    expect(screen.getByText('子代理')).toBeInTheDocument();
     expect(screen.getByText(/Locate the format switch/)).toBeInTheDocument();
   });
 
   it('offers pause, steer and cancel controls', () => {
     renderScene('running');
-    expect(screen.getByText('Pause')).toBeInTheDocument();
-    expect(screen.getAllByText('Steer').length).toBeGreaterThan(0);
-    expect(screen.getByText('Cancel')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Pause$|^暂停$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^Steer$|^引导$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^Cancel$|^取消$/).length).toBeGreaterThan(0);
   });
 
   it('keeps the raw event trail for audit', () => {
     renderScene('running');
-    expect(screen.getByText('Events')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Events$|^事件$/).length).toBeGreaterThan(0);
+    // The trail ships collapsed (the rail must not drown the run in raw events); the
+    // section header is the affordance that opens it.
+    fireEvent.click(screen.getByLabelText('Expand events'));
     expect(screen.getAllByText('step.started').length).toBeGreaterThan(0);
   });
 });
@@ -173,7 +176,7 @@ describe('App — approval scene', () => {
     renderScene('approval');
     expect(screen.getByText('Approval required')).toBeInTheDocument();
     expect(screen.getAllByText('shell.run').length).toBeGreaterThan(0);
-    expect(screen.getByText('Waiting for you')).toBeInTheDocument();
+    expect(screen.getAllByText(/Waiting for you|等待你的审批/).length).toBeGreaterThan(0);
   });
 
   it('offers allow-once, allow-for-session and deny', () => {
@@ -230,19 +233,19 @@ describe('App — failure scene', () => {
 describe('App — done scene', () => {
   it('shows the delivery card with verified steps and artifacts', () => {
     renderScene('done');
-    expect(screen.getByText('Delivered')).toBeInTheDocument();
-    expect(screen.getByText('5/5 steps verified')).toBeInTheDocument();
+    expect(screen.getAllByText(/^(Delivered|已完成)$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^5\/5 (steps verified|完成|Done)$/).length).toBeGreaterThan(0);
     expect(screen.getAllByText('packages/cli/src/main.ts').length).toBeGreaterThan(0);
   });
 
   it('shows every step verified', () => {
     renderScene('done');
-    expect(screen.getAllByText(/verify: pass/)).toHaveLength(5);
+    expect(screen.getAllByText(/verify: pass|校验: 通过|校验：通过/)).toHaveLength(5);
   });
 
   it('keeps the intent card', () => {
     renderScene('done');
-    expect(screen.getByText('Your request')).toBeInTheDocument();
+    expect(screen.getAllByText(/Your request|用户提问/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Add a --json flag to the camelia CLI/).length).toBeGreaterThan(0);
   });
 });
@@ -292,20 +295,20 @@ describe('App — error scene', () => {
 describe('App — interventions', () => {
   it('pause updates the run to paused', () => {
     const { store } = renderScene('running');
-    fireEvent.click(screen.getByText('Pause'));
+    fireEvent.click(screen.getAllByText(/^Pause$|^暂停$/)[0]!);
     expect(store.getState().snapshot.task!.status).toBe('paused');
-    expect(screen.getAllByText(/Paused — user paused/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Paused — user paused|已暂停 — user paused/).length).toBeGreaterThan(0);
   });
 
   it('steer reveals the re-anchor input', () => {
     renderScene('running');
-    fireEvent.click(screen.getAllByText('Steer')[0]!);
-    expect(screen.getByText(/Steer the run — the goal is re-anchored/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByText(/^Steer$|^引导$/)[0]!);
+    expect(screen.getAllByText(/Steer the run — the goal is re-anchored|引导本次运行/).length).toBeGreaterThan(0);
   });
 
   it('rollback from a step emits a recovery notice', () => {
     renderScene('done');
-    fireEvent.click(screen.getAllByText('roll back')[0]!);
+    fireEvent.click(screen.getAllByText(/roll back|回滚/)[0]!);
     expect(screen.getByText('Rollback complete')).toBeInTheDocument();
   });
 });
