@@ -1,0 +1,177 @@
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/inter-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/fonts/inter-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+
+@property --rail-left-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 260px;
+}
+@property --rail-right-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 360px;
+}
+
+/*
+ * Camellia dark theme — whitepaper §6.5.
+ *
+ * The palette is warm: the "black" is a warm near-black (#1A1514), never #000, and
+ * the text is a warm white. The single accent is camellia red. Semantic colours reuse
+ * the same warmth so success/failure read as part of one family rather than as
+ * generic web green/red.
+ *
+ * Tailwind v4 emits every `@theme` entry as a custom property on `:root`, so these
+ * are usable both as utilities (`bg-base`, `text-ink`, `text-accent`) and as raw
+ * variables (`var(--color-accent)`) where an inline value is clearer.
+ */
+@theme {
+  /* Background — warm near-black, never pure black */
+  --color-base: #1a1514;
+  --color-elevated: #221b19;
+  --color-panel: #2a2220;
+  --color-hover: #332a27;
+  --color-line: #3a2f2b;
+
+  /* Text — warm white */
+  --color-ink: #f7efe9;
+  --color-ink-2: #c9b8ae;
+  --color-ink-3: #8a7a72;
+
+  /* Accent — camellia red */
+  --color-accent: #d96c5f;
+  --color-accent-2: #e27d70;
+  --color-accent-dim: #8c4239;
+
+  /* Semantic */
+  --color-ok: #7fa86b;
+  --color-bad: #c4554a;
+  --color-warn: #d9a15f;
+  --color-info: #7fa3c4;
+
+  /* Diff washes */
+  --color-add: rgba(127, 168, 107, 0.14);
+  --color-del: rgba(196, 85, 74, 0.14);
+
+  /* Geometry */
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-base);
+  color: var(--color-ink);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars tuned to the warm palette so panels don't break the theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-hover);
+  background-clip: content-box;
+}
+
+@keyframes camelia-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+.camelia-pulse {
+  animation: camelia-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes camelia-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+.camelia-rails {
+  transition:
+    --rail-left-w 180ms ease,
+    --rail-right-w 180ms ease;
+}
+.camelia-topbar {
+  transition: transform 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .camelia-rails,
+  .camelia-topbar,
+  .camelia-pulse,
+  .camelia-sweep::after {
+    transition: none;
+    animation: none;
+  }
+}
+html[data-resizing] .camelia-rails {
+  transition: none;
+}
+html[data-motion='reduce'] .camelia-rails,
+html[data-motion='reduce'] .camelia-topbar,
+html[data-motion='reduce'] .camelia-pulse,
+html[data-motion='reduce'] .camelia-sweep::after {
+  transition: none;
+  animation: none;
+}
+
+.camelia-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(217, 108, 95, 0.55), transparent);
+  animation: camelia-sweep 1.8s ease-in-out infinite;
+}

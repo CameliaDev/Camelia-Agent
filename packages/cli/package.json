@@ -1,0 +1,32 @@
+{
+  "name": "@camelia/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Camelia CLI — `camelia run \"<task>\"` drives the task engine without a UI.",
+  "bin": {
+    "camelia": "./dist/bin.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src",
+    "dev": "tsx src/bin.ts"
+  },
+  "dependencies": {
+    "@camelia/agent": "workspace:*",
+    "@camelia/core": "workspace:*",
+    "@camelia/harness": "workspace:*"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "model": "qwen2.5-coder:7b",
+  "total": 8,
+  "passed": 8,
+  "rate": 100,
+  "avgSeconds": 11.043125000000002,
+  "results": [
+    {
+      "id": "plain-text",
+      "passed": true,
+      "status": "done",
+      "seconds": 10.43,
+      "tail": "code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638192199}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638192199}\n✓ done  1/1 steps · 1 iteration(s) · 3743 tokens · 10.2s\n\n  artifacts\n    · note.txt\n\n"
+    },
+    {
+      "id": "trailing-newline",
+      "passed": true,
+      "status": "done",
+      "seconds": 10.353,
+      "tail": "ode\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638202628}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638202628}\n✓ done  1/1 steps · 1 iteration(s) · 3756 tokens · 10.1s\n\n  artifacts\n    · greet.txt\n\n"
+    },
+    {
+      "id": "multi-line",
+      "passed": true,
+      "status": "done",
+      "seconds": 10.979,
+      "tail": "ode\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638212983}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638212983}\n✓ done  1/1 steps · 1 iteration(s) · 3796 tokens · 10.7s\n\n  artifacts\n    · lines.txt\n\n"
+    },
+    {
+      "id": "json-file",
+      "passed": true,
+      "status": "done",
+      "seconds": 12.353,
+      "tail": "e\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638223953}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638223954}\n✓ done  1/1 steps · 1 iteration(s) · 3892 tokens · 12.1s\n\n  artifacts\n    · config.json\n\n"
+    },
+    {
+      "id": "nested-path",
+      "passed": true,
+      "status": "done",
+      "seconds": 10.576,
+      "tail": ":null}}\\n\"},\"bindings\":{},\"ts\":1791638236307}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638236307}\n✓ done  1/1 steps · 1 iteration(s) · 3788 tokens · 10.4s\n\n  artifacts\n    · docs/readme.md\n\n"
+    },
+    {
+      "id": "numbers",
+      "passed": true,
+      "status": "done",
+      "seconds": 11.96,
+      "tail": "code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638246881}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638246881}\n✓ done  1/1 steps · 1 iteration(s) · 3905 tokens · 11.7s\n\n  artifacts\n    · nums.txt\n\n"
+    },
+    {
+      "id": "markdown-list",
+      "passed": true,
+      "status": "done",
+      "seconds": 11.81,
+      "tail": "\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638258837}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638258837}\n✓ done  1/1 steps · 1 iteration(s) · 3861 tokens · 11.6s\n\n  artifacts\n    · list.md\n\n"
+    },
+    {
+      "id": "css-file",
+      "passed": true,
+      "status": "done",
+      "seconds": 9.884,
+      "tail": "code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638270665}\n{\"level\":\"warn\",\"message\":\"clarification failed; using raw intent\",\"meta\":{\"error\":\"HTTP 404 from ollama: {\\\"error\\\":{\\\"message\\\":\\\"model 'llama3.2:3b' not found\\\",\\\"type\\\":\\\"not_found_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"},\"bindings\":{},\"ts\":1791638270665}\n✓ done  1/1 steps · 1 iteration(s) · 3772 tokens · 9.7s\n\n  artifacts\n    · style.css\n\n"
+    }
+  ]
+}

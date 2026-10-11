@@ -1,0 +1,21 @@
+# 从本地 GGUF 导入 qwen2.5-coder:7b
+#
+# 为什么不用 `ollama pull`：官方 registry (registry.ollama.ai) 在本机TLS 握手超时，
+# 且 `HF_ENDPOINT` 对官方 registry 无效（只影响 hf.co/ 直拉路径）。直接下载 GGUF
+# 再导入是唯一可行路径。
+#
+#   ollama create qwen2.5-coder:7b -f Modelfile
+#
+# TEMPLATE 必须留空：Ollama 0.40 已为 qwen2.5 内置了正确的 chat template，
+# 自定义 Jinja 会因 `tool` 未定义而报 "function tool not defined"。
+# 那个模板是含 tools 变量的，工具调用能被正确渲染。
+
+FROM C:\Users\37963\qwen2.5-coder-7b-instruct-q4_k_m.gguf
+
+# 8192 上下文：6GB 显存的硬约束。KV cache 超出显存后 Ollama 回退到系统内存，
+# 延迟高一个数量级。宁可上下文小而快。
+PARAMETER num_ctx 8192
+PARAMETER temperature 0.1
+PARAMETER top_p 0.9
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"

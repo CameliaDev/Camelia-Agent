@@ -1,0 +1,7 @@
+{
+  "create": {
+    "camelia-live-demo.md": "# Camelia live demo\n\nThis note was written by the engine during an Iteration 13 live run:\nthe desktop UI is projecting `camelia serve`'s SSE stream, not a fixture.\n"
+  },
+  "commands": ["node --version"],
+  "note": "live engine demo"
+}

@@ -1,0 +1,80 @@
+# @camelia/desktop
+
+Camelia 的**桌面外壳**（Tauri 2.x，Rust + WebView2）。硬约束禁止 Electron。
+
+它刻意做得很薄：外壳只负责「窗口 + 启动参数」，不持有任何业务状态。界面是 `@camelia/ui` 对领域事件流的投影（whitepaper §6.1），Rust 侧没有可漂移的逻辑。
+
+## 职责
+
+- **开窗**：创建主窗口（1440×900，暗色主题，最小 1024×680）。
+- **注入启动参数**：在页面脚本执行前写入 `window.__CAMELIA_BOOT__`，让外壳（而非可被用户篡改的 URL）决定应用投影什么状态。当前用于选择演示场景；同一条通道将来承载真实引擎端点与要续接的会话。
+
+## 边界
+
+外壳**不**依赖 `harness`，也**不**直接读数据库。它只装载 `packages/ui/dist` 的构建产物，业务全部在 `ui → agent → harness → core` 分层内完成。
+
+## 启动参数
+
+| 来源 | 作用 |
+| --- | --- |
+| `--engine-url=<url>` 或环境变量 `CAMELIA_ENGINE_URL` | 连到真实 `camelia serve` 引擎（SSE）；与 `--scene` 同时存在时**优先引擎** |
+| `--scene=<id>` 或环境变量 `CAMELIA_SCENE` | 选择投影的场景（`empty` / `connecting` / `planning` / `diff` / `running` / `approval` / `failure` / `error` / `done`） |
+| `--session-id=<id>` 或环境变量 `CAMELIA_SESSION_ID` | 续接指定会话 |
+| 缺省 | 投影 `empty`——已发布应用绝不显示一个从未收到的任务 |
+
+参数在页面脚本执行前序列化为 `window.__CAMELIA_BOOT__`（JSON），值无法逃逸字面量。
+
+## 构建
+
+```bash
+pnpm --filter @camelia/desktop desktop:build    # 生产构建（含 custom-protocol，内嵌 UI 产物）
+pnpm --filter @camelia/desktop desktop:bundle   # 构建 UI + 产出 NSIS 安装包
+pnpm --filter @camelia/desktop desktop:dev      # 开发运行（走 Vite devUrl，需先起 ui dev）
+pnpm --filter @camelia/desktop desktop:check    # cargo check
+```
+
+> `custom-protocol` 特性决定 webview 加载内嵌产物还是 `devUrl`。`desktop:build` 会打开它；用裸 `cargo build --release` 而不带该特性，会得到一个连不上 devUrl 的白屏窗口。
+
+## 打包（NSIS）
+
+`desktop:bundle` 先构建 `packages/ui/dist`，再用 `cargo tauri build --bundles nsis` 产出 Windows 安装包：
+
+- **安装模式 `currentUser`**：按用户安装，不弹 UAC、不需要管理员——一个 AI 编码工具没有理由要求提权。
+- **语言 `English` + `SimpChinese`**：与 UI 面向的中文用户一致；关掉语言选择器以免安装时多一步。
+- 产物路径：`src-tauri/target/release/bundle/nsis/Camelia_<version>_x64-setup.exe`；同时产出免安装的 `src-tauri/target/release/camelia-desktop.exe`。
+
+安装包与裸 exe 同源：都内嵌 `packages/ui/dist`，都只做「开窗 + 注入启动参数」。
+
+### 实测（Windows 11）
+
+| 步骤 | 结果 |
+| --- | --- |
+| 静默安装 `Camelia_0.1.0_x64-setup.exe /S` | 退出码 **0** |
+| 安装目录 | `%LOCALAPPDATA%\Camelia\`（`camelia-desktop.exe` + `uninstall.exe`） |
+| 卸载项 | `Camelia 0.1.0`，`InstallLocation=%LOCALAPPDATA%\Camelia` |
+| 安装版可启动 | ✅ `tests/screenshots/desktop-installed.png`（`--scene=running`） |
+| 安装版可连本地引擎 | ✅ `tests/screenshots/desktop-installed-live.png`（`--engine-url` 指向真实 `camelia serve`） |
+
+卸载：`"%LOCALAPPDATA%\Camelia\uninstall.exe" /S`。
+
+## 截图
+
+```powershell
+# 投影脚本化场景（fixture）
+powershell -ExecutionPolicy Bypass -File scripts/desktop-screenshot.ps1 -Scene running -Out tests/screenshots/desktop-running.png
+
+# 连真实引擎（启动 camelia serve，把 --engine-url 注入外壳）
+powershell -ExecutionPolicy Bypass -File scripts/desktop-live-shot.ps1 -Out tests/screenshots/desktop-live.png
+```
+
+两个脚本都接受**绝对路径**的 `-Exe`（便于采集安装版 `%LOCALAPPDATA%\Camelia\camelia-desktop.exe`）与相对仓库根的路径。启动 exe、等待窗口、置前，再用 GDI 截取窗口矩形。截**屏幕区域**而非 `PrintWindow` 是有意的：WebView2 经 DirectComposition 渲染，`PrintWindow` 常返回空白帧。
+
+## 目录
+
+| 路径 | 作用 |
+| --- | --- |
+| `src-tauri/src/main.rs` | 窗口工厂 + 启动参数注入（无业务逻辑） |
+| `src-tauri/tauri.conf.json` | 产品名、标识、`frontendDist` 指向 `packages/ui/dist`、`devUrl` |
+| `src-tauri/Cargo.toml` | Tauri 2.x 依赖与 `custom-protocol` 特性门 |
+| `scripts/gen-icons.mjs` | 逐像素绘制山茶花图标，无外部图像依赖，构建可复现 |
+| `scripts/desktop-live-shot.ps1` | 启动真实 `camelia serve`，把 `--engine-url` 注入外壳并采集窗口 |

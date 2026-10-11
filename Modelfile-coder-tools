@@ -1,0 +1,53 @@
+# qwen2.5-coder:7b（Q4_K_M）—— 显式启用 tools 渲染
+#
+# 为什么要自定义模板：Ollama 0.40 内置的 qwen2.5 模板确实渲染了 tools，但同时
+# instruct 模型输出 `<tool_call>` **XML 标签文本**而不是结构化 tool_calls。
+# 实测首次导入（用内置模板）：HTTP 200、finish_reason=stop，content 是
+# ```json 代码块 —— 模型理解了工具语义，但没走 function-calling 通道。
+#
+# 语法要点（照内置模板抄的，别自己发挥）：
+#   `{%- for tool in tools %}{{ tool | tojson }}{%- endfor %}`
+#   `{%-` / `-%}` 是空白控制。漏掉它们会报 `function "tool" not defined`。
+#
+# 代价：模型会把自己的推理过程也输出出来（每轮多约 400 token）。
+# 换来的是确定的结构化工具调用 —— Verifier 和 ApprovalGate 才有东西可校验。
+# 在 6GB 显存下这个交换划算：上下文小而确定，胜过大而卡顿。
+
+FROM C:\Users\37963\qwen2.5-coder-7b-instruct-q4_k_m.gguf
+
+TEMPLATE """{%- if tools %}
+{{- 'system\n' }}
+{%- if messages[0]['role'] == 'system' }}
+{{- messages[0]['content'] }}
+{%- else }}
+{{- 'You are a coding assistant. Use the provided tools to inspect and modify files. When you have made a change, verify it with the tools instead of claiming success.' }}
+{%- endif %}
+{{- "\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\n<tools>" }}
+{%- for tool in tools %}
+{{- "\n" }}
+{{- tool | tojson }}
+{%- endfor %}
+{{- "\n</tools>\n" }}
+{%- else %}
+{%- if messages[0]['role'] == 'system' %}
+{{- 'system\n' + messages[0]['content'] + '\n' }}
+{%- else %}
+{{- 'system\nYou are a coding assistant.\n' }}
+{%- endif %}
+{%- endif %}
+{%- for message in messages %}
+{%- if (message.role == "user") or (message.role == "system" and not loop.first) %}
+{{- '' + message.role + '\n' + message.content + '\n' }}
+{%- elif message.role == "assistant" %}
+{{- 'assistant\n' + message.content }}
+{%- endif %}
+{%- endfor %}
+{%- if add_generation_prompt %}
+{{- '\nassistant\n' }}
+{%- endif %}"""
+
+PARAMETER num_ctx 8192
+PARAMETER temperature 0.1
+PARAMETER top_p 0.9
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"

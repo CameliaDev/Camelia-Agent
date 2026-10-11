@@ -1,0 +1,490 @@
+/**
+ * Right rail — the engineering view of the run.
+ *
+ * Every architecture-layer checklist item that is *not* about the conversation lives
+ * here: weighted progress, the step list, context-window usage with the compaction log,
+ * sub-agent runs, and the raw event trail. Nothing here is decorative; if a panel has no
+ * data it says so rather than disappearing, so the user always knows the capability
+ * exists.
+ * @module
+ */
+
+import { useState, type ReactNode } from 'react';
+
+import type { DroppedMessage } from '@camelia/core';
+import type { SubAgentView, TaskView, TimelineEntry } from '@camelia/agent/view';
+import { contextUsage } from '@camelia/agent/view';
+
+import { clock, count, ms, pct } from '../lib/format.js';
+import { STEP_META, TONE_BG, TONE_TEXT, type Tone } from '../lib/status.js';
+import { useUiStore } from '../state/UiProvider.js';
+import { MemoryPanel } from './MemoryPanel.js';
+import { Chip, Icon, ProgressBar, SectionHeader, StatusDot } from './primitives.js';
+
+function RunIdentity(): ReactNode {
+  const snapshot = useUiStore((s) => s.snapshot);
+  const task = snapshot.task;
+  const usage = task ? contextUsage(task.context) : 0;
+  const fallbacks = snapshot.provider.fallbacks;
+  return (
+    <div className="px-3 py-2.5">
+      <p className="truncate text-[12px] font-medium text-ink">{snapshot.session?.title ?? 'No session'}</p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {snapshot.provider.activeProvider ? (
+          <Chip
+            tone={fallbacks.length ? 'warn' : 'info'}
+            title={
+              fallbacks.length
+                ? `fell back ${fallbacks.length}×: ${fallbacks.map((f) => `${f.from}→${f.to} (${f.reason})`).join('; ')}`
+                : 'primary provider'
+            }
+          >
+            <Icon name="layers" size={10} />
+            {snapshot.provider.activeProvider}
+            <span className="text-ink-3">·</span>
+            <span className="font-mono">{snapshot.provider.activeModel}</span>
+          </Chip>
+        ) : (
+          <span className="text-[11px] text-ink-3">No provider</span>
+        )}
+        {task ? (
+          <Chip tone={usage > 0.8 ? 'warn' : 'muted'} title={`${count(task.context.used)} of ${count(task.context.window)} tokens`}>
+            <Icon name="gauge" size={10} />
+            ctx {pct(usage)}
+          </Chip>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SettingsButton({ collapsed = false }: { collapsed?: boolean }): ReactNode {
+  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  return (
+    <button
+      type="button"
+      aria-label="Settings"
+      title="Settings"
+      className={
+        collapsed
+          ? 'group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink'
+          : 'flex w-full items-center gap-2 px-3 py-2 text-[12px] text-ink-2 hover:bg-hover hover:text-ink'
+      }
+      onClick={() => setSettingsOpen(true)}
+    >
+      <Icon name="settings" size={collapsed ? 16 : 14} />
+      {collapsed ? (
+        <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
+          Settings
+        </span>
+      ) : (
+        <span>Settings</span>
+      )}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// run / progress
+// ---------------------------------------------------------------------------
+
+function RunSection({ task }: { task: TaskView }): ReactNode {
+  const usage = contextUsage(task.context);
+  return (
+    <section className="border-b border-line">
+      <SectionHeader icon="layers" title="Run" right={<span className="font-mono text-[10.5px] text-ink-3">{pct(task.progress)}</span>} />
+      <div className="space-y-2.5 px-3 pb-3">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'steps', value: `${task.steps.filter((s) => s.status === 'done').length}/${task.stepsTotal || 0}` },
+            { label: 'tools', value: String(Object.keys(task.toolCalls).length) },
+            { label: 'context', value: pct(usage) },
+            { label: 'tokens', value: task.routing ? String(task.routing.tokens) : '—' },
+            { label: 'cost', value: task.routing ? `$${task.routing.estimatedUsd.toFixed(4)}` : '—' },
+          ].map((cell) => (
+            <div key={cell.label} className="rounded-md border border-line bg-base/40 px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-ink-3">{cell.label}</p>
+              <p className="font-mono text-[13px] text-ink">{cell.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between text-[10.5px] text-ink-3">
+            <span>weighted progress</span>
+            <span className="font-mono">
+              {task.currentStepIdx >= 0 ? `at step ${task.currentStepIdx + 1}` : 'not started'}
+            </span>
+          </div>
+          <ProgressBar value={task.progress} tone={task.status === 'done' ? 'ok' : task.status === 'failed' ? 'bad' : 'accent'} />
+        </div>
+        {task.routing ? <p className="text-[11px] text-ink-2">{task.routing.line}</p> : null}
+        {task.steps.some((step) => step.acceptance.length === 0 || step.verdict?.status === 'unknown') ? (
+          <p className="text-[11px] text-warn">
+            Empty acceptance can pass on tool evidence, and unknown is not a failure, so a cheap first attempt can lock in a weak result.
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// steps
+// ---------------------------------------------------------------------------
+
+function StepsSection({ task }: { task: TaskView }): ReactNode {
+  return (
+    <section className="border-b border-line">
+      <SectionHeader
+        icon="branch"
+        title="Steps"
+        right={<span className="font-mono text-[10.5px] text-ink-3">{task.steps.length}</span>}
+      />
+      <div className="px-3 pb-3">
+        {task.steps.length === 0 ? (
+          <p className="text-[11.5px] text-ink-3">No plan yet — the planner has not returned.</p>
+        ) : (
+          <ol className="space-y-1">
+            {task.steps.map((step) => {
+              const meta = STEP_META[step.status];
+              const active = step.idx === task.currentStepIdx && (step.status === 'running' || step.status === 'verifying');
+              const tools = Object.values(task.toolCalls).filter((c) => c.stepId === step.id);
+              const failures = tools.filter((c) => c.status === 'error').length;
+              return (
+                <li
+                  key={step.id}
+                  className={`flex items-start gap-2 rounded-md border px-2 py-1.5 ${
+                    active ? 'border-accent/35 bg-accent/5' : 'border-transparent'
+                  }`}
+                >
+                  <span className="mt-[5px] shrink-0">
+                    {step.status === 'running' ? (
+                      <StatusDot tone="accent" pulse />
+                    ) : (
+                      <StatusDot tone={meta.tone} />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-[11.5px] ${active ? 'text-ink' : step.status === 'pending' ? 'text-ink-3' : 'text-ink-2'}`}>
+                      <span className="mr-1.5 font-mono text-[10px] text-ink-3">{step.idx + 1}</span>
+                      {step.title}
+                    </p>
+                    <p className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-3">
+                      <span className={TONE_TEXT[meta.tone]}>{meta.label}</span>
+                      <span>{tools.length} tools</span>
+                      {failures ? <span className="text-bad">{failures} failed</span> : null}
+                      {step.weight > 1 ? <span>w{step.weight}</span> : null}
+                      {step.verdict ? (
+                        <span className={step.verdict.status === 'pass' ? 'text-ok' : 'text-bad'}>{step.verdict.status}</span>
+                      ) : null}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// context window + compaction
+// ---------------------------------------------------------------------------
+
+/** Role → tone, so a dropped original is identifiable at a glance. */
+const ROLE_TONE: Record<DroppedMessage['role'], Tone> = {
+  system: 'muted',
+  user: 'accent',
+  assistant: 'info',
+  tool: 'warn',
+};
+
+/**
+ * One dropped message, shown as its original text.
+ *
+ * This is the "inspect what compaction removed" surface: the summary above tells the
+ * user *what* was folded away, this tells them *exactly* what the model saw before it
+ * was folded. Content is pre-wrapped and scroll-bounded so a large tool output cannot
+ * blow up the rail.
+ */
+function DroppedOriginal({ message }: { message: DroppedMessage }): ReactNode {
+  const tone = ROLE_TONE[message.role];
+  return (
+    <li className="overflow-hidden rounded border border-line bg-base/50">
+      <div className="flex items-center gap-1.5 border-b border-line/70 px-1.5 py-1">
+        <span className={`rounded border px-1.5 py-[1px] font-mono text-[9.5px] uppercase leading-4 ${TONE_BG[tone]}`}>
+          {message.role}
+        </span>
+        {message.name ? <span className="truncate font-mono text-[10px] text-ink-2">{message.name}</span> : null}
+        {message.truncated ? (
+          <span className="ml-auto shrink-0 font-mono text-[9.5px] text-warn">truncated</span>
+        ) : null}
+      </div>
+      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words px-1.5 py-1 font-mono text-[10.5px] leading-4 text-ink-2">
+        {message.content}
+      </pre>
+    </li>
+  );
+}
+
+function ContextSection({ task }: { task: TaskView }): ReactNode {
+  const [openIdx, setOpenIdx] = useState<number | null>(task.context.compactions.length ? task.context.compactions.length - 1 : null);
+  const ctx = task.context;
+  const usage = contextUsage(ctx);
+  const softRatio = ctx.window > 0 ? ctx.softLimit / ctx.window : 0;
+
+  return (
+    <section className="border-b border-line">
+      <SectionHeader
+        icon="gauge"
+        title="Context"
+        right={<span className="font-mono text-[10.5px] text-ink-3">{pct(usage)}</span>}
+      />
+      <div className="space-y-2.5 px-3 pb-3">
+        <div>
+          <div className="mb-1 flex items-baseline justify-between font-mono text-[10.5px] text-ink-3">
+            <span>
+              {count(ctx.used)} / {count(ctx.window)} tokens
+            </span>
+            <span>soft limit {pct(softRatio)}</span>
+          </div>
+          <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-hover">
+            <div
+              className={`h-full rounded-full ${usage > softRatio ? 'bg-warn' : 'bg-accent'}`}
+              style={{ width: `${Math.min(100, usage * 100)}%` }}
+            />
+            <span className="absolute inset-y-0 w-px bg-ink-3/60" style={{ left: `${Math.min(100, softRatio * 100)}%` }} />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          <Chip tone={ctx.compactions.length ? 'warn' : 'muted'}>
+            <Icon name="layers" size={10} />
+            {ctx.compactions.length} compaction{ctx.compactions.length === 1 ? '' : 's'}
+          </Chip>
+          <Chip tone="muted">deduped {ctx.deduplicated}</Chip>
+          <Chip tone="muted">{task.checkpoints.length} checkpoints</Chip>
+        </div>
+
+        {ctx.compactions.length === 0 ? (
+          <p className="text-[11.5px] text-ink-3">
+            Nothing has been compressed yet. When the window fills, protected slots (goal, constraints, todos, artifacts) survive.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {ctx.compactions.map((c, i) => (
+              <div key={`${c.at}-${i}`} className="rounded-md border border-line bg-base/40">
+                <button
+                  type="button"
+                  onClick={() => setOpenIdx(openIdx === i ? null : i)}
+                  className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-hover/40"
+                >
+                  <Icon name="chevron" size={11} className={`text-ink-3 transition-transform ${openIdx === i ? 'rotate-90' : ''}`} />
+                  <span className="font-mono text-[11px] text-warn">
+                    {count(c.tokensBefore)} → {count(c.tokensAfter)}
+                  </span>
+                  <span className="text-[10.5px] text-ink-3">{c.droppedMessages} dropped</span>
+                  <span className="ml-auto font-mono text-[10px] text-ink-3">{clock(c.at)}</span>
+                </button>
+                {openIdx === i ? (
+                  <div className="space-y-2.5 border-t border-line px-2.5 py-2">
+                    <div className="space-y-1">
+                      <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">what was compressed away</p>
+                      <ul className="space-y-1">
+                        {c.summaries.map((s, j) => (
+                          <li key={j} className="text-[11.5px] leading-5 text-ink-2">
+                            · {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+                        <Icon name="eye" size={11} />
+                        dropped originals
+                        <span className="ml-auto font-mono text-[10px] normal-case tracking-normal text-ink-3/80">
+                          {c.droppedPreviews.length}/{c.droppedMessages}
+                        </span>
+                      </p>
+                      {c.droppedPreviews.length === 0 ? (
+                        <p className="text-[11px] text-ink-3">The originals were not retained for this compaction.</p>
+                      ) : (
+                        <ul className="space-y-1.5">
+                          {c.droppedPreviews.map((m, j) => (
+                            <DroppedOriginal key={j} message={m} />
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">protected slots that survived</p>
+                      <div className="flex flex-wrap gap-1">
+                        {c.protectedSlots.map((slot) => (
+                          <span key={slot} className="rounded border border-ok/30 bg-ok/10 px-1.5 py-[1px] font-mono text-[10px] text-ok">
+                            {slot}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// sub-agents
+// ---------------------------------------------------------------------------
+
+function SubAgentCard({ agent }: { agent: SubAgentView }): ReactNode {
+  const tone = agent.status === 'running' ? 'accent' : agent.status === 'ok' ? 'ok' : 'bad';
+  return (
+    <div className={`rounded-md border px-2.5 py-2 ${TONE_BG[tone]}`}>
+      <div className="flex items-center gap-2">
+        {agent.status === 'running' ? <StatusDot tone="accent" pulse /> : <StatusDot tone={tone} />}
+        <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">{agent.goal}</span>
+        <span className="font-mono text-[10px] opacity-80">
+          {agent.tokensUsed !== undefined ? `${count(agent.tokensUsed)}t` : '—'}
+        </span>
+      </div>
+      {agent.summary ? <p className="mt-1 text-[11px] leading-5 opacity-90">{agent.summary}</p> : null}
+      <p className="mt-1 flex items-center gap-2 font-mono text-[10px] opacity-75">
+        <span>{agent.status}</span>
+        <span>{ms((agent.endedAt ?? agent.startedAt) - agent.startedAt)}</span>
+        {agent.artifacts.length ? <span>{agent.artifacts.length} artifacts</span> : null}
+      </p>
+    </div>
+  );
+}
+
+function SubAgentsSection({ task }: { task: TaskView }): ReactNode {
+  return (
+    <section className="border-b border-line">
+      <SectionHeader
+        icon="bot"
+        title="Sub-agents"
+        right={<span className="font-mono text-[10.5px] text-ink-3">{task.subAgents.length}</span>}
+      />
+      <div className="space-y-1.5 px-3 pb-3">
+        {task.subAgents.length === 0 ? (
+          <p className="text-[11.5px] text-ink-3">
+            No sub-agent has been spawned. Isolated subtasks run here so the main context stays clean.
+          </p>
+        ) : (
+          task.subAgents.map((agent) => <SubAgentCard key={agent.id} agent={agent} />)
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// event trail
+// ---------------------------------------------------------------------------
+
+function EventSection({ timeline }: { timeline: TimelineEntry[] }): ReactNode {
+  const shown = timeline.slice(-60).reverse();
+  return (
+    <section>
+      <SectionHeader
+        icon="terminal"
+        title="Events"
+        right={<span className="font-mono text-[10.5px] text-ink-3">{timeline.length}</span>}
+      />
+      <div className="px-3 pb-3">
+        {shown.length === 0 ? (
+          <p className="text-[11.5px] text-ink-3">The bus is quiet.</p>
+        ) : (
+          <ul className="space-y-[3px]">
+            {shown.map((entry, i) => (
+              <li key={`${entry.at}-${i}`} className="flex items-baseline gap-2 font-mono text-[10.5px]">
+                <span className="shrink-0 text-ink-3/70">{clock(entry.at)}</span>
+                <span className="shrink-0 text-accent-2">{entry.type}</span>
+                {entry.summary ? <span className="min-w-0 truncate text-ink-3">{entry.summary}</span> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+export function RightRail(): ReactNode {
+  const task = useUiStore((s) => s.snapshot.task);
+  const timeline = useUiStore((s) => s.snapshot.timeline);
+  const collapsed = useUiStore((s) => s.localPrefs.rightCollapsed);
+  const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
+  const status = useUiStore((s) => s.status);
+
+  if (collapsed) {
+    return (
+      <aside data-rail="right" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-l border-line bg-elevated/30 py-3">
+        <button
+          type="button"
+          title="Expand run rail"
+          aria-label="Expand run rail"
+          className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
+          onClick={() => setLocalPrefs({ rightCollapsed: false })}
+        >
+          <Icon name="expand" size={16} className="rotate-180" />
+          <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
+            Expand run rail
+          </span>
+        </button>
+        <StatusDot tone={status === 'live' ? 'accent' : status === 'offline' ? 'muted' : 'warn'} />
+        <div className="mt-auto">
+          <SettingsButton collapsed />
+        </div>
+      </aside>
+    );
+  }
+
+  return (
+    <aside data-rail="right" className="flex h-full w-full min-w-0 flex-col overflow-y-auto border-l border-line bg-elevated/30">
+      <div className="flex items-start justify-between gap-2 border-b border-line">
+        <div className="min-w-0 flex-1">
+          <RunIdentity />
+        </div>
+        <button
+          type="button"
+          aria-label="Collapse run rail"
+          title="Collapse run rail"
+          className="mr-2 mt-2 grid h-6 w-6 shrink-0 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
+          onClick={() => setLocalPrefs({ rightCollapsed: true })}
+        >
+          <Icon name="collapse" size={13} className="rotate-180" />
+        </button>
+      </div>
+      {task ? (
+        <>
+          <RunSection task={task} />
+          <StepsSection task={task} />
+          <ContextSection task={task} />
+          <SubAgentsSection task={task} />
+        </>
+      ) : (
+        <div className="border-b border-line px-3 py-4 text-[11.5px] text-ink-3">
+          Run, steps, context and sub-agents appear here once a task starts.
+        </div>
+      )}
+      <MemoryPanel />
+      <EventSection timeline={timeline} />
+      <div className="sticky bottom-0 mt-auto border-t border-line bg-elevated">
+        <SettingsButton />
+      </div>
+    </aside>
+  );
+}

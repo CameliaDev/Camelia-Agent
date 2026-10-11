@@ -1,0 +1,19 @@
+{
+  "name": "@camelia/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Camelia end-to-end acceptance suites (whitepaper chapter 9).",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@camelia/agent": "workspace:*",
+    "@camelia/cli": "workspace:*",
+    "@camelia/core": "workspace:*",
+    "@camelia/harness": "workspace:*"
+  }
+}

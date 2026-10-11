@@ -1,0 +1,33 @@
+{
+  "name": "@camelia/agent",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Camelia agent — orchestration, provider registry, model routing, approval policy, session API.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./view": {
+      "types": "./dist/view/index.d.ts",
+      "import": "./dist/view/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:mcp": "vitest run test/mcp-integration.test.ts",
+    "test:plugins": "vitest run test/plugin-loader.test.ts",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@camelia/core": "workspace:*",
+    "@camelia/harness": "workspace:*"
+  }
+}
