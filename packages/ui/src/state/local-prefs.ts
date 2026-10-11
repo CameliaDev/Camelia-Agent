@@ -17,6 +17,9 @@ import { applyPreset, type ThemeId } from '../theme/presets.js';
 
 export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
 
+/** Bump when a one-shot layout migration must run for existing installs. */
+export const LOCAL_PREFS_VERSION = 2;
+
 export const RAIL_LEFT_DEFAULT = 260;
 export const RAIL_RIGHT_DEFAULT = 360;
 export const RAIL_COLLAPSED = 48;
@@ -38,6 +41,8 @@ export interface WindowGeometry {
 }
 
 export interface LocalPrefs {
+  /** Schema version. Missing / < 2 means pre-v2 shell (right rail was open by default). */
+  version: number;
   leftWidth: number;
   rightWidth: number;
   leftCollapsed: boolean;
@@ -53,6 +58,7 @@ export interface LocalPrefs {
 }
 
 export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
+  version: LOCAL_PREFS_VERSION,
   leftWidth: RAIL_LEFT_DEFAULT,
   rightWidth: RAIL_RIGHT_DEFAULT,
   leftCollapsed: false,
@@ -88,6 +94,12 @@ function storageOf(storage?: Storage): Storage | undefined {
   return localStorage;
 }
 
+function prefsVersionOf(raw: Partial<LocalPrefs> | null | undefined): number {
+  const v = raw?.version;
+  if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return Math.floor(v);
+  return 0;
+}
+
 export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined): LocalPrefs {
   const themeId = THEME_IDS.includes(raw?.themeId as ThemeId) ? (raw?.themeId as ThemeId) : DEFAULT_LOCAL_PREFS.themeId;
   const language = LANGS.includes(raw?.language as LanguagePref) ? (raw?.language as LanguagePref) : DEFAULT_LOCAL_PREFS.language;
@@ -96,11 +108,22 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
   const fontMono = typeof raw?.fontMono === 'string' ? raw.fontMono.slice(0, 200) : '';
   const planApproval = raw?.planApproval === 'auto' ? 'auto' : 'always';
   const window = sanitizeWindow(raw?.window);
+  const rawVersion = prefsVersionOf(raw);
+  // v2 shell: right rail collapses by default. Pre-v2 installs stored
+  // rightCollapsed:false because that was the old default — force collapse once
+  // on upgrade so the new layout sticks without wiping the rest of their prefs.
+  const migratingToV2 = rawVersion < 2;
+  const rightCollapsed = migratingToV2
+    ? true
+    : raw?.rightCollapsed === undefined
+      ? DEFAULT_LOCAL_PREFS.rightCollapsed
+      : raw.rightCollapsed === true;
   return {
+    version: LOCAL_PREFS_VERSION,
     leftWidth: clampRail('left', raw?.leftWidth ?? RAIL_LEFT_DEFAULT),
     rightWidth: clampRail('right', raw?.rightWidth ?? RAIL_RIGHT_DEFAULT),
     leftCollapsed: raw?.leftCollapsed === true,
-    rightCollapsed: raw?.rightCollapsed === undefined ? DEFAULT_LOCAL_PREFS.rightCollapsed : raw.rightCollapsed === true,
+    rightCollapsed,
     themeId,
     language,
     topBar,
@@ -128,7 +151,14 @@ export function loadLocalPrefs(storage?: Storage): LocalPrefs {
   try {
     const raw = bin.getItem(LOCAL_PREFS_KEY);
     if (!raw) return { ...DEFAULT_LOCAL_PREFS };
-    return sanitizeLocalPrefs(JSON.parse(raw) as Partial<LocalPrefs>);
+    const parsedRaw = JSON.parse(raw) as Partial<LocalPrefs>;
+    const parsed = sanitizeLocalPrefs(parsedRaw);
+    // Persist the migration immediately so a later expand/collapse is not
+    // re-forced on the next boot.
+    if (prefsVersionOf(parsedRaw) < LOCAL_PREFS_VERSION) {
+      bin.setItem(LOCAL_PREFS_KEY, JSON.stringify(parsed));
+    }
+    return parsed;
   } catch {
     return { ...DEFAULT_LOCAL_PREFS };
   }

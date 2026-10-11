@@ -37,6 +37,7 @@ describe('localPrefs', () => {
 
   it('round-trips through storage and stays out of the snapshot', () => {
     saveLocalPrefs({
+      version: 2,
       leftWidth: 300,
       rightWidth: 400,
       leftCollapsed: true,
@@ -53,7 +54,46 @@ describe('localPrefs', () => {
     expect(store.getState().localPrefs.themeId).toBe('light');
     expect(store.getState().snapshot.task).toBeUndefined();
     expect(loadLocalPrefs().topBar).toBe('pinned');
-    expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#f6f1ec');
+    expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#f3f0ed');
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
+
+  it('migrates pre-v2 prefs to a collapsed right rail once', () => {
+    // Simulate an old install that saved the previous default (expanded).
+    localStorage.setItem(
+      'camelia.localPrefs',
+      JSON.stringify({
+        leftWidth: 300,
+        rightWidth: 400,
+        leftCollapsed: false,
+        rightCollapsed: false,
+        themeId: 'light',
+        language: 'zh',
+        topBar: 'pinned',
+        motion: 'system',
+        fontMono: '',
+        planApproval: 'always',
+      }),
+    );
+    const migrated = loadLocalPrefs();
+    expect(migrated.version).toBe(2);
+    expect(migrated.rightCollapsed).toBe(true);
+    expect(migrated.leftWidth).toBe(300);
+    // Persisted so a later user expand is not re-forced.
+    const stored = JSON.parse(localStorage.getItem('camelia.localPrefs')!);
+    expect(stored.version).toBe(2);
+    expect(stored.rightCollapsed).toBe(true);
+
+    // After migration, an explicit expand must stick.
+    saveLocalPrefs({ ...migrated, rightCollapsed: false });
+    expect(loadLocalPrefs().rightCollapsed).toBe(false);
+  });
+
+  it('keeps a post-v2 expanded right rail', () => {
+    expect(sanitizeLocalPrefs({ version: 2, rightCollapsed: false }).rightCollapsed).toBe(false);
+    expect(sanitizeLocalPrefs({ version: 2, rightCollapsed: true }).rightCollapsed).toBe(true);
+    expect(sanitizeLocalPrefs({}).rightCollapsed).toBe(true);
   });
 
   it('shows a rejected token instead of dropping it silently', () => {
