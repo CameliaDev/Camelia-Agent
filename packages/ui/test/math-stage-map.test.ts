@@ -21,6 +21,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { mathDemoAt } from '../src/modes/math/mathDemoFixture.js';
 import {
   ENGINE_MATH_STEPS,
   MATH_STAGES,
@@ -65,6 +66,21 @@ describe('math stage map — against the harness source', () => {
     const covered = MATH_STAGES.flatMap((s) => [...s.engineSteps]).sort((a, b) => a - b);
     const expected = Array.from({ length: template.length }, (_, i) => i + 1);
     expect(covered).toEqual(expected);
+  });
+});
+
+describe('math stage map — copy must not hardcode the step count', () => {
+  it('derives the demo pipeline hint from ENGINE_MATH_STEPS', () => {
+    // The hint is user-visible ("共 N 步"). A literal there went stale once already when
+    // the axis moved from 8 to 7, so assert the rendered string rather than the source.
+    const hint = mathDemoAt('modeling', 0.5).engineStepHint;
+    expect(hint).toContain(String(ENGINE_MATH_STEPS));
+    expect(hint).not.toContain('共 8 步');
+    // And the numbers it quotes must be real steps on the axis.
+    for (const spec of MATH_STAGES) {
+      const h = mathDemoAt(spec.id, 0.5).engineStepHint;
+      for (const n of spec.engineSteps) expect(h).toContain(String(n));
+    }
   });
 });
 

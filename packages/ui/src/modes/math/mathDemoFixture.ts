@@ -21,7 +21,7 @@
  */
 
 import type { MathStage } from '../../progress/types.js';
-import { MATH_STAGES, stageIndex } from './mathStageMap.js';
+import { ENGINE_MATH_STEPS, MATH_STAGES, stageIndex } from './mathStageMap.js';
 
 export interface MathDemoVariable {
   symbol: string;
@@ -105,10 +105,16 @@ const SOLVER_LOG = [
   'figure → .camelia/math/sir_demo.png',
 ];
 
-/** The stage each pipeline step lands in, for the strip's tooltip. */
+/**
+ * The stage each pipeline step lands in, for the strip's tooltip.
+ *
+ * The total comes from `ENGINE_MATH_STEPS`, never a literal: this line previously read
+ * "共 8 步" from when the UI wrongly mapped onto the unused 8-item prose suffix. A
+ * hardcoded total is exactly the kind of detail that goes stale silently in a demo.
+ */
 function hintFor(stage: MathStage): string {
   const spec = MATH_STAGES.find((s) => s.id === stage) ?? MATH_STAGES[0]!;
-  return `引擎步骤 ${spec.engineSteps.join('/')} · 共 8 步`;
+  return `引擎步骤 ${spec.engineSteps.join('/')} · 共 ${ENGINE_MATH_STEPS} 步`;
 }
 
 /** Build the demo snapshot at a given stage, so a caller can step through it. */
