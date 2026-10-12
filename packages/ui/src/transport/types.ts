@@ -77,6 +77,8 @@ export interface Transport {
   stop(): void;
   /** Send a user intent downward (`ui → agent`). */
   send(command: Command): void;
+  /** Re-open the stream against a different session id. Only the SSE transport implements this. */
+  switchSession?(sessionId: string): void;
   /** Commands this transport actually received — lets tests assert intent dispatch. */
   readonly sent: Command[];
 }

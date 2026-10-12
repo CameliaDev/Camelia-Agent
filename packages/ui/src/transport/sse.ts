@@ -107,6 +107,20 @@ export class SseTransport implements Transport {
   }
 
   /**
+   * Detach the current SSE stream and re-open it against a different session.
+   * Used after `new_session` / `select_session` so the UI shows the chosen
+   * session's event history instead of the process-level default.
+   */
+  switchSession(sessionId: string): void {
+    if (this.options.sessionId === sessionId) return;
+    this.options.sessionId = sessionId;
+    if (!this.handlers) return;
+    const handlers = this.handlers;
+    this.stop();
+    this.start(handlers);
+  }
+
+  /**
    * Ask the engine directly whether a provider is connected.
    *
    * Deliberately uses the *global* `fetch` rather than the injectable `fetchImpl`: that

@@ -86,6 +86,13 @@ export class ModelGateway {
    * (success and failure alike), so a failed call is replayable too.
    */
   readonly promptLog: Array<{ purpose: string; model: string; system: string }> = [];
+  /**
+   * Model ids that already returned not-found / 404 on this gateway.
+   * Later calls skip them and use the decision model. Otherwise a missing
+   * grunt model pays a failed round trip on every step — measured on
+   * `llama3.2:3b`: four execute 404s in one two-step task.
+   */
+  private readonly absentModels = new Set<string>();
 
   constructor(private readonly ctx: RunContext) {}
 
@@ -147,7 +154,9 @@ export class ModelGateway {
    */
   async call(input: ModelCallInput): Promise<ModelCallResult> {
     const caps = this.capabilities();
-    const model = this.modelFor(input);
+    const decision = this.ctx.model;
+    const requested = this.modelFor(input);
+    const model = requested !== decision && this.absentModels.has(requested) ? decision : requested;
     this.promptLog.push({ purpose: input.purpose, model, system: input.system });
     const toolsSuppressed = Boolean(input.tools && !caps.supportsTools);
     const tools = toolsSuppressed ? undefined : input.tools;
@@ -207,8 +216,8 @@ export class ModelGateway {
       }
     }
 
-    const decision = this.ctx.model;
     if (model !== decision && isMissingModel(lastError)) {
+      this.absentModels.add(model);
       this.ctx.infra.logger.warn('named model is not installed; using the decision model', {
         model,
         decision,

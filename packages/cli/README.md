@@ -6,9 +6,10 @@ Camelia 的**命令行入口**（二进制名 `camelia`）。它是 Phase 1 的�
 
 | 命令 | 作用 |
 | --- | --- |
-| `camelia run "<任务>"` | 规划并执行一个任务；`--json` 输出机器可读结果，`--mock` / `--spec` 提供离线确定性通道。 |
+| `camelia run "<任务>"` | 规划并执行一个任务；`--json` 输出机器可读结果，`--mock` / `--spec` 提供离线确定性通道，`--resume <id>` 续跑。 |
 | `camelia replay [taskId]` | 从持久化事件日志回放一个任务的完整生命周期；无 taskId 时列出最近会话。 |
-| `camelia doctor [--offline]` | 体检安装：home 目录、Provider 可用性，并可选跑一遍引擎自检。 |
+| `camelia doctor [--offline]` | 体检安装：home 目录、Provider 可用性、MCP 服务器，并可选跑一遍引擎自检。 |
+| `camelia serve` | 起 HTTP/SSE 引擎服务（默认 `127.0.0.1:7433`），供 UI / 桌面端连接。 |
 
 ## 退出码
 
@@ -17,6 +18,8 @@ Camelia 的**命令行入口**（二进制名 `camelia`）。它是 Phase 1 的�
 | `0` | 完成 |
 | `1` | 任务失败 |
 | `2` | 用法错误 |
+| `3` | 暂停（等待审批或用户中断） |
+| `130` | 取消（收到 SIGINT） |
 
 退出码是一等契约：命令失败绝不以 `0` 退出。
 

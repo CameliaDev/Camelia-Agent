@@ -60,6 +60,18 @@ export class FallbackLLMPort implements LLMPort {
     return this.handles.map((handle, i) => ({ id: handle.id, active: i === this.index }));
   }
 
+  /**
+   * User-initiated mid-session switch. Moves the cursor to the handle whose id
+   * matches; returns false when the id is not in the chain. Subsequent calls use
+   * the new cursor (and fall forward from it on failure).
+   */
+  switchTo(providerId: string): boolean {
+    const idx = this.handles.findIndex((h) => h.id === providerId);
+    if (idx < 0) return false;
+    this.index = idx;
+    return true;
+  }
+
   capabilities(): ProviderCapabilities {
     return this.active.port.capabilities();
   }

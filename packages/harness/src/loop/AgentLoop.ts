@@ -119,6 +119,11 @@ export class AgentLoop {
    * Sub-agent calls share the gateway but are not part of the parent's record.
    */
   private readonly runToolResults: unknown[] = [];
+  /**
+   * The planning input of the current run (Iteration 26): kept for the offline
+   * run record so an on-site failure can be replayed exactly.
+   */
+  private intentInput?: ClarifiedIntent;
 
   constructor(
     private readonly deps: AgentLoopDeps,
@@ -150,6 +155,11 @@ export class AgentLoop {
     return this.state.current;
   }
 
+  /** The task this loop is running. Exposed for runtime-level event attribution. */
+  get currentTaskId(): string {
+    return this.ctx.taskId;
+  }
+
   /**
    * Run the full lifecycle for one task.
    *
@@ -165,6 +175,7 @@ export class AgentLoop {
     this.recalledMemoryIds = new Set(); // fresh task → fresh memory feedback window
     this.state = TaskStateMachine.restore('received');
     this.transition('clarifying', 'intent accepted');
+    this.intentInput = intent;
     this.deps.context.setGoal(intent.goal);
     for (const constraint of intent.constraints) this.deps.context.addConstraint(constraint);
 
@@ -188,7 +199,7 @@ export class AgentLoop {
     // and inject relevant memories before any work starts (Iteration 20).
     await this.selfReviewAt('planning', plan, intent);
     await this.injectMemories(intent);
-    this.deps.context.setTodos(plan.steps.map((s) => `[${s.status}] ${s.title}`));
+    this.syncTodos(plan);
     this.emitProgress(plan, 0);
 
     const ordered = topologicalOrder(plan.steps);
@@ -242,12 +253,13 @@ export class AgentLoop {
       step.status = 'running';
       step.startedAt = this.ctx.ports.clock.now();
       await this.persistStep(step);
+      this.syncTodos(plan);
 
       const firstRoute = await this.routeStep(step, plan, 0);
       const result = await this.deps.executor.execute(step, {
         stepIndex: step.idx + 1,
         stepTotal: ordered.length,
-        completedSummaries: ordered.filter((s) => s.status === 'done').map((s) => s.title),
+        completedSummaries: this.completedStepTitles(ordered),
         model: firstRoute.model,
         reflect: firstRoute.reflect,
       });
@@ -276,7 +288,7 @@ export class AgentLoop {
         const fixResult = await this.deps.executor.execute(step, {
           stepIndex: step.idx + 1,
           stepTotal: ordered.length,
-          completedSummaries: [],
+          completedSummaries: this.completedStepTitles(ordered),
           fixupFailures: verdict.reason.split(' | ').filter((r) => r.startsWith('FAIL')),
           model: retryRoute.model,
           reflect: retryRoute.reflect,
@@ -288,6 +300,13 @@ export class AgentLoop {
         verdicts.push(verdict);
         this.iterations += 1;
         fixAttempt += 1;
+        // Convergence guard (Iteration 26, Stage 4.3 — s2 field): a fixup that
+        // failed verification with zero tool calls is a model that declined to
+        // act even though the fixup prompt named the exact FAIL reasons. Further
+        // fixup rounds only repeat the empty attempt (field: ~57s run burned on
+        // repeated no-action turns). Stop retrying here and let the replan
+        // escalation decide — a bounded mechanism, not a prompt rule.
+        if (fixResult.toolCalls.length === 0) break;
       }
 
       if (verdict.status === 'fail') {
@@ -334,6 +353,9 @@ export class AgentLoop {
           step.endedAt = this.ctx.ports.clock.now();
           await this.persistStep(step);
           this.ctx.infra.bus.emit('step.failed', { step, error: verdict.reason }, meta);
+          // Undo the failed step's mutations before replanning, so the revised
+          // plan starts from a clean workspace and its own checkpoint mark is honest.
+          await this.rollback(checkpointId);
           const regated = await this.approvePlan(plan, 'revised plan ready for review');
           if (!regated.ok) {
             return this.finish('cancelled', startedAt, artifacts, verdicts, plan, stepsCompleted, unverifiedSteps, regated.reason);
@@ -410,7 +432,7 @@ export class AgentLoop {
     const meta = runMeta(this.ctx);
     if (!checkpointId) return 0;
     this.ctx.infra.bus.emit('recovery.rollback_started', { checkpointId }, meta);
-    const restored = await this.deps.journal.rollback();
+    const restored = await this.deps.journal.rollbackTo(checkpointId);
     this.ctx.infra.bus.emit('recovery.rollback_done', { checkpointId, restored }, meta);
     this.ctx.infra.metrics.inc('recovery.rollback_success');
     return restored;
@@ -513,11 +535,12 @@ export class AgentLoop {
       step.status = 'running';
       step.startedAt = this.ctx.ports.clock.now();
       await this.persistStep(step);
+      this.syncTodos(plan);
       const resumedRoute = await this.routeStep(step, plan, 0);
       const result = await this.deps.executor.execute(step, {
         stepIndex: step.idx + 1,
         stepTotal: plan.steps.length,
-        completedSummaries: [],
+        completedSummaries: this.completedStepTitles(plan.steps),
         model: resumedRoute.model,
         reflect: resumedRoute.reflect,
       });
@@ -612,6 +635,9 @@ export class AgentLoop {
       fsManifest: manifest,
       createdAt: this.ctx.ports.clock.now(),
     };
+    // Tag the journal depth so rollback(checkpoint.id) only undoes files touched
+    // *after* this checkpoint, not the entire task's mutations.
+    this.deps.journal.mark(checkpoint.id);
     try {
       await this.ctx.infra.store.saveCheckpoint(checkpoint);
     } catch (error) {
@@ -875,6 +901,24 @@ export class AgentLoop {
   }
 
   /**
+   * Push live step status into the protected todo slot.
+   *
+   * The slot is what the model actually reads (`open-todos` inside
+   * `<protected-context>`). Writing it once at plan time left every step
+   * `[pending]` for the rest of the run — Iteration 24's live failure, where
+   * the second todo never left pending. Status on the step object and status
+   * in the prompt have to be the same string.
+   */
+  private syncTodos(plan: Plan): void {
+    this.deps.context.setTodos(plan.steps.map((step) => `[${step.status}] ${step.title}`));
+  }
+
+  /** Titles of steps already accepted, in plan order. */
+  private completedStepTitles(steps: Step[]): string[] {
+    return steps.filter((step) => step.status === 'done').map((step) => step.title);
+  }
+
+  /**
    * Enter `awaiting-approval`. Auto mode, a session-scoped approval, or the
    * absence of a gate (in-process tests) continues. A person can edit in place
    * or reject, which cancels.
@@ -990,6 +1034,7 @@ export class AgentLoop {
     reason?: string,
   ): Promise<TaskOutcome> {
     const meta = runMeta(this.ctx);
+    this.syncTodos(plan);
     if (status === 'done' && !this.state.isTerminal) this.transition('done', 'delivered');
     if (status === 'failed' && !this.state.isTerminal) this.transition('failed', reason ?? 'failed');
     if (status === 'cancelled' && !this.state.isTerminal) this.transition('cancelled', reason ?? 'cancelled');
@@ -1038,12 +1083,20 @@ export class AgentLoop {
     if (!dir) return;
     try {
       const target = path.join(dir, this.ctx.taskId);
+      // The raw intent lives on the persisted task row (created by the runtime
+      // with the user's exact words). Best-effort: a missing row (unit harness)
+      // yields undefined — the record stays valid.
+      const task = await this.ctx.infra.store.getTask(this.ctx.taskId).catch(() => undefined);
       await writeRunRecord(target, {
         model: this.ctx.model,
         gruntModel: this.ctx.gruntModel === this.ctx.model ? undefined : this.ctx.gruntModel,
         prompts: this.deps.gateway.promptLog.map((entry) => JSON.stringify(entry)),
         context: this.deps.context.dump(),
         toolResults: this.runToolResults,
+        // Iteration 26: raw intent + planning input, so any on-site failure is
+        // offline-replayable. Old records read these as undefined.
+        intentRaw: task?.intentRaw,
+        planInput: this.intentInput,
       });
       this.ctx.infra.logger.info('run record written', { dir: target, taskId: this.ctx.taskId });
     } catch (error) {

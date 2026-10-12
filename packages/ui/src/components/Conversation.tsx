@@ -22,7 +22,7 @@ import { ActivityBar } from './ActivityBar.js';
 import { PlanReview } from './PlanReview.js';
 import { ApprovalCard, FailureCard, NoticeBanner } from './Reliability.js';
 import { StepCard } from './StepCard.js';
-import { Avatar, Chip, EmptyState, ErrorState, Icon, LoadingState, SkeletonRows } from './primitives.js';
+import { Avatar, Chip, ErrorState, Icon, LoadingState, SkeletonRows } from './primitives.js';
 
 function ArtifactRow({ artifact }: { artifact: Artifact }): ReactNode {
   const icon = artifact.kind === 'diff' ? 'branch' : artifact.kind === 'stdout' ? 'terminal' : 'file';
@@ -49,74 +49,57 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [showAssumptions, setShowAssumptions] = useState(false);
   return (
-    <div className="flex items-start gap-2.5" data-message="user">
-      <Avatar kind="user" size={32} title={tr('avatar.user')} />
-      <div className="relative min-w-0 flex-1 overflow-hidden rounded-lg border border-accent/25 bg-accent/[0.06] py-3 pl-4 pr-3">
-      <span className="absolute inset-y-0 left-0 w-[3px] bg-accent" />
-      <div className="flex items-center gap-2">
-        <Icon name="spark" size={13} className="text-accent" />
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-accent">{tr('intent.yourRequest')}</span>
-      </div>
-      <p className="mt-1.5 text-[13px] leading-6 text-ink">{task.intentRaw}</p>
+    <div className="flex items-start justify-end gap-2.5" data-message="user">
+      <div className="max-w-[75%]">
+        <div className="wf-bubble-user px-3.5 py-2.5">
+          <p className="text-[13px] leading-6">{task.intentRaw}</p>
+        </div>
 
-      {task.goal && task.goal !== task.intentRaw ? (
-        <p className="mt-2 text-[11.5px] leading-5 text-ink-2">
-          <span className="text-ink-3">{tr('intent.restatedGoal')} · </span>
-          {task.goal}
-        </p>
-      ) : null}
+        {task.goal && task.goal !== task.intentRaw ? (
+          <p className="mt-1.5 text-[11.5px] leading-5 text-ink-2">
+            <span className="text-ink-3">{tr('intent.restatedGoal')} · </span>
+            {task.goal}
+          </p>
+        ) : null}
 
-      {task.assumptions.length || task.constraints.length ? (
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={() => setShowAssumptions((v) => !v)}
-            className="text-[10.5px] text-ink-3 hover:text-ink-2"
-          >
-            {showAssumptions ? '▾' : '▸'} {task.assumptions.length + task.constraints.length} {tr('intent.assumptions')}
-          </button>
-          {showAssumptions ? (
-            <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1.5">
-              {task.assumptions.length ? (
-                <div className="min-w-0">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{tr('intent.assumptions')}</p>
-                  <ul className="mt-0.5 space-y-0.5">
-                    {task.assumptions.map((a) => (
-                      <li key={a} className="text-[11.5px] text-ink-2">
-                        · {a}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {task.constraints.length ? (
-                <div className="min-w-0">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{tr('intent.constraints')}</p>
-                  <ul className="mt-0.5 space-y-0.5">
-                    {task.constraints.map((c) => (
-                      <li key={c} className="text-[11.5px] text-ink-2">
-                        · {c}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+        {task.assumptions.length || task.constraints.length ? (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowAssumptions((v) => !v)}
+              className="text-[10.5px] text-ink-3 hover:text-ink-2"
+            >
+              {showAssumptions ? '▾' : '▸'} {task.assumptions.length + task.constraints.length} {tr('intent.assumptions')}
+            </button>
+          </div>
+        ) : null}
+
+        {task.assumptions.length && showAssumptions ? (
+          <div className="mt-1.5 flex flex-wrap justify-end gap-x-6 gap-y-1.5">
+            <div className="min-w-0 text-right">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{tr('intent.assumptions')}</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {task.assumptions.map((a) => (
+                  <li key={a} className="text-[11.5px] text-ink-2">
+                    {a} ·
+                  </li>
+                ))}
+              </ul>
             </div>
-          ) : null}
-        </div>
-      ) : null}
+          </div>
+        ) : null}
 
-      {task.interventions.length ? (
-        <div className="mt-2.5 space-y-1 border-t border-line pt-2">
-          {task.interventions.map((i, idx) => (
-            <p key={idx} className="text-[11.5px] text-info">
-              <Icon name="compass" size={11} className="mr-1 inline" />
-              {tr('intent.steered')} {i.newGoal}
-            </p>
-          ))}
-        </div>
-      ) : null}
+        {task.interventions.length ? (
+          <div className="mt-2.5 space-y-1 border-t border-line pt-2">
+            {task.interventions.map((i, idx) => (
+              <p key={idx} className="text-right text-[11.5px] text-info">
+                {tr('intent.steered')} {i.newGoal}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </div>
+      <Avatar kind="user" size={32} title={tr('avatar.user')} />
     </div>
   );
 }
@@ -178,13 +161,15 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
       {introNarration.length ? (
         <div className="flex items-start gap-2.5" data-message="agent">
           <Avatar kind="agent" size={32} title={tr('avatar.agent')} />
-          <div className="min-w-0 flex-1 border-l-2 border-accent/30 pl-3">
-          {introNarration.map((n) => (
-            <p key={n.id} className="text-[12px] leading-[1.7] text-ink-2">
-              {n.text}
-              {n.streaming ? <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" /> : null}
-            </p>
-          ))}
+          <div className="max-w-[75%]">
+            <div className="wf-bubble-agent px-3.5 py-2.5">
+              {introNarration.map((n) => (
+                <p key={n.id} className="text-[12.5px] leading-[1.7] text-ink">
+                  {n.text}
+                  {n.streaming ? <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" /> : null}
+                </p>
+              ))}
+            </div>
           </div>
         </div>
       ) : null}
@@ -217,7 +202,7 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
 }
 
 export function Conversation(): ReactNode {
-  const { snapshot, status, transportError, lastCommandError, dispatch } = useUiState();
+  const { snapshot, status, transportError, lastCommandError, dispatch, activeSessionId } = useUiState();
   const clearCommandError = useUiStore((s) => s.clearCommandError);
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
@@ -244,19 +229,43 @@ export function Conversation(): ReactNode {
   }
   if (!task) {
     if (status === 'connecting') return <LoadingState />;
+    const suggestions = [
+      '排查线上 500 并给出复现步骤',
+      '为模块补测试与验收清单',
+      '梳理依赖并画出调用链',
+    ];
     return (
-      <EmptyState
-        icon="camellia"
-        title={tr('welcome.title')}
-        hint={tr('welcome.body')}
-        action={
-          <ul className="mt-1 space-y-1 text-left text-[11.5px] text-ink-3" data-welcome-checklist>
-            <li>· {tr('welcome.check.workspace')}</li>
-            <li>· {tr('welcome.check.doctor')}</li>
-            <li>· {tr('welcome.check.model')}</li>
-          </ul>
-        }
-      />
+      <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 text-center">
+        {/* 吉祥物占位 */}
+        <div className="relative">
+          <div className="wf-dash-brand grid h-24 w-24 place-items-center rounded-full">
+            <Icon name="camellia" size={36} />
+          </div>
+          <span className="wf-orange-tag absolute -right-4 top-0">友好吉祥物占位</span>
+        </div>
+        <p className="mt-4 text-[15px] font-semibold text-[#9a3412]">待定：名字 / 吉祥物</p>
+        <p className="mt-1 text-[11.5px] text-ink-3">此处放最终 App 图标 / 吉祥物立绘 · 勿在线框阶段定名</p>
+
+        <h2 className="mt-8 text-[17px] font-semibold text-ink">暂无任务</h2>
+        <p className="mt-2 max-w-md text-[12.5px] leading-6 text-ink-3">
+          描述你想构建、修复或调查的内容。Camelia 会规划、逐步执行、校验每个验收点，并向你展示完整运行过程。
+        </p>
+
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="rounded-full border border-line bg-base px-3 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
+              onClick={() =>
+                dispatch(makeCommand('submit_task', { sessionId: activeSessionId ?? 'ses_new', intent: s, workspace: snapshot.session?.workspace ?? '.' }))
+              }
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
     );
   }
 

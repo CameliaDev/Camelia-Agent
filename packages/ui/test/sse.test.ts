@@ -50,13 +50,15 @@ function makeHandlers() {
   const statuses: ConnectionStatus[] = [];
   const bootstraps: unknown[] = [];
   const errors: string[] = [];
+  const rejected: Array<{ commandId: string; type: string; error: string }> = [];
   const handlers: TransportHandlers = {
     onEvent: (event) => events.push(event),
     onStatus: (status) => statuses.push(status),
     onBootstrap: (payload) => bootstraps.push(payload),
     onError: (message) => errors.push(message),
+    onCommandRejected: (commandId, type, error) => rejected.push({ commandId, type, error }),
   };
-  return { handlers, events, statuses, bootstraps, errors };
+  return { handlers, events, statuses, bootstraps, errors, rejected };
 }
 
 function transport(overrides: Partial<{ fetchImpl: typeof fetch }> = {}) {
@@ -168,7 +170,7 @@ describe('SseTransport — commands', () => {
     const h = makeHandlers();
     instance.start(h.handlers);
     instance.send(command as never);
-    await vi.waitFor(() => expect(h.errors).toContain('no task is running'));
+    await vi.waitFor(() => expect(h.rejected.map((r) => r.error)).toContain('no task is running'));
   });
 
   it('reports a failed send through the error channel', async () => {

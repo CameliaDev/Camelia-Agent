@@ -350,6 +350,14 @@ describe('prompt builders', () => {
     const prompt = fixupSystemPrompt(makeStep({ idx: 0, title: 'S' }), ['FAIL file-exists: missing']);
     expect(prompt).toContain('FAIL file-exists: missing');
   });
+
+  it('fixup prompt keeps steps that already finished', () => {
+    const prompt = fixupSystemPrompt(makeStep({ idx: 1, title: 'Run check' }), ['FAIL command-exit-zero: exited 1'], false, [
+      'Write a.txt',
+    ]);
+    expect(prompt).toContain('Completed so far:');
+    expect(prompt).toContain('Write a.txt');
+  });
 });
 
 describe('workspaceSummary', () => {

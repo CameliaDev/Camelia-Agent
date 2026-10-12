@@ -169,6 +169,45 @@ describe('AgentLoop — recovery', () => {
     expect(eventTypes(h)).toContain('recovery.attempted');
   });
 
+  it('shows live step status in open-todos and keeps completed steps on a retry', async () => {
+    let calls = 0;
+    const shell = new FakeShell(() => ({ code: (calls += 1) === 1 ? 1 : 0, stdout: 'ok' }));
+    const llm = new ScriptedLLM([
+      planTurn([
+        { title: 'Write a.txt', acceptance: [fileExists('a.txt')] },
+        { title: 'Run check', acceptance: [commandExitZero('node check.mjs')] },
+      ]),
+      writeTurn('a.txt', 'A'),
+      finishTurn,
+      finishTurn,
+      finishTurn,
+    ]);
+    const h = makeHarness({ llm, shell });
+    const { loop } = buildEngine(h);
+
+    const outcome = await loop.run(makeIntent({ goal: 'write a.txt then check', expectedPaths: ['a.txt'] }));
+
+    expect(outcome.status).toBe('done');
+    expect(outcome.stepsCompleted).toBe(2);
+    const systems = llm.requests.map(
+      (request) => request.messages.find((message) => message.role === 'system')?.content ?? '',
+    );
+    const step1 = systems.find((text) => text.includes('Step 1/2: Write a.txt'));
+    const step2 = systems.find((text) => text.includes('Step 2/2: Run check'));
+    const fixup = systems.find((text) => text.includes('FAILED verification') && text.includes('Run check'));
+    expect(step1).toContain('[running] Write a.txt');
+    expect(step1).toContain('[pending] Run check');
+    expect(step1).not.toContain('[pending] Write a.txt');
+    expect(step2).toContain('[done] Write a.txt');
+    expect(step2).toContain('[running] Run check');
+    expect(step2).not.toContain('[pending] Write a.txt');
+    expect(step2).toContain('Completed so far:');
+    expect(fixup).toContain('[done] Write a.txt');
+    expect(fixup).toContain('[running] Run check');
+    expect(fixup).toContain('Completed so far:');
+    expect(fixup).toContain('Write a.txt');
+  });
+
   it('escalates to replan after a verification failure and finishes with the revised plan', async () => {
     const llm = new ScriptedLLM([
       // Plan v1 fails: the content never contains MAGIC.

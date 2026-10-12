@@ -1,0 +1,133 @@
+/*
+ * Camelia Light Refined.
+ *
+ * Colors, radius and type color live in the `light` preset (whitelist tokens).
+ * This sheet only changes structure: borders, shadow, spacing, the idle/cancelled
+ * clash, and the run button. It is scoped to html[data-theme="light"] so Warm Dark,
+ * Cool Dark and High Contrast stay untouched. !important wins over Tailwind utilities.
+ */
+
+@keyframes camelia-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Page is the warm light gray; rails and the conversation column read as white cards. */
+html[data-theme='light'] [data-shell] {
+  background: #f3f0ed !important;
+}
+html[data-theme='light'] [data-rail] {
+  background: #ffffff !important;
+}
+html[data-theme='light'] [data-session] {
+  border: none !important;
+}
+
+/* Step cards: drop the nested border, keep a quiet shadow. */
+html[data-theme='light'] [data-step-card] {
+  border: none !important;
+  background: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  margin-bottom: 16px !important;
+  padding: 16px 18px !important;
+}
+html[data-theme='light'] [data-step-card] h3 {
+  color: #111111 !important;
+  font-weight: 600 !important;
+}
+html[data-theme='light'] [data-step-card] [data-step-goal] {
+  color: #555555 !important;
+  font-weight: 400 !important;
+}
+html[data-theme='light'] [data-step-card] [data-meta] {
+  color: #999999 !important;
+  font-size: 0.85em !important;
+}
+
+/* Pending stays neutral. Running keeps the blue and breathes. Done uses the soft green token. */
+html[data-theme='light'] [data-step-status='pending'] {
+  color: #999999 !important;
+}
+html[data-theme='light'] [data-step-status='running'],
+html[data-theme='light'] [data-step-status='verifying'] {
+  color: #3b7dd8 !important;
+  animation: camelia-breathe 1.8s ease-in-out infinite;
+}
+html[data-theme='light'] [data-step-status='done'] {
+  color: #3d9a74 !important;
+}
+
+/* Acceptance rows become a timeline, not another boxed card. */
+html[data-theme='light'] [data-acceptance] {
+  margin-top: 14px !important;
+  border: none !important;
+  border-left: 2px solid #eaeaea !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 2px 0 2px 12px !important;
+  box-shadow: none !important;
+}
+
+/* Conversation gets more air. */
+html[data-theme='light'] [data-conversation] {
+  padding: 20px 24px 28px !important;
+  gap: 18px !important;
+}
+
+/* Idle next to Cancelled / Failed / Done is the stale label. Hide it. */
+html[data-theme='light'] [data-activity='idle'][data-task-status='cancelled'],
+html[data-theme='light'] [data-activity='idle'][data-task-status='failed'],
+html[data-theme='light'] [data-activity='idle'][data-task-status='done'] {
+  display: none !important;
+}
+
+/* Right-rail step list repeats the center. Keep it, but quieter. */
+html[data-theme='light'] [data-rail-steps] {
+  color: #888888 !important;
+}
+html[data-theme='light'] [data-rail-steps] svg {
+  width: 10px !important;
+  height: 10px !important;
+}
+html[data-theme='light'] [data-rail-steps] p {
+  color: #888888 !important;
+}
+
+/* Composer stays a single line unless the user actually writes more. */
+html[data-theme='light'] [data-composer] textarea {
+  min-height: 22px !important;
+  max-height: 96px !important;
+}
+
+/* The run button is the one saturated control on the screen. */
+html[data-theme='light'] [data-run] {
+  background: #3b7dd8 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 6px 14px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 14px rgba(59, 125, 216, 0.32) !important;
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease !important;
+}
+html[data-theme='light'] [data-run]:hover:not(:disabled) {
+  background: #5a9ae8 !important;
+  box-shadow: 0 6px 18px rgba(59, 125, 216, 0.42) !important;
+  transform: translateY(-1px);
+}
+html[data-theme='light'] [data-run]:disabled {
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+html[data-motion='reduce'] [data-step-status='running'],
+html[data-motion='reduce'] [data-step-status='verifying'] {
+  animation: none;
+}

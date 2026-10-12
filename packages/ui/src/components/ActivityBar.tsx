@@ -12,11 +12,10 @@ import type { ReactNode } from 'react';
 
 import type { TaskView } from '@camelia/agent/view';
 
-import { ms, pct } from '../lib/format.js';
-import { ACTIVITY_META, TONE_TEXT } from '../lib/status.js';
+import { localizePlanText } from '../i18n/plan-copy.js';
 import { t } from '../i18n/strings.js';
 import { rightRailUserPatch } from '../state/local-prefs.js';
-import { Chip, Icon, ProgressBar, StatusDot } from './primitives.js';
+import { Icon, StatusDot } from './primitives.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 
 export function ActivityBar({
@@ -36,93 +35,85 @@ export function ActivityBar({
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const rightCollapsed = localPrefs.rightCollapsed;
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
-  const meta = ACTIVITY_META[task.activity.kind];
-  const label = task.activity.kind === 'waiting-approval' ? tr('approval.waiting') : meta.label;
   const elapsed = Math.max(0, task.updatedAt - task.startedAt);
-  const inActivity = Math.max(0, task.updatedAt - task.activity.since);
+  void elapsed;
   const running = task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled' && task.status !== 'paused';
-  const waiting = task.activity.kind === 'waiting-approval';
 
   return (
-    <div className="sticky top-0 z-10 border-b border-line bg-base/95 px-4 py-2 backdrop-blur">
+    <div className="sticky top-0 z-10 border-b border-line bg-base px-4 py-2.5">
+      {/* 第一行：任务标题 + 运行状态 + 数据详情标签 */}
       <div className="flex items-center gap-2.5">
-        <span
-          data-activity={task.activity.kind}
-          data-task-status={task.status}
-          className={`flex items-center gap-1.5 text-[12px] font-semibold ${TONE_TEXT[meta.tone]}`}
-        >
-          {running ? <StatusDot tone={meta.tone} pulse /> : <Icon name="dot" size={10} />}
-          {label}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{task.activity.detail}</span>
-
-        <span className="hidden shrink-0 items-center gap-1 font-mono text-[10.5px] text-ink-3 sm:flex">
-          <Icon name="clock" size={11} />
-          {ms(elapsed)} total · {ms(inActivity)} here
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink" data-task-title>
+          任务：{task.intentRaw || task.goal || task.activity.detail}
         </span>
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          {rightCollapsed ? (
-            <button
-              type="button"
-              data-open-right-rail
-              aria-label={tr('right.expand')}
-              title={tr('right.expand')}
-              className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
-              onClick={() => setLocalPrefs(rightRailUserPatch(false))}
-            >
-              <Icon name="gauge" size={11} />
-              {tr('right.inspect')}
+        <span className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-ink-2">
+          <StatusDot tone={running ? 'ok' : 'muted'} pulse={running} />
+          {running ? '运行中' : task.status} · 第{Math.min(task.currentStepIdx + 1, Math.max(1, task.stepsTotal))}/{task.stepsTotal || '—'}步
+        </span>
+
+        {rightCollapsed ? (
+          <button
+            type="button"
+            data-open-right-rail
+            aria-label={tr('right.expand')}
+            title={tr('right.expand')}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-[2px] text-[11px] font-medium text-accent hover:bg-accent/15"
+            onClick={() => setLocalPrefs(rightRailUserPatch(false))}
+          >
+            {tr('right.inspect')}
+            <Icon name="x" size={10} />
+          </button>
+        ) : (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-[2px] text-[11px] font-medium text-accent">
+            {tr('right.inspect')}
+            <button type="button" aria-label={tr('right.collapse')} onClick={() => setLocalPrefs(rightRailUserPatch(true))}>
+              <Icon name="x" size={10} />
             </button>
-          ) : null}
-          {waiting ? <Chip tone="warn">{tr('approval.yourCall')}</Chip> : null}
+          </span>
+        )}
+
+        {/* 暂停/继续/引导/取消（轻量图标按钮） */}
+        <div className="flex shrink-0 items-center gap-1">
           {task.status === 'paused' ? (
-            <button
-              type="button"
-              onClick={onResume}
-              className="inline-flex items-center gap-1 rounded border border-accent/40 px-2 py-[3px] text-[11px] text-accent hover:bg-accent/10"
-            >
-              <Icon name="play" size={11} />
-              {tr('resume')}
+            <button type="button" onClick={onResume} title={tr('resume')} className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink">
+              <Icon name="play" size={12} />
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={onPause}
-              disabled={!running}
-              className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Icon name="pause" size={11} />
-              {tr('pause')}
+            <button type="button" onClick={onPause} disabled={!running} title={tr('pause')} className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink disabled:opacity-40">
+              <Icon name="pause" size={12} />
             </button>
           )}
-          <button
-            type="button"
-            onClick={onIntervene}
-            className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-info/40 hover:text-info"
-          >
-            <Icon name="compass" size={11} />
-            {tr('steer')}
+          <button type="button" onClick={onIntervene} title={tr('steer')} className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink">
+            <Icon name="compass" size={12} />
           </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={!running}
-            className="inline-flex items-center gap-1 rounded border border-line px-2 py-[3px] text-[11px] text-ink-2 hover:border-bad/40 hover:text-bad disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Icon name="stop" size={11} />
-            {tr('cancel')}
+          <button type="button" onClick={onCancel} disabled={!running} title={tr('cancel')} className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-bad hover:text-white disabled:opacity-40">
+            <Icon name="stop" size={12} />
           </button>
         </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-2.5">
-        <ProgressBar value={task.progress} tone={task.status === 'failed' ? 'bad' : task.status === 'done' ? 'ok' : 'accent'} />
-        <span className="shrink-0 font-mono text-[10.5px] text-ink-3">{pct(task.progress)}</span>
-        <span className="shrink-0 font-mono text-[10.5px] text-ink-3">
-          step {Math.min(task.currentStepIdx + 1, Math.max(1, task.stepsTotal))}/{task.stepsTotal || '—'}
-        </span>
-      </div>
+      {/* 第二行：步骤圆圈条 */}
+      {task.steps.length > 0 ? (
+        <ol className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {task.steps.map((step) => {
+            const cls =
+              step.status === 'done'
+                ? 'done'
+                : step.idx === task.currentStepIdx && (step.status === 'running' || step.status === 'verifying')
+                  ? 'active'
+                  : '';
+            return (
+              <li key={step.id} className="flex items-center gap-1.5">
+                <span className={`wf-step-circle ${cls}`}>{step.idx + 1}</span>
+                <span className={`text-[11.5px] ${cls === 'active' ? 'text-ink font-medium' : step.status === 'done' ? 'text-ink-2' : 'text-ink-3'}`}>
+                  {localizePlanText(localPrefs.language, step.title)}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
     </div>
   );
 }

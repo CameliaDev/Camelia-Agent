@@ -21,6 +21,17 @@ export interface RunRecord {
   context: unknown;
   /** Tool-call records from every executed step. */
   toolResults: unknown[];
+  /**
+   * The user's original intent exactly as the task was created with
+   * (Iteration 26 — so an on-site failure can be replayed offline). Absent in
+   * records written before Iteration 26; readers treat it as undefined.
+   */
+  intentRaw?: string;
+  /**
+   * The planning input (the clarified intent the plan was built from)
+   * (Iteration 26). Absent in old records.
+   */
+  planInput?: unknown;
 }
 
 export async function writeRunRecord(dir: string, record: RunRecord): Promise<void> {

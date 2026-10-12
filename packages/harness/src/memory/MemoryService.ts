@@ -40,7 +40,12 @@ import {
   DEFAULT_HALF_LIFE_MS,
   type MemoryValueInput,
 } from './value.js';
-import { computeRecallNoiseAggregate, type RecallNoiseAggregate } from './recallNoise.js';
+import {
+  buildRecallTimeline,
+  computeRecallNoiseAggregate,
+  type RecallNoiseAggregate,
+  type RecallTimelineHit,
+} from './recallNoise.js';
 
 export interface MemoryWriteInput {
   scope: MemoryItem['scope'];
@@ -69,6 +74,14 @@ export interface MemoryServiceOptions {
   halfLifeMs?: number;
   /** Event metadata for everything this service emits. */
   meta: EmitMeta;
+}
+
+/** Filters for the recall timeline query (all optional). */
+export interface RecallTimelineQuery {
+  memoryId?: Id;
+  sessionId?: Id;
+  since?: number;
+  limit?: number;
 }
 
 /** Default per-scope persistent memory budget. */
@@ -401,6 +414,33 @@ export class MemoryService {
     const aggregate = computeRecallNoiseAggregate(events);
     this.metrics?.observe('memory.recall_noise_rate', aggregate.noiseRate);
     return aggregate;
+  }
+
+  /**
+   * Recall timeline (Iteration 26 — the panel's visible recall history).
+   *
+   * Reads the persisted event log and folds `memory.recalled` + `memory.downgraded`
+   * into per-hit records with the same 口径 as {@link recallNoiseAggregate}. The
+   * service only does I/O (load events, load the mentioned memories' content once)
+   * — the fold itself is the pure `buildRecallTimeline` function.
+   */
+  async recallTimeline(query: RecallTimelineQuery = {}): Promise<RecallTimelineHit[]> {
+    const events = await this.store.listEvents(
+      query.sessionId ? { sessionId: query.sessionId, limit: 5_000 } : { limit: 5_000 },
+    );
+    const ids = new Set<string>();
+    for (const event of events) {
+      if (event.type !== 'memory.recalled') continue;
+      const payload = event.payload as { ids?: unknown };
+      if (!Array.isArray(payload?.ids)) continue;
+      for (const id of payload.ids) if (typeof id === 'string') ids.add(id);
+    }
+    const contentById = new Map<string, string>();
+    for (const memoryId of ids) {
+      const item = await this.store.getMemory(memoryId);
+      if (item) contentById.set(memoryId, item.content);
+    }
+    return buildRecallTimeline(events, { ...query, contentById });
   }
 
   /**

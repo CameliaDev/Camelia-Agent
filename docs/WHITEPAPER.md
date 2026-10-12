@@ -314,8 +314,8 @@ interface DomainEvent<TPayload> { type: string; payload: TPayload; traceId: stri
     invoke(name: string, input: unknown, ctx: ToolContext): Promise<ToolResult>;
   }
   ```
-- **内置工具**：`fs.read` `fs.write` `fs.edit`（结构化补丁）`fs.list` `search.grep` `search.glob`
-  `shell.exec` `git.*` `test.run` `web.fetch`（可选）。
+- **内置工具**（共 8 个）：`fs.read` `fs.write` `fs.edit` `fs.list` `search.glob` `search.grep`
+  `shell.exec` `test.run`。（`git.*` / `web.fetch` 尚未实现。）
 - **失败模式**：schema 不匹配、路径越界、命令注入、超时、输出截断。
 - **可观测指标**：`tool.invocations`、`tool.p95_latency_ms`、`tool.error_rate`、`tool.schema_reject_rate`。
 
@@ -591,37 +591,39 @@ ui 交互 ──► Command(意图) ──► agent ──► harness
 
 ```css
 /* Background */
---c-bg-base:      #1A1514;  /* 暖调近黑，非纯黑 */
---c-bg-elevated:  #221B19;
---c-bg-panel:     #2A2220;
---c-bg-hover:     #332A27;
+--color-base:      #1a1514;  /* 暖调近黑，非纯黑 */
+--color-elevated:  #221b19;
+--color-panel:     #2a2220;
+--color-hover:     #332a27;
+--color-line:      #3a2f2b;
 
 /* Text */
---c-text-primary: #F7EFE9;  /* 暖白 */
---c-text-secondary:#C9B8AE;
---c-text-muted:   #8A7A72;
+--color-ink:       #f7efe9;  /* 暖白 */
+--color-ink-2:     #c9b8ae;
+--color-ink-3:     #8a7a72;
 
 /* Accent — 山茶红 */
---c-accent:       #D96C5F;
---c-accent-hover: #E27D70;
---c-accent-dim:   #8C4239;
+--color-accent:     #d96c5f;
+--color-accent-2:   #e27d70;
+--color-accent-dim: #8c4239;
 
 /* Semantic */
---c-success:      #7FA86B;  /* 暖绿：diff 新增 */
---c-danger:       #C4554A;  /* 暖红：diff 删除 */
---c-warning:      #D9A15F;
---c-info:         #7FA3C4;
-
-/* Diff */
---c-diff-add-bg:  rgba(127,168,107,0.14);
---c-diff-del-bg:  rgba(196,85,74,0.14);
+--color-ok:   #7fa86b;  /* 暖绿：diff 新增 */
+--color-bad:  #c4554a;  /* 暖红：diff 删除 */
+--color-warn: #d9a15f;
+--color-info: #7fa3c4;
+--color-add:  rgba(127,168,107,0.14);  /* diff 新增底 */
+--color-del:  rgba(196,85,74,0.14);    /* diff 删除底 */
 
 /* Geometry */
 --radius-md: 10px; --radius-lg: 14px;
---topbar-h: 48px; --leftbar-w: 260px;
+--font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+--rail-left-w: 260px; --rail-right-w: 360px;  /* 顶栏 36px（TopBar 为 h-9） */
 ```
 
-**布局**：顶栏 48px / 左栏 260px / 中间对话（弹性）/ 右栏上下文（320px）/ 底栏输入。
+> 主题预设另有 `cool-dark` / `light`（"Light Refined"）/ `high-contrast`；UI 新装默认 `light` + 中文（`localPrefs.themeId='light'`, `language='zh'`）。
+
+**布局**：顶栏 36px / 左栏 260px / 中间对话（弹性）/ 右栏上下文（默认 360px，可拖 280–560）/ 底栏输入。
 
 ---
 
@@ -769,7 +771,7 @@ interface ProviderPlugin {
   // 必须实现流式；必须支持 tool-calling 或声明不支持
 }
 ```
-- **加载**：`ProviderRegistry` 启动时扫描 `~/.camelia/providers/*/camelia.plugin.json`。
+- **加载**：`ProviderRegistry` 与 `PluginLoader` 扫描插件根目录（默认 `~/.camelia/plugins/`）下每个含 `camelia.plugin.json` 的子目录。
 - **隔离**：插件在独立 `child_process`/worker 中运行（崩溃不拖垮主进程）；网络权限显式声明。
 
 ### 8.2 Tool 插件
@@ -838,11 +840,13 @@ interface ThemePlugin { id: string; tokens: Record<string, string>; }
 | M14 | 任务可追溯完整性 | 每任务 trace 无孤儿 span | trace 校验 | `tests/unit/core/trace.test.ts` | 100% | 待测 |
 | M15 | 冷启动时间 | 应用启动到可交互 | 计时 | 手动/脚本 | ≤ 2.5s | 待测 |
 
+> 注：「当前」列的实际达成数据由 `scripts/acceptance-report.ts` 实测写入 [`ACCEPTANCE.md`](ACCEPTANCE.md)（M1–M15）；上表「测试用例」列为设计期规划，实际测量读取 `packages/*/test/` 与 `tests/acceptance/` 的真实产物。
+
 ### 9.2 测量基础设施
 
-- **用例集**：`tests/e2e/{simple,medium,complex,resume,rollback,intervene,recovery}/`
+- **用例集**：单测在 `packages/*/test/`（Vitest），端到端在 `tests/acceptance/`（spawn 真实二进制）。
 - **裁判**：每条用例声明 `acceptance` 断言（文件存在 / 构建通过 / 测试通过 / diff 匹配）。
-- **报告生成**：`scripts/acceptance-report.ts` 跑全量用例 → 输出 `docs/ACCEPTANCE_REPORT.md`。
+- **报告生成**：`scripts/acceptance-report.ts` 跑全量用例 → 输出 `docs/ACCEPTANCE.md`。
 - **当前达成情况**：每个 Phase 结束更新本表「当前」列。
 
 ### 9.3 门禁规则

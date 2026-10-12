@@ -250,10 +250,10 @@ export class MemoryStore implements SessionStore {
     if (session) Object.assign(session, patch);
   }
 
-  async createTask(input: { sessionId: Id; intentRaw: string; workspace?: string }): Promise<Task> {
+  async createTask(input: { sessionId: Id; intentRaw: string; workspace?: string; id?: Id }): Promise<Task> {
     const now = Date.now();
     const task: Task = {
-      id: newId(),
+      id: input.id ?? newId(),
       sessionId: input.sessionId,
       intentRaw: input.intentRaw,
       status: 'received',

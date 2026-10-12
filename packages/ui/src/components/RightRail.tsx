@@ -540,10 +540,11 @@ export function RightRail(): ReactNode {
   const collapsed = useUiStore((s) => s.localPrefs.rightCollapsed);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const status = useUiStore((s) => s.status);
+  const [tab, setTab] = useState<'memory' | 'events' | 'run' | 'context' | 'sub'>('memory');
 
   if (collapsed) {
     return (
-      <aside data-rail="right" data-rail-collapsed="true" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-l border-line bg-elevated/30 py-3">
+      <aside data-rail="right" data-rail-collapsed="true" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-l border-line bg-base py-3">
         <button
           type="button"
           data-open-right-rail
@@ -565,21 +566,46 @@ export function RightRail(): ReactNode {
   }
 
   return (
-    <aside data-rail="right" data-rail-collapsed="false" className="camelia-right-rail flex h-full w-full min-w-0 flex-col overflow-y-auto border-l border-line bg-elevated/30">
-      <div className="flex items-start justify-between gap-2 border-b border-line">
-        <div className="min-w-0 flex-1">
-          <RunIdentity />
+    <aside data-rail="right" data-rail-collapsed="false" className="camelia-right-rail flex h-full w-full min-w-0 flex-col overflow-y-auto border-l border-line bg-base">
+      <div className="flex items-center justify-between gap-2 border-b border-line px-2 pt-2">
+        <div role="tablist" className="flex items-center gap-3">
+          {([
+            ['memory', '记忆'],
+            ['events', '事件'],
+            ['run', '运行'],
+            ['context', '上下文'],
+            ['sub', '子代埋'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={`relative pb-1.5 text-[12px] ${
+                tab === id ? 'font-medium text-accent after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-accent' : 'text-ink-3 hover:text-ink-2'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <button
           type="button"
           aria-label={tr('right.collapse')}
           title={tr('right.collapse')}
-          className="mr-2 mt-2 grid h-6 w-6 shrink-0 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
+          className="mr-1 mb-1 grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
           onClick={() => setLocalPrefs(rightRailUserPatch(true))}
         >
           <Icon name="collapse" size={13} className="rotate-180" />
         </button>
       </div>
+
+      <div className="flex items-center justify-between px-3 pt-2">
+        <RunIdentity />
+        <span className="wf-orange-tag mb-1 shrink-0">仅检查数据时出现</span>
+      </div>
+
       {task ? (
         <>
           <RunSection task={task} />
@@ -593,8 +619,8 @@ export function RightRail(): ReactNode {
           {tr('events.hint')}
         </div>
       )}
-      <MemoryPanel />
-      <EventSection timeline={timeline} taskId={task?.id} />
+      {tab === 'memory' ? <MemoryPanel /> : null}
+      {tab === 'events' || tab === 'run' || tab === 'context' || tab === 'sub' ? <EventSection timeline={timeline} taskId={task?.id} /> : null}
     </aside>
   );
 }

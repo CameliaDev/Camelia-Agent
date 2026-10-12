@@ -345,13 +345,22 @@ describe('EngineServer — command dispatch honesty', () => {
     expect(ack.body.error).toContain('no pending approval');
   });
 
-  it('is honest that rollback is not available from the live engine yet', async () => {
+  it('rollback_step is wired through to the runtime (rejected when no task is running)', async () => {
     const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('rollback') });
     servers.push(server);
     runtimes.push(runtime);
     const ack = await postCommand(address.url, { type: 'rollback_step', payload: { taskId: 't1', checkpointId: 'ck1' }, ...CMD });
     expect(ack.body.ok).toBe(false);
-    expect(ack.body.error).toContain('not available');
+    expect(ack.body.error).toContain('no task is running');
+  });
+
+  it('select_provider rejects an unknown provider id', async () => {
+    const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('prov') });
+    servers.push(server);
+    runtimes.push(runtime);
+    const ack = await postCommand(address.url, { type: 'select_provider', payload: { providerId: 'does-not-exist' }, ...CMD });
+    expect(ack.body.ok).toBe(false);
+    expect(ack.body.error).toContain('not in chain');
   });
 
   it('rejects a malformed command body', async () => {

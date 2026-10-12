@@ -172,6 +172,86 @@ html[data-motion='reduce'] .camelia-sweep::after {
   position: absolute;
   inset: 0;
   width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(217, 108, 95, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.45), transparent);
   animation: camelia-sweep 1.8s ease-in-out infinite;
+}
+
+/* =========================================================================
+ * Wireframe v2 — low-fidelity line art on grayscale, single blue accent.
+ * 实线=常驻结构 · 虚线=可折叠/待定占位 · 蓝=主操作/当前态 ·
+ * 圆形头像=微信式对话气泡 · 橙框=v2 新增/待定品牌位
+ * ========================================================================= */
+
+/* 虚线占位（可折叠 / 待定品牌位） */
+.wf-dash {
+  border: 1.5px dashed #c9cdd4;
+}
+.wf-dash-brand {
+  border: 1.5px dashed #fb923c;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+/* 橙框 = v2 新增 / 待定品牌位标签 */
+.wf-orange-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+  color: #c2410c;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* 微信式圆形对话头像：user 蓝底白字"你"，agent 粉底深粉字"花" */
+.wf-avatar-user {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: 1px solid var(--color-accent);
+}
+.wf-avatar-agent {
+  background: #fde2e8;
+  color: #b04a6a;
+  border: 1px solid #fbcbd8;
+}
+
+/* 微信式对话气泡 */
+.wf-bubble-user {
+  background: var(--color-accent);
+  color: #ffffff;
+  border-radius: 14px 14px 4px 14px;
+}
+.wf-bubble-agent {
+  background: #ffffff;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line);
+  border-radius: 14px 14px 14px 4px;
+}
+
+/* 步骤圆圈 */
+.wf-step-circle {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1.5px solid var(--color-line);
+  color: var(--color-ink-3);
+  background: #ffffff;
+  flex-shrink: 0;
+}
+.wf-step-circle.done {
+  border-color: var(--color-ok);
+  color: var(--color-ok);
+}
+.wf-step-circle.active {
+  border-color: var(--color-accent);
+  color: #ffffff;
+  background: var(--color-accent);
 }

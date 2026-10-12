@@ -90,6 +90,7 @@ import {
   toMemoryView,
   type ForgetLogView,
   type MemoryHealthView,
+  type MemoryRecallView,
   type MemoryView,
 } from '../view/snapshot.js';
 
@@ -169,6 +170,11 @@ export interface RunTaskOptions {
    * interrupted by a pause or a crash continues rather than restarting from zero.
    */
   resumeTaskId?: Id;
+  /**
+   * Attach the new task to a specific session row instead of the runtime's own
+   * session. Used by the UI "new session" / "switch session" flow.
+   */
+  sessionId?: Id;
 }
 
 export interface CameliaRunResult {
@@ -221,6 +227,11 @@ export interface MemoryPanelFacade {
   forget(memoryId: Id, reason: string): Promise<{ ok: boolean; error?: string }>;
   promote(memoryId: Id): Promise<{ ok: boolean; error?: string }>;
   health(): Promise<MemoryHealthView>;
+  /**
+   * Recall timeline (Iteration 26): persisted `memory.recalled` hits with layer,
+   * content snippet, matchedBy, noise and the later-downgrade annotation.
+   */
+  recallTimeline(query?: { memoryId?: Id; sessionId?: Id; since?: number; limit?: number }): Promise<MemoryRecallView[]>;
 }
 
 export class CameliaRuntime {
@@ -383,6 +394,7 @@ export class CameliaRuntime {
         }
         return { totalMemories: all.length, byLayer, recallNoise: aggregate };
       },
+      recallTimeline: async (query = {}) => this.panelMemory.recallTimeline(query),
     };
   }
 
@@ -596,6 +608,7 @@ export class CameliaRuntime {
   async run(rawIntent: string, options: RunTaskOptions = {}): Promise<CameliaRunResult> {
     const traceId = `t-${Date.now().toString(36)}`;
     const resumeTaskId = options.resumeTaskId;
+    const sessionId = options.sessionId ?? this.session.id;
 
     let task: Task;
     let plan = options.plan;
@@ -613,13 +626,15 @@ export class CameliaRuntime {
       }
     } else {
       task = await this.store.createTask({
-        sessionId: this.session.id,
+        sessionId,
         intentRaw: rawIntent,
         workspace: this.workspace,
       });
+      const title = rawIntent.trim().split('\n')[0]?.slice(0, 72);
+      if (title) await this.store.updateSession(sessionId, { title });
     }
 
-    const meta = { traceId, sessionId: this.session.id, taskId: task.id };
+    const meta = { traceId, sessionId, taskId: task.id };
     if (resumeTaskId) this.bus.emit('task.resumed', { fromStatus: task.status }, meta);
     else this.bus.emit('task.received', { task }, meta);
 
@@ -628,7 +643,7 @@ export class CameliaRuntime {
 
     const ctx: RunContext = {
       taskId: task.id,
-      sessionId: this.session.id,
+      sessionId,
       workspace: this.workspace,
       traceId,
       model: this.decision.model,
@@ -791,6 +806,33 @@ export class CameliaRuntime {
     return true;
   }
 
+  /**
+   * User-initiated rollback to a checkpoint. The loop emits
+   * `recovery.rollback_started` / `recovery.rollback_done`; the journal restores
+   * the pre-task file state. Returns false when no task is running.
+   */
+  async rollback(checkpointId: string): Promise<boolean> {
+    if (!this.activeLoop) return false;
+    await this.activeLoop.rollback(checkpointId);
+    return true;
+  }
+
+  /**
+   * User-initiated mid-session provider switch. Moves the fallback cursor to the
+   * requested provider and emits `provider.selected`. Returns false when the
+   * provider id is not in the chain.
+   */
+  selectProvider(providerId: string, model?: string): boolean {
+    if (!this.fallback.switchTo(providerId)) return false;
+    if (model) this.decision.model = model;
+    this.bus.emit(
+      'provider.selected',
+      { providerId: this.fallback.active.id, model: model ?? this.decision.model, reason: 'user-selected' },
+      { traceId: 'user-action', sessionId: this.session.id, taskId: this.activeLoop?.currentTaskId },
+    );
+    return true;
+  }
+
   /** Wait until every emitted event has been written to SQLite. */
   async flush(): Promise<void> {
     // The chain may be extended while we await, so loop until it settles.
@@ -810,6 +852,21 @@ export class CameliaRuntime {
       model: handle.model,
       active: handle.id === activeId,
     }));
+  }
+
+  /**
+   * Create a fresh session row in the store and return its id. The running
+   * runtime keeps its own session for the in-flight task; the UI re-attaches
+   * its SSE stream to the new id on the next submit.
+   */
+  async newSession(): Promise<{ sessionId: string }> {
+    const created = await this.store.createSession({
+      title: 'New session',
+      workspace: this.session.workspace,
+      provider: this.fallback.active.id,
+      model: this.decision.model,
+    });
+    return { sessionId: created.id };
   }
 
   get routingReason(): string {

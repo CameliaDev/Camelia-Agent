@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { CONNECTION_META, PHASE_META, TONE_TEXT } from '../lib/status.js';
+import { CONNECTION_META, TONE_TEXT } from '../lib/status.js';
 import { useUiState } from '../state/UiProvider.js';
 import { isTauri, windowClose, windowMinimize, windowStartDragging, windowToggleMaximize } from '../window/shell.js';
 import { openEngineLog, readEngineTrust } from '../window/engine.js';
@@ -17,12 +17,9 @@ import { Icon, StatusDot } from './primitives.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
   const { snapshot, status, localPrefs, setSettingsOpen } = useUiState();
-  const task = snapshot.task;
-  const phase = task ? PHASE_META[task.phase] : undefined;
   const connection = CONNECTION_META[status];
   const desktop = isTauri();
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
-  const provider = snapshot.provider.activeProvider;
   const [panelOpen, setPanelOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -51,60 +48,48 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
 
   return (
     <header
-      className={`camelia-topbar absolute inset-x-0 top-0 z-40 flex h-9 items-center gap-3 border-b border-line bg-elevated px-3 ${
+      className={`camelia-topbar absolute inset-x-0 top-0 z-40 flex h-9 items-center gap-2 border-b border-line bg-base px-3 text-[12px] ${
         revealed ? 'translate-y-0' : 'pointer-events-none -translate-y-full'
       }`}
       data-tauri-drag-region
       onMouseDown={onMouseDown}
       aria-hidden={revealed ? undefined : true}
     >
-      <div className="flex items-center gap-2">
-        <span
-          className="grid h-6 w-6 place-items-center rounded-md bg-accent/15 text-accent"
-          title={tr('app.tagline')}
-        >
-          <Icon name="camellia" size={15} />
-        </span>
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="text-[13px] font-semibold tracking-tight text-ink">Camelia</span>
-          <span className="truncate text-[10.5px] text-ink-3">{tr('brand.placeholder')}</span>
-        </span>
+      {/* macOS-style window dots (placeholder) */}
+      <div className="flex items-center gap-1.5 pl-1 pr-1">
+        <span className="h-2.5 w-2.5 rounded-full bg-ink-3/30" />
+        <span className="h-2.5 w-2.5 rounded-full bg-ink-3/30" />
+        <span className="h-2.5 w-2.5 rounded-full bg-ink-3/30" />
       </div>
 
-      <span className="h-5 w-px bg-line" />
+      {/* v2 新增 / 待定品牌位：橙色虚线胶囊 */}
+      <span className="wf-dash-brand inline-flex items-center gap-1.5 rounded-full px-2.5 py-[2px] text-[11px] font-medium">
+        <Icon name="camellia" size={11} />
+        {tr('brand.placeholder')}
+      </span>
 
+      <span className="h-4 w-px bg-line" />
+
+      {/* 当前会话标题 */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {phase ? (
-          <span className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${TONE_TEXT[phase.tone]}`}>
-            <StatusDot tone={phase.tone} pulse={task?.phase === 'executing' || task?.phase === 'planning'} />
-            {phase.label}
-          </span>
-        ) : snapshot.session ? (
-          <span className="min-w-0 truncate text-[12px] text-ink-2">{tr('status.idle')}</span>
+        {snapshot.session ? (
+          <span className="truncate text-[12px] text-ink-2">{snapshot.session.title ?? tr('status.idle')}</span>
         ) : (
           <span className="text-[12px] text-ink-3">{tr('status.noSession')}</span>
         )}
-        {provider ? (
-          <span className="inline-flex min-w-0 items-center gap-1 text-[11px] text-ink-3" title={snapshot.provider.activeModel}>
-            <Icon name="layers" size={11} />
-            <span className="truncate font-mono">{provider}</span>
-          </span>
-        ) : status === 'connecting' ? (
-          <span className="text-[11px] text-ink-3">{tr('provider.connecting')}</span>
-        ) : null}
       </div>
 
+      {/* 引擎连接状态（点击打开连接面板） */}
       <div className="relative" ref={panelRef}>
         <button
           type="button"
           aria-label={tr('connection.panel')}
           aria-expanded={panelOpen}
-          className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] font-medium hover:bg-hover ${TONE_TEXT[connection.tone]}`}
+          className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium hover:bg-hover ${TONE_TEXT[connection.tone]}`}
           onClick={() => setPanelOpen((open) => !open)}
         >
           <StatusDot tone={connection.tone} pulse={status === 'live' || status === 'connecting'} />
           <span>{connection.label}</span>
-          <Icon name="chevron" size={10} />
         </button>
         {panelOpen ? (
           <ConnectionPanel
@@ -119,16 +104,19 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
         ) : null}
       </div>
 
+      {/* v2 标签：右栏按需滑出 */}
+      <span className="wf-orange-tag">按需滑出</span>
+
       {desktop ? (
-        <div className="ml-2 flex items-center">
-          <button type="button" aria-label="Minimize" className="grid h-8 w-10 place-items-center text-ink-2 hover:bg-hover" onClick={() => void windowMinimize()}>
-            <Icon name="minimize" size={14} />
+        <div className="ml-1 flex items-center">
+          <button type="button" aria-label="Minimize" className="grid h-8 w-9 place-items-center text-ink-3 hover:bg-hover hover:text-ink" onClick={() => void windowMinimize()}>
+            <Icon name="minimize" size={13} />
           </button>
-          <button type="button" aria-label="Maximize" className="grid h-8 w-10 place-items-center text-ink-2 hover:bg-hover" onClick={() => void windowToggleMaximize()}>
-            <Icon name="maximize" size={12} />
+          <button type="button" aria-label="Maximize" className="grid h-8 w-9 place-items-center text-ink-3 hover:bg-hover hover:text-ink" onClick={() => void windowToggleMaximize()}>
+            <Icon name="maximize" size={11} />
           </button>
-          <button type="button" aria-label="Close" className="grid h-8 w-10 place-items-center text-ink-2 hover:bg-bad hover:text-white" onClick={() => void windowClose()}>
-            <Icon name="x" size={14} />
+          <button type="button" aria-label="Close" className="grid h-8 w-9 place-items-center text-ink-3 hover:bg-bad hover:text-white" onClick={() => void windowClose()}>
+            <Icon name="x" size={13} />
           </button>
         </div>
       ) : null}

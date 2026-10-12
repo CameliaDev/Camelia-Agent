@@ -60,7 +60,7 @@ describe('localPrefs', () => {
     expect(store.getState().localPrefs.userSetRightRail).toBe(false);
     expect(store.getState().snapshot.task).toBeUndefined();
     expect(loadLocalPrefs().topBar).toBe('pinned');
-    expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#f6f1ec');
+    expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#ffffff');
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 

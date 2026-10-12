@@ -278,6 +278,22 @@ export interface MemoryHealthView {
 }
 
 /**
+ * One persisted recall hit, as the memory panel's timeline shows it
+ * (Iteration 26). Structurally identical to the harness's `RecallTimelineHit`;
+ * the panel reads it from `list_recall_history` → `EngineServer` →
+ * `MemoryService.recallTimeline`, never from the UI's local cache.
+ */
+export interface MemoryRecallView {
+  at: number;
+  memoryId: Id;
+  layer: MemoryLayer;
+  contentSnippet: string;
+  matchedBy: string;
+  noise: number;
+  downgraded: boolean;
+}
+
+/**
  * Project a stored memory into the panel view.
  *
  * `scored` carries the live value decomposition from the engine's memory
@@ -571,10 +587,11 @@ function summarise(event: DomainEvent): string {
         ? ` [${[...new Set(provenance.map((entry) => entry.layer ?? '?'))].join('/')}]`
         : '';
       // "因何命中": the first few matchedBy tokens make the hit explainable in
-      // the session timeline (Iteration 22 panel goal).
-      const via = provenance.length > 0
-        ? ` via "${provenance.slice(0, 2).map((entry) => entry.matchedBy ?? '?').filter(Boolean).join('", "')}"`
-        : '';
+      // the session timeline (Iteration 22 panel goal). An entry whose matchedBy
+      // is empty contributes nothing — and when none survive, no "via" is shown
+      // at all (Iteration 26: a bare `via ""` was a display wart).
+      const viaTokens = provenance.slice(0, 2).map((entry) => entry.matchedBy ?? '?').filter(Boolean);
+      const via = viaTokens.length > 0 ? ` via "${viaTokens.join('", "')}"` : '';
       return `recalled ${String(p.count)}${layers}${via} (noise ${String(p.noise)})`;
     }
     case 'memory.forgotten':

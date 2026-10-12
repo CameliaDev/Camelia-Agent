@@ -110,6 +110,8 @@ export interface UiState {
   settingsOpen: boolean;
   setLocalPrefs: (patch: Partial<LocalPrefs>) => void;
   setSettingsOpen: (open: boolean) => void;
+  /** Switch the active session id locally (after new_session / select_session ack). */
+  setActiveSession: (id: Id) => void;
   restoreDefaultLayout: () => void;
   dispatch: (command: Command) => void;
   /** Send a command and await the engine's answer (`onCommandResult`). */
@@ -160,6 +162,7 @@ export function createUiStore(transport: Transport): UiStore {
       ? { activeTheme: { id: bootPrefs.themeId, label: themeLabel(bootPrefs.themeId), rejected: bootTheme.rejected } }
       : {}),
     setSettingsOpen: (open) => set({ settingsOpen: open }),
+    setActiveSession: (id) => set({ activeSessionId: id }),
     clearCommandError: () => set({ lastCommandError: undefined }),
     setLocalPrefs: (patch) => {
       set((state) => {
@@ -205,6 +208,10 @@ export function createUiStore(transport: Transport): UiStore {
     dispatch: (command) => {
       transport.send(command);
       set({ lastCommand: command });
+      // Switch the SSE stream to the chosen session so its history replays.
+      if (command.type === 'select_session' && typeof transport.switchSession === 'function') {
+        transport.switchSession(command.payload.sessionId);
+      }
     },
     query: <T,>(command: Command): Promise<T> =>
       new Promise<T>((resolve, reject) => {

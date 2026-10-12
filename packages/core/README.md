@@ -6,7 +6,7 @@ Camelia 的**契约与基础设施层**。它定义一切接口与数据模型�
 
 - **类型契约**：Task / Step / ToolCall / Message / Session / Memory / Verdict 等领域模型
 - **事件总线**：类型安全的 Command/Event 双通道
-- **任务状态机**：显式 7+ 阶段状态与合法迁移
+- **任务状态机**：显式任务状态机（12 个状态 / 7 个投影阶段）与合法迁移
 - **端口（Port）**：`LLMPort` / `FsPort` / `ShellPort` / `SearchPort` / `ClockPort` / `LoggerPort`
 - **持久化**：`SessionStore` 接口 + better-sqlite3 实现
 - **可观测性**：`Tracer` / `Metrics` / `Logger`
@@ -27,5 +27,5 @@ core  ←  harness  ←  agent  ←  ui
 ## 用法
 
 ```ts
-import { EventBus, TaskStateMachine, SqliteSessionStore, ConsoleLogger } from '@camelia/core';
+import { EventBus, TaskStateMachine, SqliteSessionStore, RedactingLogger } from '@camelia/core';
 ```

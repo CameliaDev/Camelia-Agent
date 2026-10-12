@@ -1,7 +1,7 @@
 # Camelia 验收报告（自动生成）
 
 > 由 `pnpm acceptance` 生成，数据来自真实测试运行与覆盖率产物，禁止手工填写。
-> 生成时间：2026-10-11T02:15:11.321Z
+> 生成时间：2026-10-11T15:48:37.103Z
 
 ## 一、白皮书 §9 指标
 
@@ -19,9 +19,9 @@
 | M10 | 上下文压缩比 | 压缩后 token / 压缩前 token | ≤ 40% | context 单测通过（压缩比在用例中校验） | ✅ pass |
 | M11 | 工具失败自恢复率 | 工具失败经重试/降级最终成功 | ≥ 85% | 注入用例：瞬态模型失败重试、文件不存在工具错误自纠正、工具超时被界住且任务存活、命令非 0 退出 → 重跑通过（reliability-injection 4 例） | ✅ pass |
 | M12 | 回退链成功率 | 主 Provider 失败后切换备用 | ≥ 95% | agent fallback 单测通过 | ✅ pass |
-| M13 | 核心模块单测覆盖率 | Vitest 行覆盖率（core / harness / agent） | ≥ 80% | core 95.86% / harness 94.19% / agent 88.46% | ✅ pass |
+| M13 | 核心模块单测覆盖率 | Vitest 行覆盖率（core / harness / agent） | ≥ 80% | core 95.86% / harness 93.97% / agent 94.14% | ✅ pass |
 | M14 | 任务可追溯完整性 | 每任务 trace 无孤儿 span | 100% | core trace 单测 + 事件回放 e2e 通过 | ✅ pass |
-| M15 | 冷启动时间 | CLI：进程启动到输出；桌面：进程启动到窗口客户端区域已绘制（像素判定） | ≤ 2.5s | CLI 159ms（--version）；桌面 1912ms（Tauri 窗口绘制就绪，中位数 3 次） | ✅ pass |
+| M15 | 冷启动时间 | CLI：进程启动到输出；桌面：进程启动到窗口客户端区域已绘制（像素判定） | ≤ 2.5s | CLI 312ms（--version）；桌面 1325ms（Tauri 窗口绘制就绪，中位数 3 次） | ✅ pass |
 
 状态图例：✅ pass ｜ ⚠️ partial（部分达成 / 用例集规模不足）｜ ❌ fail ｜ ➖ not-measured（需真实模型或 UI）
 
@@ -30,10 +30,10 @@
 | 包 | 行 | 语句 | 函数 | 分支 |
 | --- | --- | --- | --- | --- |
 | @camelia/core | 95.86% | 95.86% | 93.89% | 92.45% |
-| @camelia/harness | 94.19% | 94.19% | 98.26% | 86.01% |
-| @camelia/agent | 88.46% | 88.46% | 80.11% | 84.32% |
-| @camelia/cli | 87.43% | 87.43% | 85.07% | 72.66% |
-| @camelia/ui | 84.85% | 84.85% | 71.11% | 76.43% |
+| @camelia/harness | 93.97% | 93.97% | 98.02% | 86.42% |
+| @camelia/agent | 94.14% | 94.14% | 92.22% | 86.87% |
+| @camelia/cli | 87.64% | 87.64% | 84.50% | 73.82% |
+| @camelia/ui | 86.32% | 86.32% | 72.50% | 76.45% |
 
 ## 三、真实模型复测（Iteration 17）
 
@@ -84,12 +84,12 @@
 
 ## 四、Phase 3 架构暴露证据（截图）
 
-> 确定性场景采集，共 20 张，落到 `tests/screenshots/`。四类来源：`desktop-installed*` 为 **安装后的桌面应用**截图（NSIS 安装产物，其一以 `--engine-url` 连真实引擎）；`desktop-*` 为 **Tauri 原生窗口**截图（`--scene=<id>`）；`live-*` 为 **真实 `camelia serve` 引擎**截图（`?engineUrl=...`，SSE 事件流驱动，含「审批挂起 → webview 批准 → 任务完成」全程）；其余为浏览器 fixture fullPage 截图（`?scene=<id>`）。每张对应第五节架构层自检清单的一个可观测面。
+> 确定性场景采集，共 21 张，落到 `tests/screenshots/`。四类来源：`desktop-installed*` 为 **安装后的桌面应用**截图（NSIS 安装产物，其一以 `--engine-url` 连真实引擎）；`desktop-*` 为 **Tauri 原生窗口**截图（`--scene=<id>`）；`live-*` 为 **真实 `camelia serve` 引擎**截图（`?engineUrl=...`，SSE 事件流驱动，含「审批挂起 → webview 批准 → 任务完成」全程）；其余为浏览器 fixture fullPage 截图（`?scene=<id>`）。每张对应第五节架构层自检清单的一个可观测面。
 
 | 截图 | 大小 |
 | --- | --- |
-| `approval.png` | 576.0 KB |
-| `connecting.png` | 134.3 KB |
+| `approval.png` | 492.8 KB |
+| `connecting.png` | 232.4 KB |
 | `desktop-approval.png` | 194.0 KB |
 | `desktop-connected.png` | 169.4 KB |
 | `desktop-empty.png` | 66.1 KB |
@@ -98,22 +98,23 @@
 | `desktop-live-now.png` | 79.3 KB |
 | `desktop-running.png` | 193.0 KB |
 | `desktop-usable-check.png` | 186.8 KB |
-| `diff.png` | 552.9 KB |
-| `done.png` | 587.7 KB |
-| `empty.png` | 153.8 KB |
-| `error.png` | 146.5 KB |
-| `failure.png` | 582.7 KB |
+| `diff.png` | 475.9 KB |
+| `done.png` | 480.8 KB |
+| `empty.png` | 252.9 KB |
+| `error.png` | 240.2 KB |
+| `failure.png` | 501.2 KB |
 | `live-approval.png` | 578.2 KB |
 | `live-done.png` | 576.4 KB |
-| `planning.png` | 351.3 KB |
-| `running.png` | 540.3 KB |
+| `memory-panel-recall-timeline.png` | 150.7 KB |
+| `planning.png` | 301.4 KB |
+| `running.png` | 476.4 KB |
 | `steering.png` | 573.0 KB |
 
 ## 五、实时引擎联通（Iteration 13）
 
 > UI 与引擎之间的唯一「来源未知点」是 `Transport`：`fixture`（离线演示）与 `SseTransport`（真实引擎）共用同一契约，上层组件无感知。以下证据全部来自真实 socket。
 
-- **引擎服务端契约**：`packages/cli/test/serve.test.ts` —— 13/13 用例通过（真实 runtime + 真实 HTTP：bootstrap 先于事件、领域事件有序、命令映射、审批挂起/批准/拒绝、诚实拒绝）。
+- **引擎服务端契约**：`packages/cli/test/serve.test.ts` —— 15/15 用例通过（真实 runtime + 真实 HTTP：bootstrap 先于事件、领域事件有序、命令映射、审批挂起/批准/拒绝、诚实拒绝）。
 - **webview SSE 传输**：`packages/ui/test/sse.test.ts` —— 15/15 用例通过（URL 组合、帧路由、错误通道、命令投递）。
 - **端到端截图**：`scripts/screenshot-live.mjs` 启动真实引擎、把 webview 指向 `?engineUrl=`，采集 `live-approval.png`（审批挂起）与 `live-done.png`（批准后完成），零控制台错误。
 - 状态：✅ pass

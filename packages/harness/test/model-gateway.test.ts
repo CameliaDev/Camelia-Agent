@@ -105,6 +105,22 @@ describe('ModelGateway.call', () => {
     expect(llm.requests[1]?.model).toBe('decision');
   });
 
+  it('skips a cheap model on later calls after one not-found response', async () => {
+    const llm = new ScriptedLLM([
+      { error: "HTTP 404 from ollama: model 'missing:3b' not found" },
+      { text: 'first' },
+      { text: 'second' },
+    ]);
+    const h = makeHarness({ llm });
+    h.ctx.model = 'decision';
+    const gateway = new ModelGateway(h.ctx);
+    const first = await gateway.call({ purpose: 'execute', model: 'missing:3b', system: 's', messages: [] });
+    const second = await gateway.call({ purpose: 'execute', model: 'missing:3b', system: 's', messages: [] });
+    expect(first.text).toBe('first');
+    expect(second.text).toBe('second');
+    expect(llm.requests.map((request) => request.model)).toEqual(['missing:3b', 'decision', 'decision']);
+  });
+
   it('does not retry a permanent failure and marks it non-retryable', async () => {
     const llm = new ScriptedLLM([{ error: 'malformed plan JSON' }]);
     const h = makeHarness({ llm, config: { maxRetries: 1 } });

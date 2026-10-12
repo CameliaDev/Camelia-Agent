@@ -20,11 +20,15 @@ param(
   [int]$Attempts = 3,
   # A blank client area yields 1-2 distinct colors; any painted UI yields dozens.
   [int]$MinDistinctColors = 12,
-  # Readiness also requires the dominant color to BE the app's dark background. A blank
+  # Readiness also requires the dominant color to BE the app's background. A blank
   # WebView2 is white, and Win11's window-open fade blends white with the desktop behind —
   # both produce plenty of distinct colors, so color count alone would declare victory
-  # while the client area is still empty.
+  # while the client area is still empty. The app ships two backgrounds: the dark
+  # themes (dominant luma ≤ $MaxModalLuma) and the light theme (dominant luma ≥
+  # $MinLightLuma) — a painted frame may be either, as long as it is not a blank-white
+  # or fade-blended one.
   [double]$MaxModalLuma = 60,
+  [double]$MinLightLuma = 180,
   [double]$MinModalShare = 0.5,
   # Sample inset (px) from each client edge. Rounded Win11 corners and sub-pixel window
   # placement let a few pixels of whatever is *behind* the window bleed into the capture;
@@ -152,7 +156,12 @@ for ($i = 0; $i -lt $Runs; $i++) {
     # empty window. Content-dense first paints (a rich UI arriving in one frame)
     # legitimately fail the share guard, so escape it when the frame is dense.
     $dense = $frame.Distinct -ge 100 -and $frame.ModalLuma -le $MaxModalLuma
-    $painted = $frame.Distinct -ge $MinDistinctColors -and $frame.ModalLuma -le $MaxModalLuma -and ($frame.ModalShare -ge $MinModalShare -or $dense)
+    $darkPainted = $frame.Distinct -ge $MinDistinctColors -and $frame.ModalLuma -le $MaxModalLuma -and ($frame.ModalShare -ge $MinModalShare -or $dense)
+    # The light theme is the product default (Iteration 26): a painted light frame is
+    # real app content too. Blank WebView2 white has 1-2 distinct colors, so the
+    # distinct-color floor + a stable light dominant rejects it without a dark check.
+    $lightPainted = $frame.Distinct -ge $MinDistinctColors -and $frame.ModalLuma -ge $MinLightLuma -and $frame.ModalShare -ge $MinModalShare
+    $painted = $darkPainted -or $lightPainted
     if ($Trace) {
       Write-Host ("  poll {0}ms distinct={1} modalShare={2:N2} modalLuma={3:N0}" -f [int]((Get-Date) - $pollStart).TotalMilliseconds, $frame.Distinct, $frame.ModalShare, $frame.ModalLuma)
     }

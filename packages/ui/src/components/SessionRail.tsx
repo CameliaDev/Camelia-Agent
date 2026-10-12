@@ -26,7 +26,7 @@ import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { Avatar, Chip, Icon, SectionHeader } from './primitives.js';
 
 export function SessionRail(): ReactNode {
-  const { snapshot, sessions, activeSessionId, status, dispatch } = useUiState();
+  const { snapshot, sessions, activeSessionId, status, dispatch, query: queryEngine, setActiveSession } = useUiState();
   const collapsed = useUiStore((s) => s.localPrefs.leftCollapsed);
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
@@ -57,7 +57,16 @@ export function SessionRail(): ReactNode {
       <div
         key={session.id}
         data-session={session.id}
-        className={`group relative rounded-md px-2 py-1.5 ${active ? 'bg-accent/[0.08]' : 'hover:bg-hover'}`}
+        onClick={() => {
+          if (active) return;
+          dispatch(makeCommand('select_session', { sessionId: session.id }));
+          setActiveSession(session.id);
+        }}
+        className={`group relative rounded-lg border px-2.5 py-2 ${
+          active
+            ? 'border-accent bg-accent/[0.04] shadow-[0_0_0_1px_var(--color-accent)]'
+            : 'cursor-pointer border-transparent hover:border-line hover:bg-hover/60'
+        }`}
       >
         <p
           data-session-title
@@ -68,6 +77,7 @@ export function SessionRail(): ReactNode {
           <span className="min-w-0 flex-1 truncate">{session.title}</span>
         </p>
         <p className="mt-0.5 truncate pr-2 text-[11px] leading-4 text-ink-3">{session.model}</p>
+        {active ? <span className="mt-1 inline-block rounded bg-accent/10 px-1.5 py-[1px] text-[10px] text-accent">运行中</span> : null}
         {confirming ? (
           <div className="absolute right-1 top-1 flex items-center gap-1 rounded-md bg-elevated px-1">
             <button
@@ -155,49 +165,71 @@ export function SessionRail(): ReactNode {
   }
 
   return (
-    <aside data-rail="left" className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-line bg-elevated/30">
-      <SectionHeader
-        icon="camellia"
-        title={tr('sessions.title')}
-        right={
-          <span className="flex items-center gap-1">
-            <span className="font-mono text-[10.5px] text-ink-3">{listed.length}</span>
-            <button
-              type="button"
-              aria-label={tr('sessions.collapse')}
-              title={tr('sessions.collapse')}
-              className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
-              onClick={() => setLocalPrefs({ leftCollapsed: true })}
-            >
-              <Icon name="collapse" size={13} />
-            </button>
-          </span>
-        }
-      />
-      <label className="shrink-0 px-2 pb-1">
+    <aside data-rail="left" className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-line bg-base">
+      <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+        <span className="text-[13px] font-semibold text-ink">{tr('sessions.title')}</span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            data-new-session
+            className="inline-flex items-center gap-0.5 rounded-md bg-accent px-1.5 py-[2px] text-[11px] font-medium leading-4 text-white hover:bg-accent-2"
+            onClick={() => {
+              queryEngine<{ sessionId: string }>(makeCommand('new_session', {}))
+                .then((res) => {
+                  if (res?.sessionId) setActiveSession(res.sessionId);
+                })
+                .catch(() => {
+                  // Fallback: still focus the composer so the user can type.
+                });
+              const ta = document.querySelector<HTMLTextAreaElement>('[data-composer] textarea');
+              ta?.focus();
+            }}
+          >
+            <span className="text-[13px] leading-none">+</span>
+            新建
+          </button>
+          <button
+            type="button"
+            aria-label={tr('sessions.collapse')}
+            title={tr('sessions.collapse')}
+            className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
+            onClick={() => setLocalPrefs({ leftCollapsed: true })}
+          >
+            <Icon name="collapse" size={13} />
+          </button>
+        </div>
+      </div>
+      <label className="shrink-0 px-2 pb-1.5">
         <span className="sr-only">{tr('sessions.search')}</span>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={tr('sessions.search')}
-          className="w-full rounded-md bg-hover/70 px-2 py-1 text-[12px] text-ink outline-none placeholder:text-ink-3"
-        />
+        <div className="flex items-center gap-1.5 rounded-md border border-line bg-elevated px-2 py-1.5">
+          <Icon name="search" size={12} className="shrink-0 text-ink-3" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={tr('sessions.search')}
+            className="w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-3"
+          />
+        </div>
       </label>
-      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-2">
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2">
         {listed.length === 0 ? (
-          <p className="px-2 text-[11.5px] text-ink-3">{tr('sessions.empty')}</p>
+          <div className="wf-dash mt-4 rounded-lg px-3 py-6 text-center text-[11.5px] leading-5 text-ink-3">
+            此工作区还没有会话
+            <br />
+            从下方描述一个任务开始
+          </div>
         ) : (
           <>
             {pinnedRows.length > 0 ? (
               <div>
-                <p className="px-2 pb-0.5 pt-1 text-[10px] tracking-wide text-ink-3">{tr('sessions.pin')}</p>
+                <p className="px-1 pb-0.5 pt-1 text-[10px] tracking-wide text-ink-3">{tr('sessions.pin')}</p>
                 {pinnedRows.map(renderSession)}
               </div>
             ) : null}
             {recentRows.length > 0 ? (
               <div>
                 {pinnedRows.length > 0 ? (
-                  <p className="px-2 pb-0.5 pt-2 text-[10px] tracking-wide text-ink-3">{tr('sessions.recent')}</p>
+                  <p className="px-1 pb-0.5 pt-2 text-[10px] tracking-wide text-ink-3">{tr('sessions.recent')}</p>
                 ) : null}
                 {recentRows.map(renderSession)}
               </div>
@@ -206,10 +238,8 @@ export function SessionRail(): ReactNode {
         )}
       </div>
 
-      {(!task || task.checkpoints.length === 0) ? (
-        <p className="shrink-0 px-3 py-1.5 text-[10.5px] text-ink-3">{tr('checkpoints.empty')}</p>
-      ) : null}
-      <details className="max-h-[40%] shrink-0 overflow-y-auto border-t border-line">
+      {(!task || task.checkpoints.length === 0) ? null : null}
+      <details className="max-h-[40%] shrink-0 overflow-y-auto border-t border-line hidden">
         <summary className="cursor-pointer px-3 py-2 text-[11px] text-ink-3 hover:text-ink">{tr('workspace.title')}</summary>
       <section>
         <div className="px-3 pb-3">
@@ -328,16 +358,17 @@ export function SessionRail(): ReactNode {
           data-account-entry
           aria-label={tr('settings.title')}
           title={tr('settings.title')}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-hover"
+          className="wf-dash-brand flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
           onClick={() => setSettingsOpen(true)}
         >
-          <Avatar kind="user" size={28} />
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-current text-[12px] font-semibold">工</span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-ink">{tr('account.entry')}</span>
-            <span className="block truncate font-mono text-[10px] text-ink-3">{snapshot.session?.workspace ?? '~/.camelia'}</span>
+            <span className="block text-[12px] font-medium text-ink">默认工作区</span>
+            <span className="block truncate text-[10.5px] text-ink-3">打开设置… 连接 / 语言 / 日志</span>
           </span>
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status === 'live' ? 'bg-accent' : 'bg-ink-3'}`} />
+          <Icon name="chevron" size={12} className="shrink-0 text-ink-3" />
         </button>
+        <p className="mt-1.5 px-1 font-mono text-[10px] text-ink-3">~/.camelia · Apache-2.0</p>
       </div>
     </aside>
   );

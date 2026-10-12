@@ -83,7 +83,7 @@ export class Executor {
     const schemas = toolsAvailable ? this.deps.tools.schemas(this.ctx.allowedTools) : undefined;
 
     const basePrompt = options.fixupFailures?.length
-      ? fixupSystemPrompt(step, options.fixupFailures, options.reflect === true)
+      ? fixupSystemPrompt(step, options.fixupFailures, options.reflect === true, options.completedSummaries)
       : executorSystemPrompt({
           step,
           stepIndex: options.stepIndex,

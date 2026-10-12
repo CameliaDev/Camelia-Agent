@@ -261,9 +261,18 @@ export class EngineServer {
     const runtime = this.options.runtime;
     const sessions = await runtime.store.listSessions();
     const providerStatus = this.providerStatus();
+    const listed = await Promise.all(
+      sessions.map(async (session) => {
+        const view = toSessionView(session);
+        const tasks = await runtime.store.listTasks(session.id);
+        const intent = tasks.at(-1)?.intentRaw.trim().split('\n')[0];
+        if (intent) view.title = intent.slice(0, 72);
+        return view;
+      }),
+    );
     return {
       session: toSessionView(runtime.session),
-      sessions: sessions.map(toSessionView),
+      sessions: listed,
       provider: { activeProvider: providerStatus.id, activeModel: providerStatus.model },
       providerStatus,
     };
@@ -306,7 +315,7 @@ export class EngineServer {
   private async dispatch(command: Command): Promise<CommandAck> {
     switch (command.type) {
       case 'submit_task':
-        return this.submit(command.payload.intent);
+        return this.submit(command.payload.intent, command.payload.sessionId);
       case 'resume_task':
         return this.resume(command.payload.taskId);
       case 'approve_tool':
@@ -344,10 +353,26 @@ export class EngineServer {
         return this.options.runtime.intervene(command.payload.instruction)
           ? { ok: true }
           : { ok: false, error: 'no task is running to steer' };
-      case 'rollback_step':
-        return { ok: false, error: 'rollback is not available from the live engine yet' };
-      case 'select_provider':
-        return { ok: false, error: 'provider switching mid-session is not available yet' };
+      case 'rollback_step': {
+        const ok = await this.options.runtime.rollback(command.payload.checkpointId);
+        return ok
+          ? { ok: true }
+          : { ok: false, error: 'no task is running to roll back' };
+      }
+      case 'select_provider': {
+        const ok = this.options.runtime.selectProvider(command.payload.providerId, command.payload.model);
+        return ok
+          ? { ok: true }
+          : { ok: false, error: `provider not in chain: ${String(command.payload.providerId)}` };
+      }
+      case 'new_session': {
+        const created = await this.options.runtime.newSession();
+        return { ok: true, data: created };
+      }
+      case 'select_session':
+        // The engine keeps its own session for the in-flight task; this ack
+        // tells the UI to re-open its SSE stream with ?sessionId=<id>.
+        return { ok: true };
 
       // ---- memory panel (Iteration 22) -----------------------------------
       case 'list_memories': {
@@ -393,18 +418,42 @@ export class EngineServer {
         const health = await this.options.runtime.memoryPanel.health();
         return { ok: true, data: health };
       }
+      case 'list_recall_history': {
+        // Iteration 26: every filter is optional, but a malformed one is a 409 —
+        // the panel must not silently ignore a bad query.
+        const { memoryId, sessionId, since, limit } = command.payload;
+        if (memoryId !== undefined && typeof memoryId !== 'string') {
+          return { ok: false, error: 'memoryId must be a string' };
+        }
+        if (sessionId !== undefined && typeof sessionId !== 'string') {
+          return { ok: false, error: 'sessionId must be a string' };
+        }
+        if (since !== undefined && (typeof since !== 'number' || !Number.isFinite(since))) {
+          return { ok: false, error: 'since must be a finite timestamp' };
+        }
+        if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 5_000)) {
+          return { ok: false, error: 'limit must be an integer between 1 and 5000' };
+        }
+        const timeline = await this.options.runtime.memoryPanel.recallTimeline({
+          ...(memoryId !== undefined ? { memoryId } : {}),
+          ...(sessionId !== undefined ? { sessionId } : {}),
+          ...(since !== undefined ? { since } : {}),
+          ...(limit !== undefined ? { limit } : {}),
+        });
+        return { ok: true, data: timeline };
+      }
 
       default:
         return { ok: false, error: `unsupported command` };
     }
   }
 
-  private submit(intent: string): CommandAck {
+  private submit(intent: string, sessionId?: string): CommandAck {
     if (this.activeRun) return { ok: false, error: 'a task is already running' };
     const trimmed = intent.trim();
     if (!trimmed) return { ok: false, error: 'empty intent' };
     this.activeRun = this.options.runtime
-      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false })
+      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId })
       .catch((error: unknown) => {
         this.options.logger?.error('task run failed', { error: String(error) });
       })

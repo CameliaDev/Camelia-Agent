@@ -230,6 +230,12 @@ export interface CommandMap {
   'rollback_step': { taskId: Id; checkpointId: Id };
   'select_provider': { providerId: string; model?: string };
 
+  // ---- Session switching (P0) ------------------------------------------
+  /** Create a fresh session row. Response data: `{ sessionId: Id }`. */
+  'new_session': Record<string, never>;
+  /** Ask the UI to re-attach to a prior session's event stream. */
+  'select_session': { sessionId: Id };
+
   // ---- Memory panel (Iteration 22 — visible · usable · tunable) -----------
   /** List memories, optionally filtered by layer. Response data: `MemoryView[]`. */
   'list_memories': { layer?: MemoryLayer };
@@ -250,6 +256,13 @@ export interface CommandMap {
   'promote_memory': { memoryId: Id };
   /** Memory-health snapshot (cross-session recall-noise rate, layer counts). Response data: `MemoryHealthView`. */
   'get_memory_health': Record<string, never>;
+  /**
+   * Recall timeline (Iteration 26): persisted `memory.recalled` hits, one entry
+   * per hit, with the hit's layer, content snippet, matchedBy (via), noise, and
+   * whether that memory was later judged incorrect / downgraded. All filters are
+   * optional; response data is `MemoryRecallView[]`, ascending by time.
+   */
+  'list_recall_history': { memoryId?: Id; sessionId?: Id; since?: number; limit?: number };
 }
 
 export type CommandType = keyof CommandMap;

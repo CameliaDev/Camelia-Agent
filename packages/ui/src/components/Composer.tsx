@@ -12,7 +12,6 @@ import { useState, type ReactNode } from 'react';
 import { makeCommand } from '../state/store.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
-import { Icon } from './primitives.js';
 
 export function Composer(): ReactNode {
   const { snapshot, activeSessionId, dispatch } = useUiState();
@@ -40,7 +39,7 @@ export function Composer(): ReactNode {
   };
 
   return (
-    <footer className="shrink-0 border-t border-line bg-elevated/50 px-4 py-2.5">
+    <footer className="shrink-0 border-t border-line bg-base px-4 py-2.5">
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {
@@ -48,8 +47,7 @@ export function Composer(): ReactNode {
           submit();
         }}
       >
-        <div data-composer className="flex min-w-0 flex-1 items-end gap-2 rounded-lg border border-line bg-base px-2.5 py-2 focus-within:border-accent/50">
-          <Icon name={running ? 'compass' : 'spark'} size={14} className={`mb-[3px] shrink-0 ${running ? 'text-info' : 'text-accent'}`} />
+        <div data-composer className="flex min-w-0 flex-1 items-end gap-2 rounded-xl border border-line bg-base px-3 py-2 focus-within:border-accent/60">
           <textarea
             rows={1}
             value={value}
@@ -61,19 +59,18 @@ export function Composer(): ReactNode {
               }
             }}
             placeholder={
-              running ? tr('composer.steerPlaceholder') : tr('composer.placeholder')
+              running ? tr('composer.steerPlaceholder') : '描述一个任务，或继续当前会话…'
             }
-            className="min-h-[22px] max-h-40 min-w-0 flex-1 resize-none bg-transparent text-[12.5px] leading-5 text-ink outline-none placeholder:text-ink-3"
+            className="min-h-[22px] max-h-40 min-w-0 flex-1 resize-none bg-transparent text-[13px] leading-5 text-ink outline-none placeholder:text-ink-3"
           />
           <button
             type="submit"
             data-run
             disabled={!value.trim()}
-            className={`mb-[1px] inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-              running ? 'bg-info/80 text-base hover:bg-info' : 'bg-accent text-base hover:bg-accent-2'
+            className={`mb-[1px] inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              running ? 'bg-info text-white hover:opacity-90' : 'bg-accent text-white hover:bg-accent-2'
             }`}
           >
-            <Icon name={running ? 'compass' : 'send'} size={12} />
             {running ? tr('steer') : tr('composer.run')}
           </button>
         </div>

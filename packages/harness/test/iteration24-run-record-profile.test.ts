@@ -52,6 +52,38 @@ describe('iteration 24 鈥?run record in the real loop', () => {
     }
   });
 
+  it('records the raw intent and the planning input, and reads them back offline (Iteration 26)', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'camelia-i26-intent-'));
+    try {
+      const h = makeHarness({
+        workspace: 'C:/workspace',
+        seed: {},
+        config: { runRecordDir: dir, planApproval: 'auto' },
+        llm: new ScriptedLLM(makeTurns()),
+      });
+      // The runtime creates the task with the user's exact words; the loop reads
+      // that row when writing the record. The unit harness creates it explicitly.
+      await h.store.createTask({
+        id: h.ctx.taskId,
+        sessionId: h.ctx.sessionId,
+        intentRaw: 'Add a CONTRIBUTING.md file, keep it bilingual',
+        workspace: 'C:/workspace',
+      });
+      const { loop } = buildEngine(h);
+      const intent = makeIntent({ expectedPaths: ['a.txt'], constraints: ['no telemetry'] });
+      const outcome = await loop.run(intent);
+      expect(outcome.status).toBe('done');
+
+      const record = await readRunRecord(path.join(dir, h.ctx.taskId));
+      expect(record.intentRaw).toBe('Add a CONTRIBUTING.md file, keep it bilingual');
+      const planInput = record.planInput as { goal: string; constraints: string[] };
+      expect(planInput.goal).toBe('Add a CONTRIBUTING.md file');
+      expect(planInput.constraints).toContain('no telemetry');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('survives a missing run-record directory configuration without writing', async () => {
     const h = makeHarness({
       workspace: 'C:/workspace',

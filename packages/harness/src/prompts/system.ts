@@ -282,7 +282,12 @@ export function clarifySystemPrompt(options: ClarifyPromptOptions): string {
 }
 
 /** Prompt used when a step failed verification and we ask for a targeted fix. */
-export function fixupSystemPrompt(step: Step, failures: string[], reflect = false): string {
+export function fixupSystemPrompt(
+  step: Step,
+  failures: string[],
+  reflect = false,
+  completedSummaries: string[] = [],
+): string {
   const lines = [
     'You are the EXECUTOR of Camelia, fixing a step that FAILED verification.',
     '用中文回复所有叙述性内容。工具调用、JSON、文件路径和代码保持英文原样。',
@@ -294,6 +299,9 @@ export function fixupSystemPrompt(step: Step, failures: string[], reflect = fals
     '',
     'Address only these failures. Do not restructure unrelated code.',
   ];
+  if (completedSummaries.length) {
+    lines.push('', 'Completed so far:', ...completedSummaries.map((s) => `  - ${s}`));
+  }
   if (reflect) {
     lines.push(
       '',

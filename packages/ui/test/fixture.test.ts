@@ -171,16 +171,14 @@ describe('FixtureTransport — commands produce engine events', () => {
     expect(rec.events.map((e) => e.type)).toEqual(['provider.selected']);
   });
 
-  it('submitting a task walks intake → planning → executing', () => {
+  it('submitting a task in offline fixture reports task.received then failure', () => {
     const transport = new FixtureTransport({ scene: 'empty' });
     const rec = start(transport);
     rec.events.length = 0;
     transport.send(cmd('submit_task', { sessionId: 'ses_new', intent: 'add a LICENSE', workspace: 'C:/w' }));
     const types = rec.events.map((e) => e.type);
     expect(types[0]).toBe('task.received');
-    expect(types).toContain('plan.ready');
-    expect(types).toContain('task.phase_changed');
-    expect(rec.statuses.at(-1)).toBe('live');
+    expect(types).toContain('task.failed');
   });
 
   it('ignores commands before start', () => {

@@ -204,20 +204,18 @@ export function Avatar({
   className?: string;
   title?: string;
 }): ReactNode {
-  const iconSize = Math.max(12, Math.round(size * 0.48));
-  const tone =
-    kind === 'user'
-      ? 'bg-info/15 text-info border-info/30'
-      : 'bg-accent/15 text-accent border-accent/30';
+  const text = kind === 'user' ? '你' : '花';
+  const tone = kind === 'user' ? 'wf-avatar-user' : 'wf-avatar-agent';
+  const fontSize = Math.max(11, Math.round(size * 0.42));
   return (
     <span
       data-avatar={kind}
       title={title}
-      className={`inline-grid shrink-0 place-items-center rounded-full border ${tone} ${className}`}
-      style={{ width: size, height: size }}
+      className={`inline-grid shrink-0 place-items-center rounded-full font-medium ${tone} ${className}`}
+      style={{ width: size, height: size, fontSize }}
       aria-hidden={title ? undefined : true}
     >
-      <Icon name={kind === 'user' ? 'user' : 'camellia'} size={iconSize} />
+      {text}
     </span>
   );
 }

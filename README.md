@@ -40,6 +40,21 @@ node packages/cli/dist/bin.js run --mock "写一个 hello.txt" --yes --json --wo
 node packages/cli/dist/bin.js run "给这个仓库补一份 CONTRIBUTING.md"
 ```
 
+## 当前状态 · Iteration 26（目标模式四阶段收口）
+
+四阶段串行门禁全部通过，最终验收全绿：typecheck 10/10 · lint 6/6 · build 5/5 · `pnpm test` **1105** 全绿 · `pnpm acceptance` M1–M15 全 pass（M13 agent 行覆盖率 **94.14%**）· `node scripts/usable-check.mjs` 6/6。
+
+本轮新增能力：
+
+- **记忆面板 recall 时间线**：面板内直接回放持久化 `memory.recalled` 历史（时间 / 层 / via / noise / 降级标注），数据只来自真实引擎事件日志（SseTransport → EngineServer → SqliteSessionStore），不含 UI 本地拼凑。
+- **运行记录可离线重放**：`record.json` 现含用户原始意图（`intentRaw`）与规划输入（`planInput`），现场失败可离线复现；旧记录缺字段读为 `undefined`。
+- **长会话记忆评估**：`packages/harness/scripts/evaluate-memory-longsession.ts`（确定性模拟，输出明确标注）给出 promote 阈值敏感度与 recall_noise 随会话推进的趋势。
+- **弱模型编排收敛守卫**：fixup 以零工具调用失败验证时立即停止重试轮次，不再空转至 `maxRetries`。
+
+如实记录的边界（负面结果，详见 ITERATION_LOG）：本机无 `llama3.2:3b`（廉价优先每步回落决策模型）；真实长会话命中数据未取得（评估走明确标注的模拟）；弱模型两文件任务拆解失败仍可能发生（模型能力边界，非 harness 机制可修成通过）。
+
+详细记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)（Iteration 26），验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)。
+
 ## 核心能力
 
 - **长任务不丢目标**：显式任务状态机 + 目标漂移检测。
@@ -59,13 +74,14 @@ ui  →  agent  →  harness  →  core
 
 | 包                   | 层             | 职责                                                                 |
 | -------------------- | -------------- | -------------------------------------------------------------------- |
-| `@camelia/core`    | 契约与基础设施 | 领域类型、事件总线、任务状态机、端口、SQLite 持久化、可观测性        |
-| `@camelia/harness` | 任务引擎       | Agent 主循环、规划、执行、验证、上下文、子 Agent、工具引擎、可靠性件 |
-| `@camelia/agent`   | 适配与组合根   | Provider 三路径回退、模型路由、Node 适配器、配置与密钥               |
-| `@camelia/cli`     | 驱动           | `run` / `replay` / `doctor`                                    |
-| `apps/desktop`     | UI（Phase 3）  | Tauri 2.x 暖色暗黑界面，任务状态的可视化投影                         |
+| `@camelia/core`    | 契约与基础设施 | 领域类型、事件总线、任务状态机、端口、SQLite 持久化、可观测性         |
+| `@camelia/harness` | 任务引擎       | Agent 主循环、规划、执行、验证、上下文、子 Agent、工具引擎、记忆、可靠性件 |
+| `@camelia/agent`   | 适配与组合根   | Provider 三路径回退、模型路由、Node 适配器、插件加载、MCP、配置与密钥 |
+| `@camelia/ui`      | UI 投影        | React 19 界面，把后端任务状态投影为可视界面（`@camelia/agent/view` 纯折叠） |
+| `@camelia/cli`     | 驱动           | `run` / `replay` / `doctor` / `serve`                          |
+| `apps/desktop`     | 桌面外壳       | Tauri 2.x 原生窗口，装载 `@camelia/ui` 构建产物并注入启动参数         |
 
-设计文档见 [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md)，迭代记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)，验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)。
+设计文档见 [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md)，迭代记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)，验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)，代码实现速查见 [`docs/CODE-SUMMARY.md`](docs/CODE-SUMMARY.md)。
 
 ## 技术栈
 
