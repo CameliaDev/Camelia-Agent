@@ -16,6 +16,15 @@ export interface BootConfig {
   engineUrl?: string;
   /** Session to attach to, when resuming rather than starting fresh. */
   sessionId?: string;
+  /**
+   * Why the desktop shell failed to spawn `camelia serve`.
+   * Present only on cold-start offline fallback — never invent a live URL.
+   */
+  engineSpawnError?: string;
+  /** Shell package version (informational). */
+  version?: string;
+  /** Build commit when available (informational). */
+  commit?: string;
 }
 
 declare global {

@@ -39,6 +39,26 @@ if (!cliExists) process.exit(1);
 const version = spawnSync(process.execPath, [CLI, '--version'], { encoding: 'utf8' });
 check('CLI 可启动', version.status === 0, version.stdout?.trim() ?? '启动失败');
 
+
+// 1b. better-sqlite3 must load under *this* Node (ABI mismatch → desktop Offline)
+{
+  let sqliteOk = false;
+  let sqliteDetail = '';
+  try {
+    const { createRequire } = await import('node:module');
+    const requireFromCore = createRequire(`${ROOT}/packages/core/package.json`);
+    const Database = requireFromCore('better-sqlite3');
+    const db = new Database(':memory:');
+    db.exec('select 1');
+    db.close();
+    sqliteOk = true;
+    sqliteDetail = `ABI ${process.versions.modules} / Node ${process.version}`;
+  } catch (err) {
+    sqliteDetail = err instanceof Error ? err.message.split('\n')[0] : String(err);
+  }
+  check('SQLite 原生模块', sqliteOk, sqliteDetail);
+}
+
 // 2. doctor 自检
 const doctor = spawnSync(process.execPath, [CLI, 'doctor'], { encoding: 'utf8', timeout: 60_000 });
 const ollamaOk = /✓\s+ollama/.test(doctor.stdout ?? '');

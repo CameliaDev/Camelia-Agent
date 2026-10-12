@@ -24,17 +24,24 @@ export interface EngineTrustInfo {
   engineUrl?: string;
   sessionId?: string;
   scene?: string;
+  /** Native spawn failure reason when the shell fell back to fixture offline. */
+  engineSpawnError?: string;
   /** True when the shell pointed the webview at a live engine. */
   expectsLiveEngine: boolean;
+  /** True when spawn failed — fixture offline is a crash, not a demo. */
+  spawnFailed: boolean;
 }
 
 export function readEngineTrust(): EngineTrustInfo {
   const boot: BootConfig = readBootConfig();
+  const spawnFailed = Boolean(boot.engineSpawnError);
   return {
     engineUrl: boot.engineUrl,
     sessionId: boot.sessionId,
     scene: boot.scene,
+    engineSpawnError: boot.engineSpawnError,
     expectsLiveEngine: Boolean(boot.engineUrl),
+    spawnFailed,
   };
 }
 

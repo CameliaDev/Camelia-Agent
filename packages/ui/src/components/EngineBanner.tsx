@@ -22,7 +22,7 @@ export function EngineBanner(): ReactNode {
   const trust = readEngineTrust();
   const [note, setNote] = useState('');
 
-  if (status !== 'offline' || !trust.expectsLiveEngine) return null;
+  if (status !== 'offline' || (!trust.expectsLiveEngine && !trust.spawnFailed)) return null;
 
   const desktop = isTauri();
 
@@ -37,6 +37,9 @@ export function EngineBanner(): ReactNode {
         <p className="text-[11px] text-ink-2">{tr('connection.offlineBanner.hint')}</p>
         {trust.engineUrl ? (
           <p className="mt-0.5 font-mono text-[10.5px] text-ink-3">{trust.engineUrl}</p>
+        ) : null}
+        {trust.engineSpawnError ? (
+          <p className="mt-0.5 break-all font-mono text-[10.5px] text-ink-3">{trust.engineSpawnError}</p>
         ) : null}
         {note ? <p className="mt-0.5 break-all font-mono text-[10.5px] text-ink-3">{note}</p> : null}
       </div>

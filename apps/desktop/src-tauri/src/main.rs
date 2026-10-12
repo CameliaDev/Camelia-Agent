@@ -295,8 +295,71 @@ fn providers_from_config(map: &serde_json::Map<String, serde_json::Value>) -> Ve
     }
 }
 
-/// Find node executable. Prefer the system install over any sandbox runtime.
+/// Read optional `node` path from `~/.camelia/desktop.json`.
+fn node_from_desktop_config() -> Option<String> {
+    let path = camelia_home().join("desktop.json");
+    let raw = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let node = value.get("node")?.as_str()?.trim();
+    let candidate = std::path::PathBuf::from(node);
+    if candidate.is_file() {
+        Some(candidate.to_string_lossy().to_string())
+    } else {
+        None
+    }
+}
+
+/// Prefer an fnm-managed Node 22 (matches repo `.nvmrc`) when present.
+fn find_fnm_node22() -> Option<String> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .ok()?;
+    let roots = [
+        std::path::Path::new(&home).join(r"AppData\Roaming\fnm\node-versions"),
+        std::path::Path::new(&home).join(r"AppData\Local\fnm\node-versions"),
+        std::path::Path::new(&home).join(r".fnm\node-versions"),
+    ];
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    for root in roots {
+        let Ok(entries) = std::fs::read_dir(&root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("v22") {
+                continue;
+            }
+            let exe = entry.path().join("installation").join("node.exe");
+            if exe.is_file() {
+                candidates.push(exe);
+            }
+        }
+    }
+    candidates.sort();
+    candidates
+        .pop()
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+/// Find node executable.
+///
+/// Order: `CAMELIA_NODE` → `~/.camelia/desktop.json` `node` → fnm Node 22 →
+/// Program Files → PATH. Preferring Node 22 avoids ABI mismatches when
+/// `better-sqlite3` was built against the repo `.nvmrc` toolchain.
 fn find_node() -> Option<String> {
+    if let Ok(raw) = std::env::var("CAMELIA_NODE") {
+        let candidate = std::path::PathBuf::from(raw.trim());
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+    }
+    if let Some(candidate) = node_from_desktop_config() {
+        return Some(candidate);
+    }
+    if let Some(candidate) = find_fnm_node22() {
+        return Some(candidate);
+    }
     let preferred = r"C:\Program Files\nodejs\node.exe";
     if std::path::Path::new(preferred).exists() {
         return Some(preferred.to_string());
@@ -316,19 +379,34 @@ fn find_node() -> Option<String> {
 ///
 /// After the URL is parsed, background threads continue piping stdout and stderr
 /// into the log file so engine output after boot is not lost.
-fn spawn_engine() -> Option<(Child, String, String)> {
+fn spawn_engine() -> Result<(Child, String, String), String> {
     let dbg_path = std::env::temp_dir().join("camelia-engine-debug.log");
     let mut dbg = String::new();
 
     let bin = find_engine_path();
     dbg.push_str(&format!("bin: {:?}\n", bin));
-    let bin = bin?;
+    let Some(bin) = bin else {
+        let msg = "CLI bin.js not found (set CAMELIA_CLI or ~/.camelia/desktop.json cli)".to_string();
+        dbg.push_str(&format!("{msg}\n"));
+        let _ = std::fs::write(&dbg_path, &dbg);
+        return Err(msg);
+    };
 
     let node = find_node();
     dbg.push_str(&format!("node: {:?}\n", node));
-    let node = node?;
+    let Some(node) = node else {
+        let msg = "node.exe not found (set CAMELIA_NODE or desktop.json node)".to_string();
+        dbg.push_str(&format!("{msg}\n"));
+        let _ = std::fs::write(&dbg_path, &dbg);
+        return Err(msg);
+    };
 
-    let project_root = bin.ancestors().nth(4)?.to_path_buf();
+    let Some(project_root) = bin.ancestors().nth(4).map(|p| p.to_path_buf()) else {
+        let msg = format!("could not resolve project root from {}", bin.display());
+        dbg.push_str(&format!("{msg}\n"));
+        let _ = std::fs::write(&dbg_path, &dbg);
+        return Err(msg);
+    };
     dbg.push_str(&format!("project_root: {:?}\n", project_root));
 
     // Truncate the log on each fresh engine start so it does not grow forever.
@@ -347,14 +425,17 @@ fn spawn_engine() -> Option<(Child, String, String)> {
         Ok(c) => dbg.push_str(&format!("spawned pid: {}\n", c.id())),
         Err(e) => {
             dbg.push_str(&format!("spawn error: {e}\n"));
-            let _ = std::fs::write(&dbg_path, dbg);
-            return None;
+            let _ = std::fs::write(&dbg_path, &dbg);
+            return Err(format!("spawn error: {e}"));
         }
     }
-    let mut child = child.ok()?;
+    let mut child = match child {
+        Ok(c) => c,
+        Err(e) => return Err(format!("spawn error: {e}")),
+    };
 
-    let stdout = child.stdout.take()?;
-    let stderr = child.stderr.take()?;
+    let stdout = child.stdout.take().ok_or_else(|| "engine stdout missing".to_string())?;
+    let stderr = child.stderr.take().ok_or_else(|| "engine stderr missing".to_string())?;
 
     // Drain stderr into the log in a background thread immediately.
     std::thread::spawn(move || {
@@ -400,7 +481,14 @@ fn spawn_engine() -> Option<(Child, String, String)> {
         }
     }
 
-    let url = engine_url?;
+    let Some(url) = engine_url else {
+        let msg = "engine exited before ready JSON (often Node ABI / better-sqlite3 mismatch — see engine.log)".to_string();
+        dbg.push_str(&format!("{msg}\n"));
+        let _ = std::fs::write(&dbg_path, &dbg);
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(msg);
+    };
     let session = session_id.unwrap_or_default();
 
     // Continue draining stdout into the log in a background thread.
@@ -411,11 +499,16 @@ fn spawn_engine() -> Option<(Child, String, String)> {
     });
 
     let _ = std::fs::write(&dbg_path, dbg);
-    Some((child, url, session))
+    Ok((child, url, session))
 }
 
 /// The boot parameters, serialized to JSON so no value can break out of the literal.
-fn boot_script(engine_url: Option<&str>, session_id: Option<&str>, scene: Option<&str>) -> Option<String> {
+fn boot_script(
+    engine_url: Option<&str>,
+    session_id: Option<&str>,
+    scene: Option<&str>,
+    spawn_error: Option<&str>,
+) -> Option<String> {
     let mut map = serde_json::Map::new();
     map.insert("version".into(), serde_json::Value::String(env!("CARGO_PKG_VERSION").to_owned()));
     map.insert("commit".into(), serde_json::Value::String(option_env!("CAMELIA_GIT_SHA").unwrap_or("f5592c3").to_owned()));
@@ -427,6 +520,9 @@ fn boot_script(engine_url: Option<&str>, session_id: Option<&str>, scene: Option
     }
     if let Some(session) = session_id {
         map.insert("sessionId".into(), serde_json::Value::String(session.to_owned()));
+    }
+    if let Some(err) = spawn_error {
+        map.insert("engineSpawnError".into(), serde_json::Value::String(err.to_owned()));
     }
     Some(format!(
         "window.__CAMELIA_BOOT__ = {};",
@@ -714,21 +810,23 @@ fn main() {
     let engine_child: Mutex<Option<Child>> = Mutex::new(None);
     let engine_url: Option<String>;
     let session_id: Option<String>;
+    let mut spawn_error: Option<String> = None;
 
     if explicit_url.is_none() && explicit_scene.is_none() {
         match spawn_engine() {
-            Some((child, url, session)) => {
+            Ok((child, url, session)) => {
                 eprintln!("[camelia] engine ready at {url}");
                 log_line("boot", &format!("engine ready at {url}"));
                 engine_url = Some(url);
                 session_id = if session.is_empty() { None } else { Some(session) };
                 *engine_child.lock().unwrap() = Some(child);
             }
-            None => {
-                eprintln!("[camelia] could not spawn engine — falling back to offline mode");
-                log_line("boot", "could not spawn engine — offline mode");
+            Err(err) => {
+                eprintln!("[camelia] could not spawn engine — falling back to offline mode: {err}");
+                log_line("boot", &format!("could not spawn engine — offline mode: {err}"));
                 engine_url = None;
                 session_id = None;
+                spawn_error = Some(err);
             }
         }
     } else {
@@ -736,7 +834,12 @@ fn main() {
         session_id = explicit_session;
     }
 
-    let script = boot_script(engine_url.as_deref(), session_id.as_deref(), explicit_scene.as_deref());
+    let script = boot_script(
+        engine_url.as_deref(),
+        session_id.as_deref(),
+        explicit_scene.as_deref(),
+        spawn_error.as_deref(),
+    );
 
     tauri::Builder::default()
         .setup(move |app| {

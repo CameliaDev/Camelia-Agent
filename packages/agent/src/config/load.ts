@@ -41,6 +41,16 @@ export interface CameliaConfig {
 }
 
 /** The three free paths, in fallback order (whitepaper appendix A, rule 9). */
+
+/** Accept `host:port` or full URL; always return an http(s) origin without trailing slash. */
+function normalizeOllamaHost(raw: string | undefined): string {
+  const fallback = "http://localhost:11434";
+  const value = (raw ?? "").trim();
+  if (!value) return fallback;
+  const withScheme = /^https?:\/\//i.test(value) ? value : `http://${value}`;
+  return withScheme.replace(/\/+$/, "").replace(/\/v1$/i, "");
+}
+
 export function defaultProfiles(): ProviderProfile[] {
   return [
     {
@@ -70,7 +80,7 @@ export function defaultProfiles(): ProviderProfile[] {
       id: 'ollama',
       label: 'Ollama (local)',
       kind: 'openai-compatible',
-      baseUrl: `${process.env.OLLAMA_HOST ?? 'http://localhost:11434'}/v1`,
+      baseUrl: `${normalizeOllamaHost(process.env.OLLAMA_HOST ?? process.env.CAMELIA_OLLAMA_BASE_URL)}/v1`,
       models: ['qwen2.5-coder:7b', 'llama3.2:3b'],
       defaultModel: 'qwen2.5-coder:7b',
       // 能力声明来自实测，不是猜测。见 `scripts/probe-tools.mjs`。
