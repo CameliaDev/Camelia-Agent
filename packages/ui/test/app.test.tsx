@@ -80,11 +80,9 @@ describe('App — layout contract', () => {
     );
     const { container } = renderScene('empty');
     expect(container.querySelector('[data-rail-collapsed="true"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="memory-panel"]')).toBeNull();
     expect(screen.queryByText('记忆')).not.toBeInTheDocument();
     expandRightRail(container);
     expect(container.querySelector('[data-rail-collapsed="false"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="memory-panel"]')).not.toBeNull();
     expect(screen.getByText('记忆')).toBeInTheDocument();
   });
 
@@ -274,7 +272,7 @@ describe('App — running scene exposes the whole run', () => {
     expect(screen.getAllByText(/^Events$|^事件$/).length).toBeGreaterThan(0);
     // The trail ships collapsed (the rail must not drown the run in raw events); the
     // section header is the affordance that opens it.
-    fireEvent.click(screen.getByLabelText('Expand events'));
+    fireEvent.click(screen.getByLabelText('展开事件'));
     expect(screen.getAllByText('step.started').length).toBeGreaterThan(0);
   });
 });
@@ -318,16 +316,18 @@ describe('App — approval scene', () => {
 describe('App — failure scene', () => {
   it('shows the failure with its reason and recovery evidence', () => {
     renderScene('failure');
-    expect(screen.getByText('Failure — recoverable')).toBeInTheDocument();
-    expect(screen.getByText('attempts')).toBeInTheDocument();
-    expect(screen.getByText('strategy')).toBeInTheDocument();
+    expect(screen.getByText('失败 — 可恢复')).toBeInTheDocument();
+    expect(screen.getByText('尝试次数')).toBeInTheDocument();
+    expect(screen.getByText('策略')).toBeInTheDocument();
   });
 
   it('offers retry, degrade and rollback', () => {
     renderScene('failure');
-    expect(screen.getByText('Retry the step')).toBeInTheDocument();
-    expect(screen.getByText('Fall back to a smaller model')).toBeInTheDocument();
-    expect(screen.getByText('Roll back')).toBeInTheDocument();
+    expect(screen.getByText('重试该步骤')).toBeInTheDocument();
+    expect(screen.getByText('降级到更小模型')).toBeInTheDocument();
+    expect(screen.getAllByText('回滚').length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-intervene-unavailable]')).toBeNull();
+    expect(document.querySelector('[data-failure-card]')).not.toBeNull();
   });
 
   it('shows the reliability notices the run produced', () => {

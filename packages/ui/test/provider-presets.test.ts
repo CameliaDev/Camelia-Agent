@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  PRESET_TEMPLATES,
   buildPresetCards,
   slugifyProviderId,
   uniqueProviderId,
@@ -62,5 +63,12 @@ describe('buildPresetCards', () => {
     expect(ollama.active).toBe(true);
     expect(ollama.model).toBe('qwen2.5-coder:7b');
     expect(ollama.persisted).toBe(false);
+  });
+
+  it('exposes the five wireframe templates including 阿里云兼容 / 自定义', () => {
+    const ids = PRESET_TEMPLATES.map((t) => t.id);
+    expect(ids).toEqual(['aliyun', 'openrouter', 'opencode-zen', 'ollama', 'custom']);
+    expect(PRESET_TEMPLATES[0]?.label).toContain('阿里云');
+    expect(PRESET_TEMPLATES[4]?.label).toBe('自定义');
   });
 });

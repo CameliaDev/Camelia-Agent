@@ -417,6 +417,8 @@ fn spawn_engine() -> Option<(Child, String, String)> {
 /// The boot parameters, serialized to JSON so no value can break out of the literal.
 fn boot_script(engine_url: Option<&str>, session_id: Option<&str>, scene: Option<&str>) -> Option<String> {
     let mut map = serde_json::Map::new();
+    map.insert("version".into(), serde_json::Value::String(env!("CARGO_PKG_VERSION").to_owned()));
+    map.insert("commit".into(), serde_json::Value::String(option_env!("CAMELIA_GIT_SHA").unwrap_or("f5592c3").to_owned()));
     if let Some(scene) = scene {
         map.insert("scene".into(), serde_json::Value::String(scene.to_owned()));
     }
@@ -425,9 +427,6 @@ fn boot_script(engine_url: Option<&str>, session_id: Option<&str>, scene: Option
     }
     if let Some(session) = session_id {
         map.insert("sessionId".into(), serde_json::Value::String(session.to_owned()));
-    }
-    if map.is_empty() {
-        return None;
     }
     Some(format!(
         "window.__CAMELIA_BOOT__ = {};",

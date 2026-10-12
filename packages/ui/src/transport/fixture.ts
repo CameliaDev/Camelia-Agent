@@ -26,7 +26,6 @@ import {
   PRIMARY_SESSION,
   SESSION_LIST,
   buildScenario,
-  planFor,
   sceneStatus,
   type SceneId,
 } from './scenario.js';
@@ -260,6 +259,7 @@ export class FixtureTransport implements Transport {
         });
         return;
       case 'submit_task': {
+        // Offline fixture: do not replay the canned CLI demo for a typed intent.
         this.clock += 5;
         const taskId = `tsk_${(this.sent.length * 7919 + 104729).toString(16)}`;
         const now = this.clock;
@@ -274,16 +274,12 @@ export class FixtureTransport implements Transport {
           updatedAt: now,
         };
         this.push('task.received', { task });
-        this.push('task.status_changed', { from: 'received', to: 'clarifying', reason: 'intent received' });
-        this.push('task.clarified', {
-          intent: { goal: command.payload.intent, assumptions: [], constraints: [], expectedPaths: [], complete: true },
+        this.push('task.failed', {
+          reason: '未连接引擎 — offline fixture cannot run a live model',
+          recoverable: false,
         });
-        this.push('task.status_changed', { from: 'clarifying', to: 'planning', reason: 'intent clarified' });
-        this.push('plan.started', { mode: 'full' });
-        this.push('plan.ready', { plan: planFor(taskId, this.clock) });
-        this.push('task.status_changed', { from: 'planning', to: 'executing', reason: 'plan accepted' });
-        this.push('task.phase_changed', { phase: 'executing' });
-        this.status('live');
+        this.status('offline');
+        this.answer(command.commandId, { ok: false, error: 'engine unreachable' });
         return;
       }
     }

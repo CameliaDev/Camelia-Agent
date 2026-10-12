@@ -15,7 +15,7 @@ import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
 import { relaunchDesktop } from '../window/model-settings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
-import { openEngineLog, readEngineTrust } from '../window/engine.js';
+import { openEngineLog, readEngineLog, readEngineTrust } from '../window/engine.js';
 import { isTauri } from '../window/shell.js';
 import { Avatar, Icon } from './primitives.js';
 
@@ -269,6 +269,21 @@ function EngineSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string })
   const desktop = isTauri();
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [logText, setLogText] = useState<string>('');
+  const [logError, setLogError] = useState<string>('');
+
+  useEffect(() => {
+    if (!desktop) return;
+    let cancelled = false;
+    void readEngineLog(200).then((result) => {
+      if (cancelled) return;
+      if (result.error) setLogError(result.error);
+      else setLogText(result.text ?? '');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop]);
 
   return (
     <section className="space-y-3">
@@ -303,6 +318,21 @@ function EngineSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string })
           </button>
           <button
             type="button"
+            className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
+            onClick={() => {
+              void readEngineLog(200).then((result) => {
+                if (result.error) setLogError(result.error);
+                else {
+                  setLogError('');
+                  setLogText(result.text ?? '');
+                }
+              });
+            }}
+          >
+            {tr('settings.refreshEngineLog')}
+          </button>
+          <button
+            type="button"
             disabled={busy}
             className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent disabled:opacity-40"
             onClick={() => {
@@ -322,15 +352,29 @@ function EngineSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string })
         <p className="text-[12px] text-ink-3">{tr('settings.engine.browserHint')}</p>
       )}
       {note ? <p className="break-all font-mono text-[11px] text-ink-3">{note}</p> : null}
+      <div className="space-y-1.5">
+        <h4 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.engineLog')}</h4>
+        {logError ? <p className="text-[12px] text-ink-3">{logError}</p> : null}
+        <pre
+          data-engine-log
+          className="max-h-64 overflow-auto rounded-md border border-line bg-base/60 p-2 font-mono text-[10.5px] leading-4 text-ink-2"
+        >
+          {logText || tr('settings.engineLog.empty')}
+        </pre>
+      </div>
     </section>
   );
 }
 
 function AboutSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }): ReactNode {
+  const boot = typeof window !== 'undefined' ? (window as unknown as { __CAMELIA_BOOT__?: { commit?: string; version?: string } }).__CAMELIA_BOOT__ : undefined;
+  const version = boot?.version || '0.1.0';
+  const commit = boot?.commit || 'f5592c3';
   return (
-    <section className="space-y-2">
+    <section className="space-y-2" data-about-version>
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.about')}</h3>
-      <p className="text-[12px] text-ink-2">Camelia 0.1.0</p>
+      <p className="text-[12px] text-ink-2">Camelia {version}</p>
+      <p className="font-mono text-[11px] text-ink-3">{tr('settings.about.commit')}: {commit}</p>
       <p className="text-[12px] text-ink-3">{tr('brand.placeholder')}</p>
       <p className="font-mono text-[12px] text-ink-2">~/.camelia</p>
       <p className="text-[12px] text-ink-3">{tr('settings.about.preface')}</p>

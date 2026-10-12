@@ -32,7 +32,7 @@ export function Composer(): ReactNode {
         makeCommand('submit_task', {
           sessionId: activeSessionId ?? 'ses_new',
           intent,
-          workspace: snapshot.session?.workspace ?? 'C:/Users/dev/projects/camelia-code',
+          workspace: snapshot.session?.workspace ?? '.',
         }),
       );
     }
@@ -48,7 +48,7 @@ export function Composer(): ReactNode {
           submit();
         }}
       >
-        <div className="flex min-w-0 flex-1 items-end gap-2 rounded-lg border border-line bg-base px-2.5 py-2 focus-within:border-accent/50">
+        <div data-composer className="flex min-w-0 flex-1 items-end gap-2 rounded-lg border border-line bg-base px-2.5 py-2 focus-within:border-accent/50">
           <Icon name={running ? 'compass' : 'spark'} size={14} className={`mb-[3px] shrink-0 ${running ? 'text-info' : 'text-accent'}`} />
           <textarea
             rows={1}
@@ -67,6 +67,7 @@ export function Composer(): ReactNode {
           />
           <button
             type="submit"
+            data-run
             disabled={!value.trim()}
             className={`mb-[1px] inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
               running ? 'bg-info/80 text-base hover:bg-info' : 'bg-accent text-base hover:bg-accent-2'
