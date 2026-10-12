@@ -102,6 +102,25 @@ export function PlanWorkspace(): ReactNode {
           issue the approval commands; plan mode only decides that it is the primary
           surface rather than a tab. */}
       <PlanReview task={task} />
+
+      {/* Final delivery: when the task is done, show the summary and artifacts here too,
+          otherwise a user who stays in plan mode never sees the agent's reply. */}
+      {task.status === 'done' && task.summary ? (
+        <div className="shrink-0 border-t border-line px-4 py-3" data-plan-delivery>
+          <div className="flex items-center gap-2">
+            <Icon name="check" size={14} className="text-ok" />
+            <span className="text-[12.5px] font-semibold text-ok">{tr('delivery.delivered')}</span>
+          </div>
+          <p className="mt-2 text-[12px] leading-6 text-ink-2">{task.summary}</p>
+          {task.artifacts.length ? (
+            <ul className="mt-2 space-y-1">
+              {task.artifacts.map((a) => (
+                <li key={a.path} className="font-mono text-[11px] text-ink-3">· {a.path}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
