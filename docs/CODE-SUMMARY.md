@@ -236,7 +236,7 @@ UI 不发明业务状态：`snapshot` 唯一来源是事件流经 `reduceEvents`
 - 包 `camelia-desktop`（Tauri 2、Rust 2021、`rust-version 1.77.2`），标识 `com.camelia.desktop`，产品名 `Camelia`，`withGlobalTauri: true`。
 - 主窗口在 Rust 侧创建（`tauri.conf.json` 的 `app.windows` 为空）：标题 `Camelia`，`inner_size(1280, 820)`，最小 `1024×680`，无边框 `decorations(false)`，暗色，初始隐藏 + 1500ms 兜底 `show()`。
 - 启动参数（`--flag` 或环境变量）：`--engine-url`/`CAMELIA_ENGINE_URL`、`--scene`/`CAMELIA_SCENE`、`--session-id`/`CAMELIA_SESSION_ID`；序列化为 `window.__CAMELIA_BOOT__`。
-- **无显式 engine-url 且无 scene 时自动 `spawn_engine()`**：沿路径寻找 `packages/cli/dist/bin.js`，运行 `node <bin> serve --port=0 --json`，读回 `{url, sessionId}`；日志写 `~/.camelia/logs/engine.log`；窗口关闭时杀子进程。
+- **无显式 engine-url 且无 scene 时自动 `spawn_engine()`**：CLI 来自 `CAMELIA_CLI` / `~/.camelia/desktop.json` `cli` / 上溯仓库；Node 来自 `CAMELIA_NODE` / `desktop.json` `node` / fnm·nvm **Node 22** / Program Files / PATH；spawn 前 **probe `better-sqlite3`**（ABI 不匹配则清晰失败，不假装 Live）；成功则 `node <bin> serve --port=0 --json` 读回 `{url, sessionId}`；失败则 boot 注入 `engineSpawnError`，UI 走 fixture + 横幅。日志：`~/.camelia/logs/engine.log`。`desktop.json` 须 UTF-8 **无 BOM**。
 - 命令与权限：注册 `read/write_model_settings`、`read_key_status`、`write_provider_key`、`relaunch_app`（另有 `open_engine_log`/`read_engine_log`，但未在 capabilities 授权）；密钥/配置写 `~/.camelia/keys.json`、`~/.camelia/config.json`。
 - 打包：NSIS、`currentUser` 安装到 `%LOCALAPPDATA%\Camelia`，产物 `Camelia_<version>_x64-setup.exe`；`custom-protocol` 特性决定加载内嵌产物还是 Vite `devUrl`。
 
@@ -262,9 +262,12 @@ UI 不发明业务状态：`snapshot` 唯一来源是事件流经 `reduceEvents`
 4. 两套退避函数（网关 base 200ms、恢复 base 400ms 上限 8000ms）与两套「可重试错误」子串（工具层漏 `socket hang up`，恢复层含）。
 5. `ErrorRecovery` 的 `degrade-readonly` 策略声明了但从不产出；`AgentLoop.rollback(id)` 忽略传入 id。
 
+**环境 / 启动**
+0. 仓库锁定 **Node 22**（`.nvmrc`）。系统 `Program Files` 若为 Node 24 而 `better-sqlite3` 按 22 编译，桌面 spawn 会 ABI 崩溃；应用 `desktop.json.node` / `CAMELIA_NODE` 指向 Node 22，或在同一 Node 下 `pnpm rebuild better-sqlite3`。
+
 **实现上的「尚不可用」**
 6. `EngineServer` 对 `rollback_step`、`select_provider` 返回「尚不可用」。
-7. 桌面端 `open_engine_log` / `read_engine_log` 未在 capabilities 授权，前端无法调用。
+7. ~~桌面端 `open_engine_log` / `read_engine_log` 未授权~~（已过时）：`capabilities/default.json` 已含 `allow-open-engine-log` / `allow-read-engine-log`。
 8. `tauri.conf.json` 的 `app.windows` 为空，窗口配置只存在于 `main.rs`。
 
 **文档侧（本次已核对/修正）**

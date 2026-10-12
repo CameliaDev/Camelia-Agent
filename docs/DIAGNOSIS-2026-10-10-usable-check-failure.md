@@ -248,3 +248,19 @@ check('SQLite 原生模块可加载', sqliteLoads, ...);
 ---
 
 **建议下一步:** 由用户决定是否执行 `pnpm rebuild better-sqlite3`,完成后重跑 `usable-check.mjs` 验证 7/7 全绿,再决定是否刷新 ACCEPTANCE.md。
+
+---
+
+## 后续修复说明（2026-10-12 · M0）
+
+历史结论仍然成立：根因是 **Node ABI ≠ better-sqlite3 编译 ABI**，不是「模型坏了」或「UI 假装 Offline」。
+
+桌面侧已加固（勿再依赖「碰巧用了正确 Node」）：
+
+1. `find_node` 优先 `CAMELIA_NODE` → `~/.camelia/desktop.json` `node` → fnm/nvm **Node 22** → 才轮到 Program Files / PATH。
+2. `desktop.json` 读入时 **剥离 UTF-8 BOM**（PowerShell 5 `Set-Content -Encoding utf8` 的坑）。
+3. spawn 前 **probe better-sqlite3**；失败写入 `engineSpawnError`，UI 横幅展示——**fixture 不假装 Live**。
+4. 写入推荐：`node scripts/write-desktop-json.mjs`。
+
+CLI 路径若只用系统 Node 24，仍需 `pnpm rebuild better-sqlite3` **或**切回 Node 22。
+

@@ -18,6 +18,28 @@ pnpm install
 pnpm rebuild better-sqlite3
 ```
 
+### 桌面壳用的 Node（重要）
+
+桌面 exe **不会**自动跟随你当前 shell 的 `nvm use` / `fnm use`。它按下面顺序找 Node 来 `spawn camelia serve`：
+
+1. 环境变量 **`CAMELIA_NODE`**（指向 `node.exe`）
+2. **`~/.camelia/desktop.json`** 的 `"node"` 字段（与 `"cli"` 一起）
+3. 本机 **fnm / nvm-windows 的 Node 22**（对齐 `.nvmrc`）
+4. `C:\Program Files\nodejs\node.exe`（常见系统安装；若是 **Node 24** 而 `better-sqlite3` 按 22 编译 → ABI 崩溃）
+5. `PATH` 里的 `node.exe`
+
+**推荐**：在仓库根用 Node 22 执行：
+
+```bash
+node scripts/write-desktop-json.mjs
+```
+
+会写入 UTF-8 **无 BOM** 的 `~/.camelia/desktop.json`（含 `cli` + `node`）。不要用 Windows PowerShell 5.x 的 `Set-Content -Encoding utf8` 手写该文件——它会加 BOM，桌面壳会当成「找不到 CLI」。
+
+也可设置环境变量（优先级更高）：`CAMELIA_CLI`、`CAMELIA_NODE`、`CAMELIA_ENGINE_URL`（跳过自启、直连已有 serve）。
+
+若顶栏显示 **Offline** 且提交任务被拒（「未连接引擎 / offline fixture…」），**不要先怪 UI**：多数是引擎 spawn 失败（ABI / Node 路径 / CLI 路径）。打开设置 → 引擎与日志，或看 `~/.camelia/logs/engine.log`；壳会把 `engineSpawnError` 注入 boot 并在横幅展示。
+
 ## 三条命令跑起来
 
 ```bash
@@ -81,7 +103,7 @@ ui  →  agent  →  harness  →  core
 | `@camelia/cli`     | 驱动           | `run` / `replay` / `doctor` / `serve`                          |
 | `apps/desktop`     | 桌面外壳       | Tauri 2.x 原生窗口，装载 `@camelia/ui` 构建产物并注入启动参数         |
 
-设计文档见 [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md)，迭代记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)，验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)，代码实现速查见 [`docs/CODE-SUMMARY.md`](docs/CODE-SUMMARY.md)。
+设计文档见 [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md)，产品/工程方向见 [`docs/CAMELIA-ROADMAP.md`](docs/CAMELIA-ROADMAP.md)，迭代记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)，验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)，代码实现速查见 [`docs/CODE-SUMMARY.md`](docs/CODE-SUMMARY.md)。
 
 ## 技术栈
 

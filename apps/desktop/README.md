@@ -22,9 +22,27 @@ Camelia 的**桌面外壳**（Tauri 2.x，Rust + WebView2）。硬约束禁止 E
 | `--engine-url=<url>` 或环境变量 `CAMELIA_ENGINE_URL` | 连到真实 `camelia serve` 引擎（SSE）；与 `--scene` 同时存在时**优先引擎** |
 | `--scene=<id>` 或环境变量 `CAMELIA_SCENE` | 选择投影的场景（`empty` / `connecting` / `planning` / `plan` / `diff` / `running` / `approval` / `failure` / `error` / `done`） |
 | `--session-id=<id>` 或环境变量 `CAMELIA_SESSION_ID` | 续接指定会话 |
-| 缺省 | 投影 `empty`——已发布应用绝不显示一个从未收到的任务 |
+| 缺省 | **自动 spawn** `camelia serve --port=0 --json`；成功则注入 `engineUrl`（Live）。spawn 失败则无 `engineUrl`，UI 走 fixture `empty`，并注入 `engineSpawnError`（诚实 Offline，不假装 Live） |
 
 参数在页面脚本执行前序列化为 `window.__CAMELIA_BOOT__`（JSON），值无法逃逸字面量。
+
+
+## 引擎 Node / desktop.json
+
+冷启动时外壳会 spawn 仓库里的 CLI。Node 解析顺序：
+
+`CAMELIA_NODE` → `~/.camelia/desktop.json` 的 `node` → fnm / nvm-windows 的 **Node 22** → `C:\Program Files\nodejs\node.exe` → `PATH`。
+
+CLI 路径：`CAMELIA_CLI` → `desktop.json` 的 `cli` → 从 exe 向上找 `packages/cli/dist/bin.js`。
+
+| 键 / 变量 | 含义 |
+| --- | --- |
+| `CAMELIA_NODE` | 强制使用的 `node.exe`（应用 Node **22**，与 `.nvmrc` / `better-sqlite3` ABI 一致） |
+| `CAMELIA_CLI` | 强制使用的 `packages/cli/dist/bin.js` |
+| `~/.camelia/desktop.json` | `{"cli":"...","node":"..."}`，**UTF-8 无 BOM**（推荐 `node scripts/write-desktop-json.mjs`） |
+| `CAMELIA_ENGINE_URL` | 跳过 spawn，直连已有引擎 |
+
+系统装了 Node 24、原生模块按 Node 22 编译时，旧逻辑会静默落到 Offline fixture。现在会先 **probe `better-sqlite3`**，失败则把 ABI 原因写入 `engineSpawnError` / `engine.log`，UI 横幅展示——**fixture 不会假装 Live**。
 
 ## 构建
 

@@ -67,3 +67,21 @@ describe('readBootConfig', () => {
     });
   });
 });
+
+describe('engineSpawnError boot field', () => {
+  it('preserves spawn failure reasons from the shell', () => {
+    window.__CAMELIA_BOOT__ = {
+      engineSpawnError: 'Node/better-sqlite3 ABI mismatch (probe)',
+    };
+    expect(readBootConfig().engineSpawnError).toContain('ABI mismatch');
+  });
+
+  it('still uses fixture transport when spawn failed (no fake live URL)', () => {
+    window.__CAMELIA_BOOT__ = {
+      engineSpawnError: 'Node/better-sqlite3 ABI mismatch (probe)',
+    };
+    const transport = createTransport('');
+    expect(transport).toBeInstanceOf(FixtureTransport);
+    expect(transport.kind).toBe('fixture');
+  });
+});

@@ -12,7 +12,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { defaultProfiles, loadConfig, usableProfiles, type CameliaConfig } from '../src/config/load.js';
+import { defaultProfiles, loadConfig, usableProfiles, type CameliaConfig, normalizeOllamaHost } from '../src/config/load.js';
 import { cameliaHome, ensureCameliaHome, paths } from '../src/config/paths.js';
 
 function tempHome(): string {
@@ -168,5 +168,20 @@ describe('Camelia home layout', () => {
     tempHome();
     ensureCameliaHome();
     expect(() => ensureCameliaHome()).not.toThrow();
+  });
+});
+
+describe('normalizeOllamaHost', () => {
+  it('defaults to localhost with scheme', () => {
+    expect(normalizeOllamaHost(undefined)).toBe('http://localhost:11434');
+    expect(normalizeOllamaHost('')).toBe('http://localhost:11434');
+  });
+
+  it('adds http:// when OLLAMA_HOST is host:port', () => {
+    expect(normalizeOllamaHost('127.0.0.1:11434')).toBe('http://127.0.0.1:11434');
+  });
+
+  it('keeps https and strips trailing /v1', () => {
+    expect(normalizeOllamaHost('https://example:11434/v1/')).toBe('https://example:11434');
   });
 });

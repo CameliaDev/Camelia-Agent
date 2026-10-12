@@ -134,13 +134,29 @@ fn find_engine_path() -> Option<std::path::PathBuf> {
     None
 }
 
-fn cli_from_desktop_config() -> Option<std::path::PathBuf> {
+/// Strip a UTF-8 BOM if present. PowerShell `Set-Content -Encoding utf8` (Windows
+/// PowerShell 5.x) writes a BOM that makes `serde_json` reject the whole file —
+/// which used to look like "CLI bin.js not found" with a valid-looking desktop.json.
+fn strip_utf8_bom(raw: &str) -> &str {
+    raw.strip_prefix('\u{feff}').unwrap_or(raw)
+}
+
+/// Parse `~/.camelia/desktop.json` (UTF-8, BOM tolerated). Returns None on any I/O or JSON error.
+fn read_desktop_json() -> Option<serde_json::Value> {
     let path = camelia_home().join("desktop.json");
     let raw = std::fs::read_to_string(path).ok()?;
-    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    serde_json::from_str(strip_utf8_bom(&raw)).ok()
+}
+
+fn cli_from_desktop_config() -> Option<std::path::PathBuf> {
+    let value = read_desktop_json()?;
     let cli = value.get("cli")?.as_str()?.trim();
     let candidate = std::path::PathBuf::from(cli);
-    if candidate.is_file() { Some(candidate) } else { None }
+    if candidate.is_file() {
+        Some(candidate)
+    } else {
+        None
+    }
 }
 
 fn config_path() -> std::path::PathBuf {
@@ -297,9 +313,7 @@ fn providers_from_config(map: &serde_json::Map<String, serde_json::Value>) -> Ve
 
 /// Read optional `node` path from `~/.camelia/desktop.json`.
 fn node_from_desktop_config() -> Option<String> {
-    let path = camelia_home().join("desktop.json");
-    let raw = std::fs::read_to_string(path).ok()?;
-    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let value = read_desktop_json()?;
     let node = value.get("node")?.as_str()?.trim();
     let candidate = std::path::PathBuf::from(node);
     if candidate.is_file() {
@@ -342,11 +356,48 @@ fn find_fnm_node22() -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+/// Prefer nvm-windows Node 22 (`%NVM_HOME%\v22.*\node.exe`).
+fn find_nvm_node22() -> Option<String> {
+    let mut roots: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(home) = std::env::var("NVM_HOME") {
+        roots.push(std::path::PathBuf::from(home));
+    }
+    if let Ok(user) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+        roots.push(std::path::Path::new(&user).join(r"AppData\Roaming\nvm"));
+        roots.push(std::path::Path::new(&user).join(r".nvm"));
+    }
+    roots.push(std::path::PathBuf::from(r"C:\Users\Public\nvm"));
+    roots.push(std::path::PathBuf::from(r"d:\app\nvm"));
+    roots.push(std::path::PathBuf::from(r"D:\app\nvm"));
+
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    for root in roots {
+        let Ok(entries) = std::fs::read_dir(&root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !(name.starts_with("v22") || name.starts_with("22.")) {
+                continue;
+            }
+            let exe = entry.path().join("node.exe");
+            if exe.is_file() {
+                candidates.push(exe);
+            }
+        }
+    }
+    candidates.sort();
+    candidates
+        .pop()
+        .map(|p| p.to_string_lossy().to_string())
+}
+
 /// Find node executable.
 ///
 /// Order: `CAMELIA_NODE` → `~/.camelia/desktop.json` `node` → fnm Node 22 →
-/// Program Files → PATH. Preferring Node 22 avoids ABI mismatches when
-/// `better-sqlite3` was built against the repo `.nvmrc` toolchain.
+/// nvm-windows Node 22 → Program Files → PATH. Preferring Node 22 avoids ABI
+/// mismatches when `better-sqlite3` was built against the repo `.nvmrc` toolchain.
 fn find_node() -> Option<String> {
     if let Ok(raw) = std::env::var("CAMELIA_NODE") {
         let candidate = std::path::PathBuf::from(raw.trim());
@@ -358,6 +409,9 @@ fn find_node() -> Option<String> {
         return Some(candidate);
     }
     if let Some(candidate) = find_fnm_node22() {
+        return Some(candidate);
+    }
+    if let Some(candidate) = find_nvm_node22() {
         return Some(candidate);
     }
     let preferred = r"C:\Program Files\nodejs\node.exe";
@@ -373,6 +427,52 @@ fn find_node() -> Option<String> {
         }
     }
     None
+}
+
+/// Remediation copy shared by ABI probe failures and post-mortem log scans.
+fn abi_mismatch_hint(detail: &str) -> String {
+    format!(
+        "Node/better-sqlite3 ABI mismatch ({detail}). Use Node 22 per .nvmrc: set CAMELIA_NODE or ~/.camelia/desktop.json \"node\" to that node.exe (UTF-8, no BOM), or run `pnpm rebuild better-sqlite3` under the same Node the desktop will spawn. See engine.log."
+    )
+}
+
+/// Quick load of better-sqlite3 under the chosen Node before `serve`.
+/// Failures become a clear `engineSpawnError` instead of a silent fixture offline.
+fn probe_better_sqlite3(node: &str, project_root: &std::path::Path) -> Result<(), String> {
+    let script = concat!(
+        "try {",
+        " const path = require('path');",
+        " const mod = path.join(process.cwd(), 'packages', 'core', 'node_modules', 'better-sqlite3');",
+        " const Database = require(mod);",
+        " const db = new Database(':memory:');",
+        " db.exec('select 1');",
+        " db.close();",
+        " process.stdout.write('ok');",
+        "} catch (e) {",
+        " process.stderr.write(String(e && e.message ? e.message : e));",
+        " process.exit(2);",
+        "}"
+    );
+    let output = Command::new(node)
+        .arg("-e")
+        .arg(script)
+        .current_dir(project_root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("could not probe better-sqlite3: {e}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let err = String::from_utf8_lossy(&output.stderr);
+    let err = err.trim();
+    if err.contains("NODE_MODULE_VERSION") || err.contains("compiled against a different Node") {
+        return Err(abi_mismatch_hint(err.lines().next().unwrap_or(err)));
+    }
+    if err.is_empty() {
+        return Err("better-sqlite3 probe failed (no stderr) — check Node version vs .nvmrc".into());
+    }
+    Err(format!("better-sqlite3 probe failed: {err}"))
 }
 
 /// Spawn `camelia serve --port=0 --json` and return (child, engine_url, session_id).
@@ -408,6 +508,14 @@ fn spawn_engine() -> Result<(Child, String, String), String> {
         return Err(msg);
     };
     dbg.push_str(&format!("project_root: {:?}\n", project_root));
+
+    if let Err(err) = probe_better_sqlite3(&node, &project_root) {
+        dbg.push_str(&format!("sqlite probe: {err}\n"));
+        let _ = std::fs::write(&dbg_path, &dbg);
+        log_line("boot", &err);
+        return Err(err);
+    }
+    dbg.push_str("sqlite probe: ok\n");
 
     // Truncate the log on each fresh engine start so it does not grow forever.
     let _ = std::fs::write(engine_log_path(), format!("--- engine started {} ---\n", chrono_local_now()));
@@ -482,7 +590,14 @@ fn spawn_engine() -> Result<(Child, String, String), String> {
     }
 
     let Some(url) = engine_url else {
-        let msg = "engine exited before ready JSON (often Node ABI / better-sqlite3 mismatch — see engine.log)".to_string();
+        let log_tail = std::fs::read_to_string(engine_log_path()).unwrap_or_default();
+        let msg = if log_tail.contains("NODE_MODULE_VERSION")
+            || log_tail.contains("compiled against a different Node")
+        {
+            abi_mismatch_hint("engine crashed while loading SQLite")
+        } else {
+            "engine exited before ready JSON — see ~/.camelia/logs/engine.log (not a live connection; fixture offline is intentional until spawn succeeds)".to_string()
+        };
         dbg.push_str(&format!("{msg}\n"));
         let _ = std::fs::write(&dbg_path, &dbg);
         let _ = child.kill();
@@ -862,7 +977,7 @@ fn main() {
             });
             Ok(())
         })
-        .on_window_event(move |window, event| {
+        .on_window_event(move |_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 if let Some(mut child) = engine_child.lock().unwrap().take() {
                     let _ = child.kill();
@@ -883,4 +998,21 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run the Camelia desktop shell");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_utf8_bom;
+
+    #[test]
+    fn strip_utf8_bom_removes_bom_only() {
+        assert_eq!(strip_utf8_bom("{\"a\":1}"), "{\"a\":1}");
+        assert_eq!(strip_utf8_bom("\u{feff}{\"cli\":\"x\"}"), "{\"cli\":\"x\"}");
+    }
+
+    #[test]
+    fn strip_utf8_bom_keeps_content() {
+        let raw = "{\n  \"node\": \"C:\\\\n\\\\node.exe\"\n}\n";
+        assert_eq!(strip_utf8_bom(raw), raw);
+    }
 }

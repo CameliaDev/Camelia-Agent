@@ -43,7 +43,7 @@ export interface CameliaConfig {
 /** The three free paths, in fallback order (whitepaper appendix A, rule 9). */
 
 /** Accept `host:port` or full URL; always return an http(s) origin without trailing slash. */
-function normalizeOllamaHost(raw: string | undefined): string {
+export function normalizeOllamaHost(raw: string | undefined): string {
   const fallback = "http://localhost:11434";
   const value = (raw ?? "").trim();
   if (!value) return fallback;

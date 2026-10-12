@@ -15,7 +15,7 @@
 `qwen2.5-coder:7b` Q4_K_M，**4,683,073,536 字节**（字节数与官方发布完全一致）。
 
 因`registry.ollama.ai` 在本机 TLS 握手超时，改从 `hf-mirror.com` 直接下载 GGUF
-再用 Modelfile 导入。见 `docs/OLLAMA-SETUP.md`。
+再用 Modelfile 导入（步骤见下文「复现命令」与仓库 `scripts/ollama-*.mjs`）。
 
 ## 实测结果
 
@@ -70,6 +70,10 @@ const tools = toolsSuppressed ? undefined : input.tools;
 
 实测温度 55°C，显存 4191/6144 MiB，系统内存尚余 2.2 GB——均在安全范围。
 
+## Node 版本
+
+Camelia 仓库锁定 **Node 22**（`.nvmrc`）。用 CLI/`doctor` 前请 `nvm use` / `fnm use`，并保证桌面壳的 `CAMELIA_NODE` / `desktop.json.node` 也是 Node 22，否则 `better-sqlite3` 可能在 spawn 时 ABI 崩溃（表现为 Offline，不是 Ollama 本身坏了）。
+
 ## 复现命令
 
 ```bash
@@ -80,5 +84,7 @@ node scripts/ollama-serve.mjs
 node scripts/probe-tools.mjs qwen2.5-coder:7b
 
 # doctor 确认 Camelia 识别
+# host:port 亦可（Camelia 会补 http://）；完整 URL 同样支持
 OLLAMA_HOST=127.0.0.1:11434 node packages/cli/dist/bin.js doctor
+# 或: OLLAMA_HOST=http://127.0.0.1:11434 ...
 ```
