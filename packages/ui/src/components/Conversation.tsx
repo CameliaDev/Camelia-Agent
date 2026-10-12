@@ -17,6 +17,7 @@ import { count, ms } from '../lib/format.js';
 import { makeCommand } from '../state/store.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
+import { canIntervene, interveneUnavailableReason } from '../window/capabilities.js';
 import { ActivityBar } from './ActivityBar.js';
 import { PlanReview } from './PlanReview.js';
 import { ApprovalCard, FailureCard, NoticeBanner } from './Reliability.js';
@@ -216,9 +217,12 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
 }
 
 export function Conversation(): ReactNode {
-  const { snapshot, status, transportError, dispatch } = useUiState();
+  const { snapshot, status, transportError, lastCommandError, dispatch } = useUiState();
+  const clearCommandError = useUiStore((s) => s.clearCommandError);
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const rollbackOk = canIntervene('rollback_step');
+  const degradeOk = canIntervene('select_provider');
   const [steering, setSteering] = useState(false);
   const [steerText, setSteerText] = useState('');
   const [center, setCenter] = useState<'plan' | 'conversation'>('conversation');
@@ -231,6 +235,7 @@ export function Conversation(): ReactNode {
 
   const rollback = (stepIdx: number, checkpointId: Id): void => {
     void stepIdx;
+    if (!canIntervene('rollback_step')) return;
     dispatch(makeCommand('rollback_step', { taskId: task?.id ?? '', checkpointId }));
   };
 
@@ -244,6 +249,13 @@ export function Conversation(): ReactNode {
         icon="camellia"
         title={tr('welcome.title')}
         hint={tr('welcome.body')}
+        action={
+          <ul className="mt-1 space-y-1 text-left text-[11.5px] text-ink-3" data-welcome-checklist>
+            <li>· {tr('welcome.check.workspace')}</li>
+            <li>· {tr('welcome.check.doctor')}</li>
+            <li>· {tr('welcome.check.model')}</li>
+          </ul>
+        }
       />
     );
   }
@@ -318,6 +330,19 @@ export function Conversation(): ReactNode {
           </form>
         ) : null}
 
+        {lastCommandError ? (
+          <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-[12px] text-warn" data-command-error>
+            <div className="flex items-start gap-2">
+              <span className="min-w-0 flex-1 font-mono text-[11.5px]">
+                {lastCommandError.type}: {lastCommandError.error}
+              </span>
+              <button type="button" className="shrink-0 text-[11px] underline" onClick={() => clearCommandError()}>
+                {tr('commandError.dismiss')}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {task.notices.length ? (
           <div className="space-y-2">
             {task.notices.map((notice, i) => (
@@ -342,6 +367,21 @@ export function Conversation(): ReactNode {
                 key={`${failure.at}-${i}`}
                 failure={failure}
                 checkpoint={checkpoint}
+                canRollback={rollbackOk}
+                canDegrade={degradeOk}
+                rollbackUnavailableReason={interveneUnavailableReason('rollback_step') || tr('intervene.rollbackUnavailable')}
+                degradeUnavailableReason={interveneUnavailableReason('select_provider') || tr('intervene.degradeUnavailable')}
+                labels={{
+                  recoverable: tr('failure.recoverable'),
+                  exhausted: tr('failure.exhausted'),
+                  attempts: tr('failure.attempts'),
+                  strategy: tr('failure.strategy'),
+                  suggested: tr('failure.suggested'),
+                  checkpoint: tr('failure.checkpoint'),
+                  retry: tr('failure.retry'),
+                  degrade: tr('failure.degrade'),
+                  rollback: tr('failure.rollback'),
+                }}
                 onRetry={() =>
                   dispatch(
                     makeCommand('intervene_goal', {
@@ -350,8 +390,14 @@ export function Conversation(): ReactNode {
                     }),
                   )
                 }
-                onDegrade={() => dispatch(makeCommand('select_provider', { providerId: 'ollama', model: 'qwen2.5-coder:7b' }))}
-                onRollback={() => checkpoint && rollback(checkpoint.stepIdx, checkpoint.id)}
+                onDegrade={() => {
+                  if (!degradeOk) return;
+                  dispatch(makeCommand('select_provider', { providerId: 'ollama', model: 'qwen2.5-coder:7b' }));
+                }}
+                onRollback={() => {
+                  if (!rollbackOk || !checkpoint) return;
+                  rollback(checkpoint.stepIdx, checkpoint.id);
+                }}
               />
             ))}
           </div>

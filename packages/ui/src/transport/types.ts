@@ -57,6 +57,12 @@ export interface TransportHandlers {
    */
   onError?: (message: string) => void;
   /**
+   * A command was rejected by the engine (`CommandAck.ok === false`).
+   * Distinct from `onError`: rejected intents (rollback stub, etc.) must not
+   * look like a dead transport. Pending `query()` callers are rejected too.
+   */
+  onCommandRejected?: (commandId: string, type: string, error: string) => void;
+  /**
    * Response to a *query* command (memory panel, Iteration 22). The engine answers
    * reads on the same command envelope (`CommandAck.data`); the transport routes
    * the answer back here so the UI can render engine data, never fixture data for

@@ -147,7 +147,8 @@ export class SseTransport implements Transport {
       .then(async (response) => {
         const ack = (await response.json().catch(() => ({ ok: response.ok }))) as CommandAck;
         if (!ack.ok) {
-          this.handlers?.onError?.(ack.error ?? `command ${command.type} was rejected`);
+          const error = ack.error ?? `command ${command.type} was rejected`;
+          this.handlers?.onCommandRejected?.(command.commandId, command.type, error);
           return;
         }
         // Every accepted command answers through the result channel (Iteration 22):

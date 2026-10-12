@@ -87,6 +87,9 @@ export interface UiState {
   lastCommand?: Command;
   /** Fatal transport problem (distinct from a task failure). */
   transportError?: string;
+  /** Last rejected command (engine said no). Not a dead transport. */
+  lastCommandError?: { type: string; error: string; at: number };
+  clearCommandError: () => void;
   /**
    * The theme in force, plus any tokens it asked for that were refused.
    *
@@ -157,6 +160,7 @@ export function createUiStore(transport: Transport): UiStore {
       ? { activeTheme: { id: bootPrefs.themeId, label: themeLabel(bootPrefs.themeId), rejected: bootTheme.rejected } }
       : {}),
     setSettingsOpen: (open) => set({ settingsOpen: open }),
+    clearCommandError: () => set({ lastCommandError: undefined }),
     setLocalPrefs: (patch) => {
       set((state) => {
         const next = sanitizeLocalPrefs({ ...state.localPrefs, ...patch });
@@ -295,6 +299,14 @@ export function createUiStore(transport: Transport): UiStore {
       },
       onEvent: applyEvent,
       onError: (message) => store.setState({ transportError: message }),
+      onCommandRejected: (commandId, type, error) => {
+        const entry = pending.get(commandId);
+        if (entry) {
+          pending.delete(commandId);
+          entry.reject(new Error(error));
+        }
+        store.setState({ lastCommandError: { type, error, at: Date.now() } });
+      },
       onCommandResult: (commandId, data) => {
         const entry = pending.get(commandId);
         if (!entry) return;
