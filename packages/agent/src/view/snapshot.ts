@@ -602,6 +602,8 @@ function summarise(event: DomainEvent): string {
       return `downgrade ${String(p.memoryId)} (${String(p.reason)})`;
     case 'memory.promoted':
       return `promote ${String(p.memoryId)} → long (${String(p.reason)})`;
+    case 'memory.critiqued':
+      return `记忆批判: ${String(p.discounted)} 条跨会话降权, ${String(p.kept)} 条保留`;
     case 'tool.usage_injected':
       return `${String(p.name)} usage injected`;
     default:
@@ -1194,6 +1196,7 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
     case 'memory.reactivated':
     case 'memory.downgraded':
     case 'memory.promoted':
+    case 'memory.critiqued':
     case 'tool.usage_injected':
       return withTimeline(snapshot, event);
 

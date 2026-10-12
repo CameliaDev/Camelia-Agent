@@ -360,7 +360,7 @@ function buildScript(): Script {
   add('tool.finished', { call: call({ ...c02, status: 'ok', output: { matches: 6, files: ['scripts/acceptance-report.ts'] }, durationMs: 22, at: 350 }) }, 350);
   add('verify.started', { stepId: 'stp_0', points: 2 }, 360);
   add('verify.result', { verdict: verdict('stp_0', 'pass', 'main.ts and the report renderer both located', 380) }, 380);
-  add('step.completed', { step: withStatus(PLANNED_STEPS[0]!, 'done', 240, 390), result: { stepId: 'stp_0', status: 'ok', toolCalls: [], summary: 'Located both files.', artifacts: [artifact('report', 'notes/cli-map.md', 'b1c9', 1180)] } }, 390);
+  add('step.completed', { step: withStatus(PLANNED_STEPS[0]!, 'done', 240, 390), score: 3, result: { stepId: 'stp_0', status: 'ok', toolCalls: [], summary: 'Located both files.', artifacts: [artifact('report', 'notes/cli-map.md', 'b1c9', 1180)] } }, 390);
   add('checkpoint.created', { checkpoint: checkpoint('ckp_01', 0, 'step 0 done — CLI map recorded', 395) }, 395);
   add('task.progress', { progress: 0.14, currentStepIdx: 0, totalSteps: 5 }, 400);
 
@@ -374,7 +374,7 @@ function buildScript(): Script {
   add('tool.finished', { call: call({ ...c03, status: 'ok', output: { path: 'packages/cli/src/main.ts', added: 6, removed: 0, hash: 'a91f' }, durationMs: 64, at: 520 }) }, 520);
   add('verify.started', { stepId: 'stp_1', points: 1 }, 540);
   add('verify.result', { verdict: verdict('stp_1', 'pass', 'main.ts now parses --json and returns early', 560) }, 560);
-  add('step.completed', { step: withStatus(PLANNED_STEPS[1]!, 'done', 420, 570), result: { stepId: 'stp_1', status: 'ok', toolCalls: [], summary: 'Flag parsed.', artifacts: [artifact('diff', 'packages/cli/src/main.ts', 'a91f', 210)] } }, 570);
+  add('step.completed', { step: withStatus(PLANNED_STEPS[1]!, 'done', 420, 570), score: 3, result: { stepId: 'stp_1', status: 'ok', toolCalls: [], summary: 'Flag parsed.', artifacts: [artifact('diff', 'packages/cli/src/main.ts', 'a91f', 210)] } }, 570);
   add('checkpoint.created', { checkpoint: checkpoint('ckp_02', 1, 'step 1 done — flag parsed', 575) }, 575);
   add('task.progress', { progress: 0.29, currentStepIdx: 1, totalSteps: 5 }, 580);
 
@@ -435,7 +435,7 @@ function buildScript(): Script {
 
   add('verify.started', { stepId: 'stp_2', points: 2 }, 880);
   add('verify.result', { verdict: verdict('stp_2', 'pass', 'renderer branches on format and still defaults to the table', 900) }, 900);
-  add('step.completed', { step: withStatus(PLANNED_STEPS[2]!, 'done', 600, 910), result: { stepId: 'stp_2', status: 'ok', toolCalls: [], summary: 'Renderer threaded.', artifacts: [artifact('diff', 'scripts/acceptance-report.ts', '7c02', 260)] } }, 910);
+  add('step.completed', { step: withStatus(PLANNED_STEPS[2]!, 'done', 600, 910), score: 3, result: { stepId: 'stp_2', status: 'ok', toolCalls: [], summary: 'Renderer threaded.', artifacts: [artifact('diff', 'scripts/acceptance-report.ts', '7c02', 260)] } }, 910);
   add('checkpoint.created', { checkpoint: checkpoint('ckp_03', 2, 'step 2 done — renderer threaded', 915) }, 915);
   add('task.progress', { progress: 0.57, currentStepIdx: 2, totalSteps: 5 }, 920);
 
@@ -476,7 +476,7 @@ function buildScript(): Script {
   add('reliability.hallucination_blocked', { claim: 'All acceptance points verified', reason: 'step 3 had no verdict yet — the claim was downgraded to unverified' }, 1390);
   add('verify.started', { stepId: 'stp_3', points: 1 }, 1400);
   add('verify.result', { verdict: verdict('stp_3', 'pass', 'cli e2e suite: 7/7 green after the recovery', 1420) }, 1420);
-  add('step.completed', { step: withStatus(PLANNED_STEPS[3]!, 'done', 940, 1430), result: { stepId: 'stp_3', status: 'ok', toolCalls: [], summary: 'Tests extended and green.', artifacts: [artifact('diff', 'tests/acceptance/cli.e2e.test.ts', '3fa1', 180)] } }, 1430);
+  add('step.completed', { step: withStatus(PLANNED_STEPS[3]!, 'done', 940, 1430), score: 3, result: { stepId: 'stp_3', status: 'ok', toolCalls: [], summary: 'Tests extended and green.', artifacts: [artifact('diff', 'tests/acceptance/cli.e2e.test.ts', '3fa1', 180)] } }, 1430);
   add('checkpoint.created', { checkpoint: checkpoint('ckp_04', 3, 'step 3 done — tests green after recovery', 1435) }, 1435);
   add('task.progress', { progress: 0.71, currentStepIdx: 3, totalSteps: 5 }, 1440);
 
@@ -492,7 +492,7 @@ function buildScript(): Script {
   add('tool.finished', { call: call({ ...c11, status: 'ok', output: { exitCode: 0, suites: 9, tests: 506, passed: 506 }, durationMs: 2280, at: 1720 }) }, 1720);
   add('verify.started', { stepId: 'stp_4', points: 1 }, 1740);
   add('verify.result', { verdict: verdict('stp_4', 'pass', 'workspace suite green: 506/506', 1770) }, 1770);
-  add('step.completed', { step: withStatus(PLANNED_STEPS[4]!, 'done', 1460, 1780), result: { stepId: 'stp_4', status: 'ok', toolCalls: [], summary: 'No regressions.', artifacts: [artifact('stdout', 'logs/workspace-suite.txt', '9b30', 4210)] } }, 1780);
+  add('step.completed', { step: withStatus(PLANNED_STEPS[4]!, 'done', 1460, 1780), score: 3, result: { stepId: 'stp_4', status: 'ok', toolCalls: [], summary: 'No regressions.', artifacts: [artifact('stdout', 'logs/workspace-suite.txt', '9b30', 4210)] } }, 1780);
   add('task.progress', { progress: 1, currentStepIdx: 4, totalSteps: 5 }, 1785);
   add('task.status_changed', { from: 'executing', to: 'verifying', reason: 'all steps complete' }, 1790);
   add('task.phase_changed', { phase: 'verifying' }, 1792);

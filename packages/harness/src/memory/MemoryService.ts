@@ -177,11 +177,28 @@ export class MemoryService {
    *
    * Items marked known-bad (`correctness === 0`, Iteration 21 downgrades) are
    * excluded: a disproved memory must not keep being injected into decisions.
+   *
+   * MemHarness-style critique: after retrieval, each candidate is scored for
+   * applicability to the current session. Cross-session memories are discounted
+   * (they may not apply under the current state), and the discounted order is
+   * emitted so the caller can prefer same-session, still-valid experience.
    */
   async recall(query: MemoryQuery): Promise<MemoryItem[]> {
     const candidates = await this.store.searchMemories(query);
-    const items = candidates.filter((item) => (item.correctness ?? 0.5) !== 0);
     const now = this.clock.now();
+    const currentSessionId = query.sessionId;
+    const critiqued = candidates
+      .filter((item) => (item.correctness ?? 0.5) !== 0)
+      .map((item) => {
+        // Cross-session discount: a memory formed in a different session may
+        // not apply to the current state (MemHarness's "source state mismatch").
+        const crossSession = currentSessionId != null && item.sessionId != null && item.sessionId !== currentSessionId;
+        const applicability = crossSession ? 0.7 : 1.0;
+        return { item, crossSession, applicability };
+      });
+    // Sort by discounted value so the caller injects the most applicable first.
+    critiqued.sort((a, b) => b.applicability - a.applicability);
+    const items = critiqued.map((c) => c.item);
     for (const item of items) {
       const hits = (item.hits ?? 0) + 1;
       await this.store.updateMemory(item.id, {
@@ -204,6 +221,14 @@ export class MemoryService {
       { count: items.length, ids: items.map((item) => item.id), noise, provenance },
       this.meta,
     );
+    const discountedCount = critiqued.filter((c) => c.crossSession).length;
+    if (discountedCount > 0) {
+      this.bus.emit(
+        'memory.critiqued',
+        { discounted: discountedCount, kept: items.length - discountedCount },
+        this.meta,
+      );
+    }
     return items;
   }
 

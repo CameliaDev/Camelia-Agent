@@ -173,6 +173,7 @@ export interface DomainEventMap {
    * (`promoteMemory`, Iteration 22).
    */
   'memory.promoted': { memoryId: Id; layer: 'long'; reason: string };
+  'memory.critiqued': { discounted: number; kept: number };
 
   // ---- Tools (Iteration 20 — three-layer tool knowledge) -------------------
   'tool.usage_injected': { name: string; chars: number };
