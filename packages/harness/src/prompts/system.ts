@@ -10,6 +10,8 @@
 import type { ProviderCapabilities } from '@camelia/core';
 import type { ClarifiedIntent, Step } from '@camelia/core';
 import type { ProjectProfile } from '../profile/project-profile.js';
+import { looksLikeMathModeling, MATH_MODELING_STEP_TEMPLATE } from './math-modeling.js';
+import { matchModels } from './math-models.js';
 
 /** Granularity guidance derived from provider capability (whitepaper §5.2). */
 export interface GranularityProfile {
@@ -156,6 +158,21 @@ export function plannerSystemPrompt(options: PlannerPromptOptions): string {
       lines.push('  forbidden (never do these):', ...profile.forbidden.map((item) => `    - ${item}`));
     }
   }
+  // Math-modeling mode: inject pipeline + matched model suggestions.
+  if (looksLikeMathModeling(intent.goal)) {
+    const matched = matchModels(intent.goal);
+    lines.push(
+      '',
+      '【数学建模模式】按以下步骤规划（不要跳步）：',
+      ...MATH_MODELING_STEP_TEMPLATE.map((s, i) => `  ${i + 1}. ${s}`),
+      '',
+      '计算必须用 math.exec 工具调用 Python（sympy/numpy/scipy/matplotlib），禁止手算。',
+    );
+    if (matched.length > 0) {
+      lines.push('可能适用的模型：', ...matched.map((m) => `  - ${m.name}: ${m.formulation}`));
+    }
+  }
+
   if (workspaceSummary) lines.push('', 'Workspace listing (authoritative — do not invent other paths):', workspaceSummary);
   if (revision) {
     lines.push(
