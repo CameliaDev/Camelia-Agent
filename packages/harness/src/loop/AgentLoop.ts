@@ -352,7 +352,7 @@ export class AgentLoop {
           step.status = 'failed';
           step.endedAt = this.ctx.ports.clock.now();
           await this.persistStep(step);
-          this.ctx.infra.bus.emit('step.failed', { step, error: verdict.reason }, meta);
+          this.ctx.infra.bus.emit('step.failed', { step, error: verdict.reason, score: -3 }, meta);
           // Undo the failed step's mutations before replanning, so the revised
           // plan starts from a clean workspace and its own checkpoint mark is honest.
           await this.rollback(checkpointId);
@@ -370,7 +370,7 @@ export class AgentLoop {
         step.status = 'failed';
         step.endedAt = this.ctx.ports.clock.now();
         await this.persistStep(step);
-        this.ctx.infra.bus.emit('step.failed', { step, error: verdict.reason }, meta);
+        this.ctx.infra.bus.emit('step.failed', { step, error: verdict.reason, score: -3 }, meta);
         // Roll the step back so the workspace is not left half-mutated.
         await this.rollback(checkpointId);
         await this.applyMemoryOutcomeFeedback(false); // recipe disproved by outcome
@@ -388,7 +388,8 @@ export class AgentLoop {
       step.status = 'done';
       step.endedAt = this.ctx.ports.clock.now();
       await this.persistStep(step);
-      this.ctx.infra.bus.emit('step.completed', { step, result }, meta);
+      const stepScore = verdict.status === 'pass' ? 3 : verdict.status === 'unknown' ? 1 : 1;
+      this.ctx.infra.bus.emit('step.completed', { step, result, score: stepScore }, meta);
       completedWeight += step.weight;
       stepsCompleted += 1;
       this.emitProgress(plan, completedWeight / totalWeight);
@@ -562,7 +563,7 @@ export class AgentLoop {
         step.status = 'failed';
         step.endedAt = this.ctx.ports.clock.now();
         await this.persistStep(step);
-        this.ctx.infra.bus.emit('step.failed', { step, error: verdict.reason }, meta);
+        this.ctx.infra.bus.emit('step.failed', { step, error: verdict.reason, score: -3 }, meta);
         // The revised plan still failed: leave the workspace as it was before the
         // step rather than half-mutated (whitepaper §3.11, metric M6).
         await this.rollback(checkpointId);
@@ -574,7 +575,8 @@ export class AgentLoop {
       step.status = 'done';
       step.endedAt = this.ctx.ports.clock.now();
       await this.persistStep(step);
-      this.ctx.infra.bus.emit('step.completed', { step, result }, meta);
+      const stepScore = verdict.status === 'pass' ? 3 : verdict.status === 'unknown' ? 1 : 1;
+      this.ctx.infra.bus.emit('step.completed', { step, result, score: stepScore }, meta);
       stepsCompleted += 1;
       completedWeight += step.weight;
       this.emitProgress(plan, completedWeight / totalWeight);

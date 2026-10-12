@@ -80,8 +80,8 @@ export interface DomainEventMap {
   // ---- Steps ----------------------------------------------------------------
   'step.started': { step: Step };
   'routing.chosen': { stepId: Id; model: string; line: string; estimatedUsd: number; tokens: number };
-  'step.completed': { step: Step; result: StepResult };
-  'step.failed': { step: Step; error: string };
+  'step.completed': { step: Step; result: StepResult; score: number };
+  'step.failed': { step: Step; error: string; score: number };
   'step.skipped': { step: Step; reason: string };
 
   // ---- Tools ----------------------------------------------------------------

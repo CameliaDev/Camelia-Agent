@@ -254,7 +254,7 @@ describe('list_recall_history guardrails (Iteration 26)', () => {
     const ack = await postCommand(address.url, { type: 'list_recall_histor', payload: {}, ...CMD });
     expect(ack.status).toBe(409);
     expect(ack.body.ok).toBe(false);
-    expect(ack.body.error).toContain('unsupported command');
+    expect(ack.body.error).toContain('不支持的命令');
   });
 
   it('rejects a non-string memoryId with 409', async () => {
@@ -263,7 +263,7 @@ describe('list_recall_history guardrails (Iteration 26)', () => {
     runtimes.push(runtime);
     const ack = await postCommand(address.url, { type: 'list_recall_history', payload: { memoryId: 42 }, ...CMD });
     expect(ack.status).toBe(409);
-    expect(ack.body.error).toContain('memoryId must be a string');
+    expect(ack.body.error).toContain('memoryId 必须是字符串');
   });
 
   it('rejects a non-finite since with 409', async () => {
@@ -272,7 +272,7 @@ describe('list_recall_history guardrails (Iteration 26)', () => {
     runtimes.push(runtime);
     const ack = await postCommand(address.url, { type: 'list_recall_history', payload: { since: 'soon' }, ...CMD });
     expect(ack.status).toBe(409);
-    expect(ack.body.error).toContain('since must be a finite timestamp');
+    expect(ack.body.error).toContain('since 必须是有效时间戳');
   });
 
   it('rejects an out-of-range limit with 409', async () => {
@@ -281,7 +281,7 @@ describe('list_recall_history guardrails (Iteration 26)', () => {
     runtimes.push(runtime);
     const zero = await postCommand(address.url, { type: 'list_recall_history', payload: { limit: 0 }, ...CMD });
     expect(zero.status).toBe(409);
-    expect(zero.body.error).toContain('limit must be an integer');
+    expect(zero.body.error).toContain('limit 必须是');
     const fraction = await postCommand(address.url, { type: 'list_recall_history', payload: { limit: 2.5 }, ...CMD });
     expect(fraction.status).toBe(409);
   });

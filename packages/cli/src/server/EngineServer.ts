@@ -321,70 +321,72 @@ export class EngineServer {
       case 'approve_tool':
         return this.options.broker.settle(command.payload.callId, true)
           ? { ok: true }
-          : { ok: false, error: `no pending approval for call ${command.payload.callId}` };
+          : { ok: false, error: `没有待审批的调用: ${command.payload.callId}` };
       case 'deny_tool':
         return this.options.broker.settle(command.payload.callId, false)
           ? { ok: true }
-          : { ok: false, error: `no pending approval for call ${command.payload.callId}` };
+          : { ok: false, error: `没有待审批的调用: ${command.payload.callId}` };
       case 'approve_plan':
         return this.options.runtime.approvePlan(command.payload.taskId, command.payload.scope)
           ? { ok: true }
-          : { ok: false, error: `no plan is waiting for ${command.payload.taskId}` };
+          : { ok: false, error: `任务 ${command.payload.taskId} 没有待审批的计划` };
       case 'reject_plan':
         return this.options.runtime.rejectPlan(command.payload.taskId, command.payload.reason)
           ? { ok: true }
-          : { ok: false, error: `no plan is waiting for ${command.payload.taskId}` };
+          : { ok: false, error: `任务 ${command.payload.taskId} 没有待审批的计划` };
       case 'edit_plan':
         return this.options.runtime.editPlan(command.payload.taskId, command.payload.edits)
           ? { ok: true }
-          : { ok: false, error: `no plan is waiting for ${command.payload.taskId}` };
+          : { ok: false, error: `任务 ${command.payload.taskId} 没有待审批的计划` };
       case 'set_plan_approval':
         this.options.runtime.setPlanApproval(command.payload.mode);
         return { ok: true };
       case 'pause_task':
         return this.options.runtime.pause(command.payload.reason)
           ? { ok: true }
-          : { ok: false, error: 'no task is running' };
+          : { ok: false, error: '当前没有运行中的任务' };
       case 'cancel_task':
         return this.options.runtime.cancel(command.payload.reason)
           ? { ok: true }
-          : { ok: false, error: 'no task is running' };
+          : { ok: false, error: '当前没有运行中的任务' };
       case 'intervene_goal':
         return this.options.runtime.intervene(command.payload.instruction)
           ? { ok: true }
-          : { ok: false, error: 'no task is running to steer' };
+          : { ok: false, error: '当前没有运行中的任务可以引导' };
       case 'rollback_step': {
         const ok = await this.options.runtime.rollback(command.payload.checkpointId);
         return ok
           ? { ok: true }
-          : { ok: false, error: 'no task is running to roll back' };
+          : { ok: false, error: '当前没有运行中的任务可以回滚' };
       }
       case 'select_provider': {
         const ok = this.options.runtime.selectProvider(command.payload.providerId, command.payload.model);
         return ok
           ? { ok: true }
-          : { ok: false, error: `provider not in chain: ${String(command.payload.providerId)}` };
+          : { ok: false, error: `模型不在链中: ${String(command.payload.providerId)}` };
       }
       case 'new_session': {
         const created = await this.options.runtime.newSession();
         return { ok: true, data: created };
       }
-      case 'select_session':
-        // The engine keeps its own session for the in-flight task; this ack
-        // tells the UI to re-open its SSE stream with ?sessionId=<id>.
-        return { ok: true };
+      case 'select_session': {
+        const ok = await this.options.runtime.selectSession(command.payload.sessionId);
+        return ok
+          ? { ok: true }
+          : { ok: false, error: `会话不存在: ${String(command.payload.sessionId)}` };
+      }
 
       // ---- memory panel (Iteration 22) -----------------------------------
       case 'list_memories': {
         const { layer } = command.payload;
         if (layer !== undefined && !isMemoryLayer(layer)) {
-          return { ok: false, error: `invalid memory layer: ${String(layer)}` };
+          return { ok: false, error: `无效的记忆层: ${String(layer)}` };
         }
         const items = await this.options.runtime.memoryPanel.list(layer);
         return { ok: true, data: items };
       }
       case 'get_memory': {
-        if (!command.payload.memoryId) return { ok: false, error: 'memoryId is required' };
+        if (!command.payload.memoryId) return { ok: false, error: '缺少 memoryId 参数' };
         const item = await this.options.runtime.memoryPanel.get(command.payload.memoryId);
         return { ok: true, data: item };
       }
@@ -397,21 +399,21 @@ export class EngineServer {
         return { ok: true, data: items };
       }
       case 'mark_memory_incorrect': {
-        if (!command.payload.memoryId) return { ok: false, error: 'memoryId is required' };
+        if (!command.payload.memoryId) return { ok: false, error: '缺少 memoryId 参数' };
         return this.options.runtime.memoryPanel.markIncorrect(
           command.payload.memoryId,
-          command.payload.reason ?? 'user-correction',
+          command.payload.reason ?? '用户纠正',
         );
       }
       case 'forget_memory': {
-        if (!command.payload.memoryId) return { ok: false, error: 'memoryId is required' };
+        if (!command.payload.memoryId) return { ok: false, error: '缺少 memoryId 参数' };
         return this.options.runtime.memoryPanel.forget(
           command.payload.memoryId,
-          command.payload.reason ?? 'manual',
+          command.payload.reason ?? '手动删除',
         );
       }
       case 'promote_memory': {
-        if (!command.payload.memoryId) return { ok: false, error: 'memoryId is required' };
+        if (!command.payload.memoryId) return { ok: false, error: '缺少 memoryId 参数' };
         return this.options.runtime.memoryPanel.promote(command.payload.memoryId);
       }
       case 'get_memory_health': {
@@ -423,16 +425,16 @@ export class EngineServer {
         // the panel must not silently ignore a bad query.
         const { memoryId, sessionId, since, limit } = command.payload;
         if (memoryId !== undefined && typeof memoryId !== 'string') {
-          return { ok: false, error: 'memoryId must be a string' };
+          return { ok: false, error: 'memoryId 必须是字符串' };
         }
         if (sessionId !== undefined && typeof sessionId !== 'string') {
-          return { ok: false, error: 'sessionId must be a string' };
+          return { ok: false, error: 'sessionId 必须是字符串' };
         }
         if (since !== undefined && (typeof since !== 'number' || !Number.isFinite(since))) {
-          return { ok: false, error: 'since must be a finite timestamp' };
+          return { ok: false, error: 'since 必须是有效时间戳' };
         }
         if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 5_000)) {
-          return { ok: false, error: 'limit must be an integer between 1 and 5000' };
+          return { ok: false, error: 'limit 必须是 1 到 5000 之间的整数' };
         }
         const timeline = await this.options.runtime.memoryPanel.recallTimeline({
           ...(memoryId !== undefined ? { memoryId } : {}),
@@ -444,14 +446,14 @@ export class EngineServer {
       }
 
       default:
-        return { ok: false, error: `unsupported command` };
+        return { ok: false, error: `不支持的命令` };
     }
   }
 
   private submit(intent: string, sessionId?: string): CommandAck {
-    if (this.activeRun) return { ok: false, error: 'a task is already running' };
+    if (this.activeRun) return { ok: false, error: '已有任务正在运行' };
     const trimmed = intent.trim();
-    if (!trimmed) return { ok: false, error: 'empty intent' };
+    if (!trimmed) return { ok: false, error: '任务描述不能为空' };
     this.activeRun = this.options.runtime
       .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId })
       .catch((error: unknown) => {
@@ -464,7 +466,7 @@ export class EngineServer {
   }
 
   private resume(taskId: Id): CommandAck {
-    if (this.activeRun) return { ok: false, error: 'a task is already running' };
+    if (this.activeRun) return { ok: false, error: '已有任务正在运行' };
     this.activeRun = this.options.runtime
       .run('', { resumeTaskId: taskId })
       .catch((error: unknown) => {

@@ -173,7 +173,7 @@ describe('projection — task lifecycle', () => {
       env('step.started', { step: step(0, 'first', { weight: 3 }) }, 2),
       env('verify.started', { stepId: 'step-0', points: 1 }, 3),
       env('verify.result', { verdict: verdict() }, 4),
-      env('step.completed', { step: step(0, 'first', { weight: 3 }), result: { stepId: 'step-0', status: 'ok', toolCalls: [], summary: '', artifacts: [] } }, 5),
+      env('step.completed', { step: step(0, 'first', { weight: 3 }), result: { stepId: 'step-0', status: 'ok', toolCalls: [], summary: '', artifacts: [] }, score: 3 }, 5),
     ]);
 
     const steps = snapshot.task!.steps;
@@ -653,7 +653,7 @@ describe('projection — remaining lifecycle events', () => {
       env('task.received', { task: task() }, 0),
       env('plan.ready', { plan: plan([step(0, 'first'), step(1, 'second')]) }, 1),
       env('step.started', { step: step(0, 'first') }, 2),
-      env('step.completed', { step: step(0, 'first'), result: { stepId: 'step-0', status: 'ok', toolCalls: [], summary: '', artifacts: [] } }, 3),
+      env('step.completed', { step: step(0, 'first'), result: { stepId: 'step-0', status: 'ok', toolCalls: [], summary: '', artifacts: [] }, score: 3 }, 3),
       env(
         'plan.revised',
         { previousRevision: 1, plan: plan([step(0, 'first'), step(1, 'second'), step(2, 'third')]), reason: 'found another sub-task' },
@@ -680,7 +680,7 @@ describe('projection — remaining lifecycle events', () => {
     const snapshot = fold([
       env('task.received', { task: task() }, 0),
       env('plan.ready', { plan: plan([step(0, 'first'), step(1, 'second', { weight: 3 })]) }, 1),
-      env('step.failed', { step: step(0, 'first'), error: 'boom' }, 2),
+      env('step.failed', { step: step(0, 'first'), error: 'boom', score: -3 }, 2),
       env('step.skipped', { step: step(1, 'second', { weight: 3 }), reason: 'not needed' }, 3),
     ]);
     const first = snapshot.task?.steps.find((s) => s.id === 'step-0');

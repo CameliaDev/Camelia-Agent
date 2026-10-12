@@ -211,7 +211,7 @@ describe('memory panel queries over serve (Iteration 22)', () => {
 
     const bad = await postCommand(address.url, { type: 'list_memories', payload: { layer: 'epoch' }, ...CMD });
     expect(bad.status).toBe(409);
-    expect(bad.body.error).toContain('invalid memory layer');
+    expect(bad.body.error).toContain('无效的记忆层');
   });
 
   it('get_memory returns one memory, evidence included; missing memoryId is rejected', async () => {
@@ -233,7 +233,7 @@ describe('memory panel queries over serve (Iteration 22)', () => {
 
     const missing = await postCommand(address.url, { type: 'get_memory', payload: {}, ...CMD });
     expect(missing.status).toBe(409);
-    expect(missing.body.error).toContain('memoryId is required');
+    expect(missing.body.error).toContain('缺少 memoryId 参数');
 
     const unknown = await postCommand(address.url, { type: 'get_memory', payload: { memoryId: 'mem_nope' }, ...CMD });
     expect(unknown.body.ok).toBe(true);
@@ -393,7 +393,7 @@ describe('memory command guardrails (Iteration 22)', () => {
     const ack = await postCommand(address.url, { type: 'list_memoriez', payload: {}, ...CMD });
     expect(ack.status).toBe(409);
     expect(ack.body.ok).toBe(false);
-    expect(ack.body.error).toContain('unsupported command');
+    expect(ack.body.error).toContain('不支持的命令');
   });
 
   it('rejects an intervention on a missing memory instead of faking success', async () => {

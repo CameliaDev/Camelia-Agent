@@ -327,13 +327,13 @@ describe('EngineServer — task lifecycle over the stream', () => {
 });
 
 describe('EngineServer — command dispatch honesty', () => {
-  it('rejects a pause when no task is running', async () => {
+  it('rejects a pause when 当前没有运行中的任务', async () => {
     const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('idle') });
     servers.push(server);
     runtimes.push(runtime);
     const ack = await postCommand(address.url, { type: 'pause_task', payload: { taskId: 't1', reason: 'x' }, ...CMD });
     expect(ack.status).toBe(409);
-    expect(ack.body.error).toContain('no task is running');
+    expect(ack.body.error).toContain('当前没有运行中的任务');
   });
 
   it('rejects an approval for an unknown call id', async () => {
@@ -342,16 +342,16 @@ describe('EngineServer — command dispatch honesty', () => {
     runtimes.push(runtime);
     const ack = await postCommand(address.url, { type: 'approve_tool', payload: { callId: 'call_missing', scope: 'once' }, ...CMD });
     expect(ack.body.ok).toBe(false);
-    expect(ack.body.error).toContain('no pending approval');
+    expect(ack.body.error).toContain('没有待审批');
   });
 
-  it('rollback_step is wired through to the runtime (rejected when no task is running)', async () => {
+  it('rollback_step is wired through to the runtime (rejected when 当前没有运行中的任务)', async () => {
     const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('rollback') });
     servers.push(server);
     runtimes.push(runtime);
     const ack = await postCommand(address.url, { type: 'rollback_step', payload: { taskId: 't1', checkpointId: 'ck1' }, ...CMD });
     expect(ack.body.ok).toBe(false);
-    expect(ack.body.error).toContain('no task is running');
+    expect(ack.body.error).toContain('当前没有运行中的任务');
   });
 
   it('select_provider rejects an unknown provider id', async () => {
@@ -360,7 +360,7 @@ describe('EngineServer — command dispatch honesty', () => {
     runtimes.push(runtime);
     const ack = await postCommand(address.url, { type: 'select_provider', payload: { providerId: 'does-not-exist' }, ...CMD });
     expect(ack.body.ok).toBe(false);
-    expect(ack.body.error).toContain('not in chain');
+    expect(ack.body.error).toContain('不在链中');
   });
 
   it('rejects a malformed command body', async () => {

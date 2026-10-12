@@ -240,7 +240,7 @@ export class CameliaRuntime {
   readonly metrics: InMemoryMetrics;
   readonly tracer: InMemoryTracer;
   readonly tools: ToolEngine;
-  readonly session: Session;
+  session: Session;
   readonly workspace: string;
   readonly config: CameliaConfig;
   readonly harnessConfig: HarnessConfig;
@@ -876,12 +876,22 @@ export class CameliaRuntime {
    */
   async newSession(): Promise<{ sessionId: string }> {
     const created = await this.store.createSession({
-      title: 'New session',
+      title: '新会话',
       workspace: this.session.workspace,
       provider: this.fallback.active.id,
       model: this.decision.model,
     });
+    // Hot-switch the runtime's active session so subsequent events attribute correctly.
+    this.session = created;
     return { sessionId: created.id };
+  }
+
+  /** Switch the runtime's active session to an existing row. Returns false if not found. */
+  async selectSession(sessionId: string): Promise<boolean> {
+    const existing = await this.store.getSession(sessionId).catch(() => undefined);
+    if (!existing) return false;
+    this.session = existing;
+    return true;
   }
 
   get routingReason(): string {
