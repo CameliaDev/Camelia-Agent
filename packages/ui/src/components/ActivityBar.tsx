@@ -13,6 +13,9 @@ import type { ReactNode } from 'react';
 import type { TaskView } from '@camelia/agent/view';
 
 import { localizePlanText } from '../i18n/plan-copy.js';
+import { deriveProgress } from '../progress/deriveProgress.js';
+import { TaskProgressBar, ProgressMicrocopy } from '../progress/TaskProgressBar.js';
+import { useMode } from '../mode/useMode.js';
 import { t } from '../i18n/strings.js';
 import { rightRailUserPatch } from '../state/local-prefs.js';
 import { Icon, StatusDot } from './primitives.js';
@@ -31,12 +34,16 @@ export function ActivityBar({
   onCancel: () => void;
   onIntervene: () => void;
 }): ReactNode {
-  const { localPrefs } = useUiState();
+  const { localPrefs, mathDemo } = useUiState();
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const rightCollapsed = localPrefs.rightCollapsed;
-  const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
-  const elapsed = Math.max(0, task.updatedAt - task.startedAt);
-  void elapsed;
+  const { mode } = useMode();
+  // Same derivation as the top bar — never a second calculation. The rail is rendered here
+  // *only* when the top bar cannot show it (user set `topBar: 'hidden'`), because
+  // duplicating the bar in both places is the "double source" failure this codebase avoids.
+  const progress = deriveProgress({ task, mode, language: localPrefs.language, ...(mathDemo ? { mathDemo } : {}) });
+  const topBarCarriesProgress = localPrefs.topBar !== 'hidden';
+  const tr = (k: Parameters<typeof t>[1], params?: Parameters<typeof t>[2]) => t(localPrefs.language, k, params);
   const running = task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled' && task.status !== 'paused';
 
   return (
@@ -49,8 +56,16 @@ export function ActivityBar({
 
         <span className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-ink-2">
           <StatusDot tone={running ? 'ok' : 'muted'} pulse={running} />
-          {running ? '运行中' : task.status} · 第{Math.min(task.currentStepIdx + 1, Math.max(1, task.stepsTotal))}/{task.stepsTotal || '—'}步
+          {running ? tr('activity.running') : task.status} · {tr('progress.step', { current: Math.min(task.currentStepIdx + 1, Math.max(1, task.stepsTotal)), total: task.stepsTotal || '—' })}
         </span>
+
+        {/* Only when the top bar is fully hidden: otherwise it already carries this rail. */}
+        {!topBarCarriesProgress ? (
+          <span className="flex w-24 shrink-0 items-center gap-1.5" data-activity-progress>
+            <TaskProgressBar result={progress} />
+            <ProgressMicrocopy result={progress} language={localPrefs.language} />
+          </span>
+        ) : null}
 
         {rightCollapsed ? (
           <button

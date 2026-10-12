@@ -47,12 +47,14 @@ function switchRightTab(label: RegExp | string): void {
 describe('App — layout contract', () => {
   // Behavior evolution (Iteration 23): rail widths are CSS variables, not static
   // Tailwind classes, so a drag can change them. Defaults stay 260px and 360px.
-  // The top bar is an overlay (`h-9`) and pinned visible by default.
+  // Wireframe v3: the top bar grew to h-11 to hold mode tabs + the progress rail, and its
+  // height is published as `--top-bar-h` so the grid's padding and the overlay agree.
   it('renders the top bar and default rail widths from CSS variables', () => {
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('running');
-    expect(container.querySelector('.h-9')).not.toBeNull();
+    expect(container.querySelector('.h-11')).not.toBeNull();
     const shell = container.querySelector('[data-shell]') as HTMLElement;
+    expect(shell.style.getPropertyValue('--top-bar-h')).toBe('44px');
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
     // wireframe v2: right data rail starts collapsed (48px strip)
     expect(shell.style.getPropertyValue('--rail-right-w')).toBe('48px');
@@ -225,7 +227,42 @@ describe('App — running scene exposes the whole run', () => {
 
   it('shows current step and progress percentage', () => {
     renderScene('running');
-    expect(screen.getByText(/第\d+\/5步/)).toBeInTheDocument();
+    // Wireframe v3: the step readout appears twice by design — once in the top bar's
+    // progress rail, once in the activity bar. Both come from the same `deriveProgress`
+    // call, so seeing two matches is the expected shape, not a duplicate-source bug.
+    const matches = screen.getAllByText(/第\d+\/5步/);
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('carries exactly one visible progress rail, and hands it to the activity bar when the top bar is hidden', () => {
+    const rails = (root: HTMLElement): Element[] =>
+      Array.from(root.querySelectorAll('[data-progress-kind]'));
+
+    // Default (`topBar: 'pinned'`): the top bar owns the rail; the activity bar does not
+    // duplicate it.
+    localStorage.removeItem('camelia.localPrefs');
+    const pinned = renderScene('running');
+    const pinnedHeader = pinned.container.querySelector('header[data-tauri-drag-region]') as HTMLElement;
+    expect(rails(pinnedHeader)).toHaveLength(1);
+    expect(rails(pinnedHeader)[0]!.getAttribute('data-progress-kind')).toBe('task');
+    expect(pinned.container.querySelector('[data-activity-progress]')).toBeNull();
+    const pinnedValue = pinnedHeader.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow');
+    expect(pinnedValue).not.toBeNull();
+    pinned.unmount();
+
+    // `topBar: 'hidden'`: the header slides away, so the activity bar picks the rail up —
+    // same derivation, same value. Progress must never disappear just because chrome did.
+    localStorage.setItem(
+      'camelia.localPrefs',
+      JSON.stringify({ version: 4, topBar: 'hidden', language: 'zh' }),
+    );
+    const hidden = renderScene('running');
+    const hiddenHeader = hidden.container.querySelector('header[data-tauri-drag-region]') as HTMLElement;
+    expect(hiddenHeader.getAttribute('aria-hidden')).toBe('true');
+    const fallback = hidden.container.querySelector('[data-activity-progress]') as HTMLElement;
+    expect(fallback).not.toBeNull();
+    expect(rails(fallback)).toHaveLength(1);
+    expect(fallback.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe(pinnedValue);
   });
 
   it('shows tool calls with their names and durations', () => {

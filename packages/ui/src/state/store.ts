@@ -41,6 +41,8 @@ import {
 import { create, type UseBoundStore, type StoreApi } from 'zustand';
 
 import type { ConnectionStatus, Transport } from '../transport/types.js';
+import type { AppModeId } from '../mode/types.js';
+import type { MathDemoSnapshot } from '../modes/math/mathDemoFixture.js';
 import {
   applySavedTheme,
   loadLocalPrefs,
@@ -108,6 +110,27 @@ export interface UiState {
   localPrefs: LocalPrefs;
   /** Ephemeral. Not persisted and not part of `snapshot`. */
   settingsOpen: boolean;
+  /**
+   * Active workbench mode — ephemeral chrome, like `settingsOpen`.
+   *
+   * Deliberately *not* in `snapshot`: all modes read the same task, so a mode can never
+   * be a fact about the run. Persisting the user's preference is `localPrefs.preferredMode`;
+   * this field is only "what is on screen right now".
+   */
+  mode: AppModeId;
+  /**
+   * Demo data for a mode whose backend surface does not exist yet.
+   *
+   * Kept in its own field — never folded into `snapshot` — so that "what the engine told
+   * us" and "what we are showing to illustrate an unbuilt feature" can never be
+   * confused. Everything rendered from here carries a visible 演示 badge.
+   *
+   * Shared between the math workspace (which steps through it) and the top bar (whose
+   * progress rail must reflect the same stage).
+   */
+  mathDemo?: MathDemoSnapshot;
+  setMode: (mode: AppModeId) => void;
+  setMathDemo: (demo: MathDemoSnapshot | undefined) => void;
   setLocalPrefs: (patch: Partial<LocalPrefs>) => void;
   setSettingsOpen: (open: boolean) => void;
   /** Switch the active session id locally (after new_session / select_session ack). */
@@ -158,10 +181,13 @@ export function createUiStore(transport: Transport): UiStore {
     sessions: [],
     localPrefs: bootPrefs,
     settingsOpen: false,
+    mode: bootPrefs.preferredMode,
     ...(bootTheme
       ? { activeTheme: { id: bootPrefs.themeId, label: themeLabel(bootPrefs.themeId), rejected: bootTheme.rejected } }
       : {}),
     setSettingsOpen: (open) => set({ settingsOpen: open }),
+    setMode: (mode) => set({ mode }),
+    setMathDemo: (mathDemo) => set({ mathDemo }),
     setActiveSession: (id) => set({ activeSessionId: id }),
     clearCommandError: () => set({ lastCommandError: undefined }),
     setLocalPrefs: (patch) => {

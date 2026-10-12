@@ -65,6 +65,14 @@ export const PATHS: Record<string, string> = {
   star: '<path d="M8 2.2 9.6 6.1 13.6 6.5 10.6 9.2 11.5 13.4 8 11.2 4.5 13.4 5.4 9.2 2.4 6.5 6.4 6.1 8 2.2z"/>',
   trash: '<path d="M3.2 4.4h9.6"/><path d="M6.2 4.4V3h3.6v1.4"/><path d="M4.4 4.4l.6 8.4h6l.6-8.4"/>',
   user: '<circle cx="8" cy="5.6" r="2.4"/><path d="M3.2 13.2c0-2.4 2.1-4.2 4.8-4.2s4.8 1.8 4.8 4.2"/>',
+  // Math-modeling mode: the summation glyph reads as "model / solve" without needing
+  // a bespoke illustration, and stays legible at 12–14px.
+  sigma:
+    '<path d="M11.6 3.2H4.6l3.6 4.8-3.6 4.8h7"/>',
+  // Flow / pipeline (math stages, plan lifecycle).
+  flow: '<rect x="2.4" y="2.6" width="4.2" height="3.4" rx="1"/><rect x="9.4" y="10" width="4.2" height="3.4" rx="1"/><path d="M4.5 6v3.6a1.8 1.8 0 0 0 1.8 1.8h3.1"/>',
+  // Ruler / acceptance — used by the math stage chips.
+  ruler: '<rect x="2.4" y="5.6" width="11.2" height="4.8" rx="1"/><path d="M5.4 5.6v2M8 5.6v2.8M10.6 5.6v2"/>',
 };
 
 export const ICON_NAMES = Object.keys(PATHS);

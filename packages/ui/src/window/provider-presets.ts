@@ -65,7 +65,7 @@ export function slugifyProviderId(name: string, fallback = 'custom'): string {
 export function uniqueProviderId(desired: string, existing: Iterable<string>, editingId?: string): string {
   const taken = new Set([...existing].map((id) => id.toLowerCase()));
   if (editingId) taken.delete(editingId.toLowerCase());
-  let base = slugifyProviderId(desired);
+  const base = slugifyProviderId(desired);
   if (!taken.has(base)) return base;
   let n = 2;
   while (taken.has(`${base}-${n}`) && n < 1000) n += 1;

@@ -213,10 +213,10 @@ export function SessionRail(): ReactNode {
       </label>
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2">
         {listed.length === 0 ? (
-          <div className="wf-dash mt-4 rounded-lg px-3 py-6 text-center text-[11.5px] leading-5 text-ink-3">
-            此工作区还没有会话
+          <div className="mt-4 rounded-lg border border-dashed border-line px-3 py-6 text-center text-[11.5px] leading-5 text-ink-3">
+            {tr('sessions.empty')}
             <br />
-            从下方描述一个任务开始
+            {tr('sessions.empty.hint')}
           </div>
         ) : (
           <>
@@ -358,7 +358,7 @@ export function SessionRail(): ReactNode {
           data-account-entry
           aria-label={tr('settings.title')}
           title={tr('settings.title')}
-          className="wf-dash-brand flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
+          className="flex w-full items-center gap-2 rounded-lg border border-line px-2.5 py-2 text-left hover:border-accent/40 hover:bg-hover"
           onClick={() => setSettingsOpen(true)}
         >
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-current text-[12px] font-semibold">工</span>

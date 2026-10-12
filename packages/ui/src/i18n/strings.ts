@@ -13,6 +13,7 @@ type StringKey =
   | 'app.tagline'
   | 'sessions.title'
   | 'sessions.empty'
+  | 'sessions.empty.hint'
   | 'sessions.expand'
   | 'sessions.collapse'
   | 'sessions.pin'
@@ -65,6 +66,8 @@ type StringKey =
   | 'pause'
   | 'resume'
   | 'steer'
+  // Retained after the conversation's centre tab strip moved to mode tabs; still
+  // referenced by plan-copy helpers and available for a future in-panel toggle.
   | 'plan.tab'
   | 'conversation.tab'
   | 'composer.placeholder'
@@ -239,12 +242,105 @@ type StringKey =
   | 'events.expand'
   | 'events.collapse'
   | 'lang.en'
-  | 'lang.zh';
+  | 'lang.zh'
+  // ---- Workbench modes (wireframe v3) --------------------------------------
+  | 'mode.chat'
+  | 'mode.plan'
+  | 'mode.math'
+  | 'mode.eval'
+  | 'mode.teach'
+  | 'mode.more'
+  | 'mode.more.title'
+  | 'mode.chat.desc'
+  | 'mode.plan.desc'
+  | 'mode.math.desc'
+  | 'mode.math.unavailable'
+  | 'mode.switch.busy'
+  | 'mode.elsewhere'
+  | 'mode.elsewhere.cta'
+  | 'mode.elsewhere.dismiss'
+  // ---- Progress (single derivation, two renderers) --------------------------
+  | 'progress.idle'
+  | 'progress.step'
+  | 'progress.plan.draft'
+  | 'progress.plan.executing'
+  | 'progress.plan.done'
+  | 'progress.plan.rejected'
+  | 'progress.math.modeling'
+  | 'progress.math.solving'
+  | 'progress.math.verifying'
+  | 'progress.math.reporting'
+  // ---- Math workspace ------------------------------------------------------
+  | 'math.demo.badge'
+  | 'math.demo.load'
+  | 'math.demo.reload'
+  | 'math.demo.clear'
+  | 'math.demo.explain'
+  | 'math.assumptions'
+  | 'math.assumptions.confirmed'
+  | 'math.assumptions.pending'
+  | 'math.variables'
+  | 'math.variables.symbol'
+  | 'math.variables.name'
+  | 'math.variables.unit'
+  | 'math.variables.value'
+  | 'math.variables.source'
+  | 'math.source.assumption'
+  | 'math.source.fitted'
+  | 'math.source.user'
+  | 'math.source.derived'
+  | 'math.equations'
+  | 'math.equations.edit'
+  | 'math.equations.readonly'
+  | 'math.solver'
+  | 'math.solver.idle'
+  | 'math.solver.running'
+  | 'math.solver.converged'
+  | 'math.solver.failed'
+  | 'math.solver.log'
+  | 'math.results'
+  | 'math.results.export'
+  | 'math.results.copy'
+  | 'math.results.copied'
+  | 'math.results.empty'
+  | 'math.stage.pipeline'
+  | 'math.hint.modeling'
+  | 'math.hint.solving'
+  | 'math.hint.verifying'
+  | 'math.hint.reporting'
+  | 'math.stage.run'
+  | 'math.stage.stop'
+  | 'math.unavailable.title'
+  | 'math.unavailable.body'
+  | 'math.empty.title'
+  | 'math.empty.body'
+  | 'math.composer.placeholder'
+  // ---- Settings: modes -----------------------------------------------------
+  | 'settings.modes.title'
+  | 'settings.modes.hint'
+  | 'settings.modes.default'
+  | 'settings.appearance.avatars'
+  | 'settings.appearance.avatars.hint'
+  | 'settings.topbar.alwaysOnTask'
+  | 'settings.topbar.alwaysOnTask.hint'
+  // ---- Brand (transitional placeholder) -------------------------------------
+  | 'brand.transition'
+  | 'brand.placeholder.hint'
+  // ---- Right rail tabs (labelled via i18n rather than hard-coded zh) ---------
+  | 'right.tab.memory'
+  | 'right.tab.events'
+  | 'right.tab.run'
+  | 'right.tab.context'
+  | 'right.tab.sub'
+  | 'right.tab.model'
+  | 'right.model.hint'
+  | 'activity.running';
 
 const en: Record<StringKey, string> = {
   'app.tagline': 'Warm intelligence, sharp code.',
   'sessions.title': 'Sessions',
   'sessions.empty': 'No sessions in this workspace yet.',
+  'sessions.empty.hint': 'Describe a task below to start one.',
   'sessions.expand': 'Expand sessions',
   'sessions.collapse': 'Collapse sessions',
   'sessions.pin': 'Pin',
@@ -472,6 +568,92 @@ const en: Record<StringKey, string> = {
   'events.collapse': 'Collapse events',
   'lang.en': 'English',
   'lang.zh': '中文',
+  'mode.chat': 'Chat',
+  'mode.plan': 'Plan',
+  'mode.math': 'Math',
+  'mode.eval': 'Eval',
+  'mode.teach': 'Teach',
+  'mode.more': 'More modes',
+  'mode.more.title': 'Coming soon',
+  'mode.chat.desc': 'Describe a task — the agent plans, runs and verifies it.',
+  'mode.plan.desc': 'Review and edit the plan before any step runs.',
+  'mode.math.desc': 'Mathematical modeling: assumptions, variables, equations, solver.',
+  'mode.math.unavailable': 'The engine exposes no math commands yet — this workspace runs on a labelled demo.',
+  'mode.switch.busy': 'A task is still running. Switching modes keeps it visible.',
+  'mode.elsewhere': 'A task is running in {mode} mode.',
+  'mode.elsewhere.cta': 'View',
+  'mode.elsewhere.dismiss': 'Dismiss',
+  'progress.idle': 'Idle',
+  'progress.step': 'Step {current}/{total}',
+  'progress.plan.draft': 'Drafting',
+  'progress.plan.executing': 'Executing',
+  'progress.plan.done': 'Complete',
+  'progress.plan.rejected': 'Rejected',
+  'progress.math.modeling': 'Modeling',
+  'progress.math.solving': 'Solving',
+  'progress.math.verifying': 'Verifying',
+  'progress.math.reporting': 'Reporting',
+  'math.demo.badge': 'DEMO',
+  'math.demo.load': 'Load demo problem',
+  'math.demo.reload': 'Replay demo',
+  'math.demo.clear': 'Exit demo',
+  'math.demo.explain': 'Illustrative data only — no solver is connected. The demo labels every value it shows.',
+  'math.assumptions': 'Assumptions',
+  'math.assumptions.confirmed': 'Confirmed',
+  'math.assumptions.pending': 'Open',
+  'math.variables': 'Variables',
+  'math.variables.symbol': 'Symbol',
+  'math.variables.name': 'Name',
+  'math.variables.unit': 'Unit',
+  'math.variables.value': 'Value',
+  'math.variables.source': 'Source',
+  'math.source.assumption': 'assumption',
+  'math.source.fitted': 'fitted',
+  'math.source.user': 'given',
+  'math.source.derived': 'derived',
+  'math.equations': 'Equations',
+  'math.equations.edit': 'Edit',
+  'math.equations.readonly': 'Read-only for now — editing needs a backend model store.',
+  'math.solver': 'Solver',
+  'math.solver.idle': 'Idle',
+  'math.solver.running': 'Running',
+  'math.solver.converged': 'Converged',
+  'math.solver.failed': 'Failed',
+  'math.solver.log': 'Solver output',
+  'math.results': 'Results',
+  'math.results.export': 'Export report',
+  'math.results.copy': 'Copy',
+  'math.results.copied': 'Copied',
+  'math.results.empty': 'No results yet.',
+  'math.stage.pipeline': 'Stage {index}/4',
+  'math.hint.modeling': 'Restate the problem, fix assumptions, define symbols, build the model.',
+  'math.hint.solving': 'Run the solver (math.exec) — never compute by hand.',
+  'math.hint.verifying': 'Check the solution, then test sensitivity.',
+  'math.hint.reporting': 'Write up the model, results and caveats.',
+  'math.stage.run': 'Run stage',
+  'math.stage.stop': 'Stop',
+  'math.unavailable.title': 'Math mode is not wired to the engine yet',
+  'math.unavailable.body': 'The math.exec tool and the modeling preset exist in the harness, but the engine exposes no math commands. Everything below is demonstration data.',
+  'math.empty.title': 'No modeling session',
+  'math.empty.body': 'Load the demo problem to see how the four stages behave.',
+  'math.composer.placeholder': 'Describe the modeling problem — e.g. build a SIR model…',
+  'settings.modes.title': 'Modes',
+  'settings.modes.hint': 'Which mode a new window opens in. Switching never stops a running task.',
+  'settings.modes.default': 'Default mode',
+  'settings.appearance.avatars': 'Message avatars',
+  'settings.appearance.avatars.hint': 'Round avatars beside each message, in the WeChat style.',
+  'settings.topbar.alwaysOnTask': 'Keep the top bar visible while a task runs',
+  'settings.topbar.alwaysOnTask.hint': 'The top bar carries the progress rail, so it stays put while work is in flight even if you set it to auto-hide.',
+  'brand.transition': 'Camelia',
+  'brand.placeholder.hint': 'Final name and mascot pending product decision.',
+  'right.tab.memory': 'Memory',
+  'right.tab.events': 'Events',
+  'right.tab.run': 'Run',
+  'right.tab.context': 'Context',
+  'right.tab.sub': 'Sub-agents',
+  'right.tab.model': 'Model',
+  'right.model.hint': 'Read-only model view. Editing lives in the math workspace.',
+  'activity.running': 'Running',
 };
 
 
@@ -479,6 +661,7 @@ const zh: Record<StringKey, string> = {
   'app.tagline': '温暖的智能，锋利的代码。',
   'sessions.title': '会话',
   'sessions.empty': '此工作区还没有会话。',
+  'sessions.empty.hint': '从下方描述一个任务开始。',
   'sessions.expand': '展开会话',
   'sessions.collapse': '收起会话',
   'sessions.pin': '置顶',
@@ -706,10 +889,109 @@ const zh: Record<StringKey, string> = {
   'events.collapse': '收起事件',
   'lang.en': 'English',
   'lang.zh': '中文',
+  'mode.chat': '对话',
+  'mode.plan': '计划模式',
+  'mode.math': '数模',
+  'mode.eval': '评测',
+  'mode.teach': '教学',
+  'mode.more': '更多模式',
+  'mode.more.title': '即将推出',
+  'mode.chat.desc': '描述一个任务，代理会规划、执行并校验。',
+  'mode.plan.desc': '在任何步骤执行前审阅并编辑计划。',
+  'mode.math.desc': '数学建模：假设、变量、方程与求解。',
+  'mode.math.unavailable': '引擎尚未提供数模命令——此工作区运行在明确标注的演示数据上。',
+  'mode.switch.busy': '仍有任务在运行。切换模式不会让它消失。',
+  'mode.elsewhere': '{mode}模式有一个任务正在运行。',
+  'mode.elsewhere.cta': '查看',
+  'mode.elsewhere.dismiss': '忽略',
+  'progress.idle': '待命',
+  'progress.step': '第{current}/{total}步',
+  'progress.plan.draft': '起草中',
+  'progress.plan.executing': '执行中',
+  'progress.plan.done': '已完成',
+  'progress.plan.rejected': '已拒绝',
+  'progress.math.modeling': '建模',
+  'progress.math.solving': '求解',
+  'progress.math.verifying': '校验',
+  'progress.math.reporting': '报告',
+  'math.demo.badge': '演示',
+  'math.demo.load': '加载演示课题',
+  'math.demo.reload': '重播演示',
+  'math.demo.clear': '退出演示',
+  'math.demo.explain': '仅为示意数据——未连接任何求解器。演示会标注它展示的每一个数值。',
+  'math.assumptions': '假设',
+  'math.assumptions.confirmed': '已确认',
+  'math.assumptions.pending': '待定',
+  'math.variables': '变量',
+  'math.variables.symbol': '符号',
+  'math.variables.name': '名称',
+  'math.variables.unit': '单位',
+  'math.variables.value': '取值',
+  'math.variables.source': '来源',
+  'math.source.assumption': '假设',
+  'math.source.fitted': '拟合',
+  'math.source.user': '给定',
+  'math.source.derived': '推导',
+  'math.equations': '方程',
+  'math.equations.edit': '编辑',
+  'math.equations.readonly': '暂为只读——编辑需要后端模型存储。',
+  'math.solver': '求解状态',
+  'math.solver.idle': '空闲',
+  'math.solver.running': '求解中',
+  'math.solver.converged': '已收敛',
+  'math.solver.failed': '失败',
+  'math.solver.log': '求解输出',
+  'math.results': '结果',
+  'math.results.export': '导出报告',
+  'math.results.copy': '复制',
+  'math.results.copied': '已复制',
+  'math.results.empty': '暂无结果。',
+  'math.stage.pipeline': '第 {index}/4 阶段',
+  'math.hint.modeling': '重述问题、确定假设、定义符号、建立模型。',
+  'math.hint.solving': '调用求解器（math.exec）——不要手算。',
+  'math.hint.verifying': '校验解的正确性，再做灵敏度分析。',
+  'math.hint.reporting': '撰写模型、结果与注意事项。',
+  'math.stage.run': '运行本阶段',
+  'math.stage.stop': '停止',
+  'math.unavailable.title': '数模模式尚未接入引擎',
+  'math.unavailable.body': 'harness 里已有 math.exec 工具与建模预设，但引擎尚未暴露任何数模命令。下面所有内容都是演示数据。',
+  'math.empty.title': '暂无建模会话',
+  'math.empty.body': '加载演示课题即可查看四个阶段的表现。',
+  'math.composer.placeholder': '描述建模题目——例如「建立 SIR 模型」…',
+  'settings.modes.title': '模式',
+  'settings.modes.hint': '新窗口默认打开哪个模式。切换不会中断正在运行的任务。',
+  'settings.modes.default': '默认模式',
+  'settings.appearance.avatars': '消息头像',
+  'settings.appearance.avatars.hint': '每条消息旁的圆形头像，微信风格。',
+  'settings.topbar.alwaysOnTask': '任务运行期间保持顶栏常显',
+  'settings.topbar.alwaysOnTask.hint': '顶栏承载进度条，因此即使设为自动隐藏，任务运行期间也会保持常显。',
+  'brand.transition': 'Camelia',
+  'brand.placeholder.hint': '最终名称与吉祥物待产品决策。',
+  'right.tab.memory': '记忆',
+  'right.tab.events': '事件',
+  'right.tab.run': '运行',
+  'right.tab.context': '上下文',
+  'right.tab.sub': '子代理',
+  'right.tab.model': '模型',
+  'right.model.hint': '模型只读视图。编辑在主工作区进行。',
+  'activity.running': '运行中',
 };
 
 const DICTS: Record<LanguagePref, Record<StringKey, string>> = { en, zh };
 
-export function t(lang: LanguagePref, key: StringKey): string {
-  return DICTS[lang]?.[key] ?? en[key] ?? key;
+/** Values interpolated into a `{token}` slot of an i18n string. */
+export type StringParams = Record<string, string | number>;
+
+/**
+ * Look up a string, optionally interpolating `{token}` slots.
+ *
+ * Interpolation lives here rather than at call sites so a translation can reorder its
+ * placeholders (a real need for zh) without touching the component that renders it.
+ */
+export function t(lang: LanguagePref, key: StringKey, params?: StringParams): string {
+  const raw = DICTS[lang]?.[key] ?? en[key] ?? key;
+  if (!params) return raw;
+  return raw.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : whole,
+  );
 }

@@ -1,7 +1,20 @@
 /**
- * Top bar — brand, phase, connection. Hidden until the pointer enters the top
- * hot zone, or until Ctrl+` . Session title and provider live on the right rail.
- * Connection chrome opens a trust panel (engine URL / session / log / restart).
+ * Top bar — brand, mode, progress, connection.
+ *
+ * ## What changed in wireframe v3
+ *
+ * v2's bar was a brand placeholder, a session title and a connection badge, with a large
+ * empty middle. It also carried two pieces of wireframe scaffolding — an orange dashed
+ * capsule reading "名称与吉祥物 TBD" and a "按需滑出" tag — which are annotation, not
+ * product. Those are gone; the middle is now the mode selector and the progress rail.
+ *
+ * ## Visibility policy
+ *
+ * The bar is an overlay that can slide away (`localPrefs.topBar`). But it now carries the
+ * progress rail, and "work is in flight" is exactly when the user needs to see progress.
+ * So: **while a task is running the bar is forced visible**, regardless of `auto`. When
+ * the user has explicitly chosen `hidden`, that choice still wins — and at that point the
+ * activity bar carries the same rail, so progress is never lost. See `App.tsx`.
  * @module
  */
 
@@ -13,15 +26,32 @@ import { isTauri, windowClose, windowMinimize, windowStartDragging, windowToggle
 import { openEngineLog, readEngineTrust } from '../window/engine.js';
 import { relaunchDesktop } from '../window/model-settings.js';
 import { t } from '../i18n/strings.js';
+import { deriveProgress } from '../progress/deriveProgress.js';
+import { ProgressMicrocopy, TaskProgressBar } from '../progress/TaskProgressBar.js';
+import { useMode } from '../mode/useMode.js';
+import { ModeTabs } from '../mode/ModeTabs.js';
 import { Icon, StatusDot } from './primitives.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
-  const { snapshot, status, localPrefs, setSettingsOpen } = useUiState();
+  const { snapshot, status, localPrefs, setSettingsOpen, mathDemo } = useUiState();
   const connection = CONNECTION_META[status];
   const desktop = isTauri();
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
   const [panelOpen, setPanelOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const { mode, setMode } = useMode();
+
+  const progress = deriveProgress({
+    task: snapshot.task,
+    mode,
+    language: localPrefs.language,
+    ...(mathDemo ? { mathDemo } : {}),
+  });
+  const taskRunning = progress.progress.kind === 'task'
+    ? progress.progress.status === 'running' || progress.progress.status === 'paused'
+    : progress.progress.kind === 'math'
+      ? progress.progress.status === 'running'
+      : snapshot.task !== undefined && snapshot.task.status !== 'done' && snapshot.task.status !== 'failed' && snapshot.task.status !== 'cancelled';
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -40,7 +70,7 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
   }, [panelOpen]);
 
   const onMouseDown = (event: React.MouseEvent<HTMLElement>): void => {
-    // Let buttons handle their own clicks; drag everything else on the bar.
+    // Let interactive elements handle their own clicks; drag everything else on the bar.
     if ((event.target as HTMLElement).closest('button')) return;
     if (event.button !== 0) return;
     void windowStartDragging();
@@ -48,39 +78,47 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
 
   return (
     <header
-      className={`camelia-topbar absolute inset-x-0 top-0 z-40 flex h-9 items-center gap-2 border-b border-line bg-base px-3 text-[12px] ${
+      className={`camelia-topbar absolute inset-x-0 top-0 z-40 flex h-11 items-center gap-2 border-b border-line bg-base px-3 text-[12px] ${
         revealed ? 'translate-y-0' : 'pointer-events-none -translate-y-full'
       }`}
       data-tauri-drag-region
       onMouseDown={onMouseDown}
       aria-hidden={revealed ? undefined : true}
     >
-      {/* macOS-style window dots (placeholder) */}
-      <div className="flex items-center gap-1.5 pl-1 pr-1">
-        <span className="h-2.5 w-2.5 rounded-full bg-ink-3/30" />
-        <span className="h-2.5 w-2.5 rounded-full bg-ink-3/30" />
-        <span className="h-2.5 w-2.5 rounded-full bg-ink-3/30" />
-      </div>
-
-      {/* v2 新增 / 待定品牌位：橙色虚线胶囊 */}
-      <span className="wf-dash-brand inline-flex items-center gap-1.5 rounded-full px-2.5 py-[2px] text-[11px] font-medium">
-        <Icon name="camellia" size={11} />
-        {tr('brand.placeholder')}
+      {/* Brand slot — transitional. The name is not final; see the plan book §10. */}
+      <span
+        data-brand-slot
+        className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-[3px] text-[11.5px] font-medium text-ink"
+        title={tr('brand.placeholder.hint')}
+      >
+        <Icon name="camellia" size={13} className="text-accent" />
+        {tr('brand.transition')}
       </span>
 
-      <span className="h-4 w-px bg-line" />
+      <span className="h-4 w-px shrink-0 bg-line" />
 
-      {/* 当前会话标题 */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {snapshot.session ? (
-          <span className="truncate text-[12px] text-ink-2">{snapshot.session.title ?? tr('status.idle')}</span>
-        ) : (
-          <span className="text-[12px] text-ink-3">{tr('status.noSession')}</span>
-        )}
+      {/* Mode selector — the only way the mode changes. */}
+      <ModeTabs mode={mode} language={localPrefs.language} onSelect={setMode} taskRunning={taskRunning} />
+
+      <span className="h-4 w-px shrink-0 bg-line" />
+
+      {/* Progress: rail + microcopy. The copy drops first when narrow; the rail stays.
+          Not mounted while the bar is off-screen (`topBar: 'hidden'`) — the activity bar
+          carries the same rail there, and mounting both would leave two progress nodes in
+          the tree, only one of which anyone can see. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        {revealed ? (
+          <>
+            <TaskProgressBar result={progress} />
+            <span className="hidden min-w-0 shrink-0 md:block">
+              <ProgressMicrocopy result={progress} language={localPrefs.language} />
+            </span>
+          </>
+        ) : null}
       </div>
 
-      {/* 引擎连接状态（点击打开连接面板） */}
-      <div className="relative" ref={panelRef}>
+      {/* Engine connection — opens the existing trust panel. */}
+      <div className="relative shrink-0" ref={panelRef}>
         <button
           type="button"
           aria-label={tr('connection.panel')}
@@ -104,11 +142,8 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
         ) : null}
       </div>
 
-      {/* v2 标签：右栏按需滑出 */}
-      <span className="wf-orange-tag">按需滑出</span>
-
       {desktop ? (
-        <div className="ml-1 flex items-center">
+        <div className="ml-1 flex shrink-0 items-center">
           <button type="button" aria-label="Minimize" className="grid h-8 w-9 place-items-center text-ink-3 hover:bg-hover hover:text-ink" onClick={() => void windowMinimize()}>
             <Icon name="minimize" size={13} />
           </button>

@@ -51,6 +51,8 @@ describe('localPrefs', () => {
       motion: 'reduce',
       fontMono: 'Consolas, monospace',
       planApproval: 'always',
+      preferredMode: 'plan',
+      showAvatars: false,
     });
     const store = createUiStore(new FixtureTransport({ scene: 'empty' }));
     expect(store.getState().localPrefs.leftWidth).toBe(300);
@@ -58,6 +60,9 @@ describe('localPrefs', () => {
     // boot policy: expand does not survive createUiStore / loadLocalPrefs
     expect(store.getState().localPrefs.rightCollapsed).toBe(true);
     expect(store.getState().localPrefs.userSetRightRail).toBe(false);
+    // The mode preference is ordinary window chrome: it persists across boots.
+    expect(store.getState().localPrefs.preferredMode).toBe('plan');
+    expect(store.getState().localPrefs.showAvatars).toBe(false);
     expect(store.getState().snapshot.task).toBeUndefined();
     expect(loadLocalPrefs().topBar).toBe('pinned');
     expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#ffffff');

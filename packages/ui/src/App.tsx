@@ -1,9 +1,22 @@
 /**
  * Application shell.
  *
- * Three columns: sessions, the conversation (always `1fr`), and the run rail.
+ * Three columns: sessions, the mode's work area (always `1fr`), and the data rail.
  * Widths come from `--rail-left-w` / `--rail-right-w` so a drag can change them.
- * The top bar is an overlay; an 8px strip keeps the window draggable when it is hidden.
+ *
+ * ## Top bar visibility (wireframe v3)
+ *
+ * The bar is an overlay, so it can be out of the way — but it now carries the progress
+ * rail, and hiding progress while a task runs would be the wrong trade. The policy:
+ *
+ * | `localPrefs.topBar` | idle            | task in flight        |
+ * |---------------------|-----------------|-----------------------|
+ * | `pinned`            | visible         | visible               |
+ * | `auto`              | follows pointer | **forced visible**    |
+ * | `hidden`            | hidden          | hidden (user's choice)|
+ *
+ * Under `hidden` the activity bar carries the same rail from the same derivation, so the
+ * user who asked for an empty chrome still gets progress — just not in the header.
  * @module
  */
 
@@ -11,7 +24,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Composer } from './components/Composer.js';
 import { EngineBanner } from './components/EngineBanner.js';
-import { Conversation } from './components/Conversation.js';
 import { RailDivider } from './components/RailDivider.js';
 import { RightRail } from './components/RightRail.js';
 import { SessionRail } from './components/SessionRail.js';
@@ -20,11 +32,17 @@ import { TopBar } from './components/TopBar.js';
 import { WindowEdges } from './components/WindowEdges.js';
 import { railWidth } from './state/local-prefs.js';
 import { useUiStore } from './state/UiProvider.js';
+import { ModeShell } from './modes/ModeShell.js';
+import { taskInFlight } from './progress/deriveProgress.js';
+
+/** Height of the overlay bar in px — also the grid's top padding when it is visible. */
+export const TOP_BAR_H = 44;
 
 export function App(): ReactNode {
   const prefs = useUiStore((s) => s.localPrefs);
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  const task = useUiStore((s) => s.snapshot.task);
   const [revealed, setRevealed] = useState(prefs.topBar === 'pinned');
   const hideTimer = useRef<number | null>(null);
   const prefsRef = useRef(prefs);
@@ -78,7 +96,11 @@ export function App(): ReactNode {
 
   const left = railWidth(prefs, 'left');
   const right = railWidth(prefs, 'right');
-  const topVisible = prefs.topBar === 'pinned' || revealed;
+
+  // A task in flight overrides the auto-hide timer. `hidden` is an explicit user choice
+  // and is still honoured — the activity bar carries the rail in that case.
+  const inFlight = taskInFlight(task);
+  const topVisible = prefs.topBar === 'hidden' ? false : prefs.topBar === 'pinned' || revealed || inFlight;
 
   return (
     <div
@@ -87,19 +109,20 @@ export function App(): ReactNode {
       style={{
         ['--rail-left-w' as string]: `${left}px`,
         ['--rail-right-w' as string]: `${right}px`,
+        ['--top-bar-h' as string]: `${TOP_BAR_H}px`,
       }}
     >
       <div
         className="camelia-rails grid h-full min-h-0"
         style={{
           gridTemplateColumns: 'var(--rail-left-w) minmax(0, 1fr) var(--rail-right-w)',
-          paddingTop: topVisible ? 36 : 0,
+          paddingTop: topVisible ? TOP_BAR_H : 0,
         }}
       >
         <SessionRail />
         <main className="flex min-h-0 min-w-0 flex-col">
           <EngineBanner />
-          <Conversation />
+          <ModeShell />
           <Composer />
         </main>
         <RightRail />

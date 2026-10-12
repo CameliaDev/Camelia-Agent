@@ -48,7 +48,8 @@ export type SceneId =
   | 'approval'
   | 'failure'
   | 'error'
-  | 'done';
+  | 'done'
+  | 'math-demo';
 
 export const SCENES: { id: SceneId; label: string; blurb: string }[] = [
   { id: 'empty', label: 'Idle', blurb: 'No task yet — the empty state.' },
@@ -61,6 +62,11 @@ export const SCENES: { id: SceneId; label: string; blurb: string }[] = [
   { id: 'failure', label: 'Recovery', blurb: 'Failure, automatic recovery, drift and hallucination guards.' },
   { id: 'error', label: 'Unreachable', blurb: 'The engine could not be reached — the transport error state.' },
   { id: 'done', label: 'Delivered', blurb: 'All steps verified, artifacts delivered.' },
+  {
+    id: 'math-demo',
+    label: 'Math (demo)',
+    blurb: 'The math workspace with its labelled demo loaded. No engine, no solver — the mode is opt-in demo data.',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -549,13 +555,20 @@ export function buildScenario(scene: SceneId): DomainEvent[] {
       return [];
     case 'done':
       return beats.slice();
+    case 'math-demo':
+      // Deliberately no events. The math demo is *UI* demonstration data, not engine
+      // state: pushing it through the domain stream would fold it into `snapshot` and make
+      // a scripted model indistinguishable from a real one. The store seeds `mathDemo`
+      // separately (see `modes/math/demoBoot.ts`), so this scene stays an honest "no
+      // engine" stream — which is exactly what makes the Offline badge truthful here.
+      return [];
   }
 }
 
 /** Whether the scene's engine should still be considered connected after replay. */
 export function sceneStatus(scene: SceneId): 'connecting' | 'offline' | 'live' | 'finished' {
   if (scene === 'connecting') return 'connecting';
-  if (scene === 'empty' || scene === 'error') return 'offline';
+  if (scene === 'empty' || scene === 'error' || scene === 'math-demo') return 'offline';
   if (scene === 'done') return 'finished';
   return 'live';
 }

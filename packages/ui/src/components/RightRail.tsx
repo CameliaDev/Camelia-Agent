@@ -375,8 +375,84 @@ function SubAgentCard({ agent }: { agent: SubAgentView }): ReactNode {
   );
 }
 
-function SubAgentsSection({ task }: { task: TaskView }): ReactNode {
+/**
+ * Read-only model view for math mode.
+ *
+ * Deliberately read-only, and deliberately here rather than in the workspace. The rail is
+ * an *observation* surface; the workspace is the *operating* surface. Splitting editing
+ * across both would create two places a variable can be changed, with no way to tell which
+ * one the solver saw — so the rail shows and the workspace edits.
+ */
+function ModelSection(): ReactNode {
   const tr = useTr();
+  const mathDemo = useUiStore((s) => s.mathDemo);
+  const task = useUiStore((s) => s.snapshot.task);
+
+  // Live assumptions are the only model data the projection carries today (`string[]`).
+  // Everything else is demo-only, and is labelled as such rather than blended in.
+  const liveAssumptions = task?.assumptions ?? [];
+  const variables = mathDemo?.variables ?? [];
+  const equations = mathDemo?.equations ?? [];
+
+  return (
+    <section className="border-b border-line" data-rail-model>
+      <SectionHeader
+        icon="sigma"
+        title={tr('right.tab.model')}
+        right={
+          mathDemo ? (
+            <span className="rounded border border-warn/50 bg-warn/10 px-1.5 py-[1px] text-[10px] text-warn">
+              {tr('math.demo.badge')}
+            </span>
+          ) : undefined
+        }
+      />
+      <div className="space-y-2 px-3 pb-3">
+        {liveAssumptions.length ? (
+          <div>
+            <p className="mb-1 text-[10px] uppercase tracking-[0.06em] text-ink-3">{tr('math.assumptions')}</p>
+            <ul className="space-y-0.5">
+              {liveAssumptions.map((a) => (
+                <li key={a} className="text-[11px] leading-4 text-ink-2">
+                  · {a}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {variables.length ? (
+          <dl className="space-y-0.5">
+            {variables.map((v) => (
+              <div key={v.symbol} className="flex items-baseline gap-2 text-[11px]">
+                <dt className="w-14 shrink-0 font-mono text-accent">{v.symbol}</dt>
+                <dd className="min-w-0 flex-1 truncate text-ink-2">{v.name}</dd>
+                <dd className="shrink-0 font-mono text-ink">{v.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+
+        {equations.length ? (
+          <div>
+            <p className="mb-1 text-[10px] uppercase tracking-[0.06em] text-ink-3">{tr('math.equations')}</p>
+            <ul className="space-y-0.5">
+              {equations.map((eq) => (
+                <li key={eq.text} className="truncate font-mono text-[10.5px] text-ink-2" title={eq.text}>
+                  {eq.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('right.model.hint')}</p>
+      </div>
+    </section>
+  );
+}
+
+function SubAgentsSection({ task }: { task: TaskView }): ReactNode {  const tr = useTr();
   return (
     <section className="border-b border-line">
       <SectionHeader
@@ -540,7 +616,8 @@ export function RightRail(): ReactNode {
   const collapsed = useUiStore((s) => s.localPrefs.rightCollapsed);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const status = useUiStore((s) => s.status);
-  const [tab, setTab] = useState<'memory' | 'events' | 'run' | 'context' | 'sub'>('memory');
+  const mode = useUiStore((s) => s.mode);
+  const [tab, setTab] = useState<'memory' | 'events' | 'run' | 'context' | 'sub' | 'model'>('memory');
 
   if (collapsed) {
     return (
@@ -570,11 +647,15 @@ export function RightRail(): ReactNode {
       <div className="flex items-center justify-between gap-2 border-b border-line px-2 pt-2">
         <div role="tablist" className="flex items-center gap-3">
           {([
-            ['memory', '记忆'],
-            ['events', '事件'],
-            ['run', '运行'],
-            ['context', '上下文'],
-            ['sub', '子代理'],
+            ['memory', tr('right.tab.memory')],
+            ['events', tr('right.tab.events')],
+            ['run', tr('right.tab.run')],
+            ['context', tr('right.tab.context')],
+            ['sub', tr('right.tab.sub')],
+            // The model tab is a read-only view of the math model. It only appears in math
+            // mode: in chat it would be a permanently empty column, and the detail rail is
+            // the wrong place to *edit* a model (editing lives in the workspace).
+            ...(mode === 'math' ? ([['model', tr('right.tab.model')]] as const) : []),
           ] as const).map(([id, label]) => (
             <button
               key={id}
@@ -603,7 +684,6 @@ export function RightRail(): ReactNode {
 
       <div className="flex items-center justify-between px-3 pt-2">
         <RunIdentity />
-        <span className="wf-orange-tag mb-1 shrink-0">仅检查数据时出现</span>
       </div>
 
       {tab === 'memory' ? <MemoryPanel /> : null}
@@ -617,7 +697,7 @@ export function RightRail(): ReactNode {
       ) : null}
       {tab === 'context' && task ? <ContextSection task={task} /> : null}
       {tab === 'sub' && task ? <SubAgentsSection task={task} /> : null}
-      {!task && tab !== 'memory' && tab !== 'events' ? (
+      {tab === 'model' ? <ModelSection /> : null}      {!task && tab !== 'memory' && tab !== 'events' ? (
         <div className="border-b border-line px-3 py-4 text-[11.5px] text-ink-3">{tr('events.hint')}</div>
       ) : null}
     </aside>

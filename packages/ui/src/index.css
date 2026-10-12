@@ -177,35 +177,12 @@ html[data-motion='reduce'] .camelia-sweep::after {
 }
 
 /* =========================================================================
- * Wireframe v2 — low-fidelity line art on grayscale, single blue accent.
- * 实线=常驻结构 · 虚线=可折叠/待定占位 · 蓝=主操作/当前态 ·
- * 圆形头像=微信式对话气泡 · 橙框=v2 新增/待定品牌位
+ * Shared surface styles — single blue accent on a light base.
+ * 蓝=主操作/当前态 · 圆形头像=微信式对话气泡 · 步骤圆圈=计划进度。
+ * (v2 的橙框/虚线注解类已随 wireframe v3 下线；下面的 wf- 前缀是历史命名，
+ *  承载的是真实产品样式，不是线框注解。)
+ * 实线边框请直接用 Tailwind：border / border-dashed border-line。
  * ========================================================================= */
-
-/* 虚线占位（可折叠 / 待定品牌位） */
-.wf-dash {
-  border: 1.5px dashed #c9cdd4;
-}
-.wf-dash-brand {
-  border: 1.5px dashed #fb923c;
-  background: #fff7ed;
-  color: #9a3412;
-}
-
-/* 橙框 = v2 新增 / 待定品牌位标签 */
-.wf-orange-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid #fdba74;
-  background: #fff7ed;
-  color: #c2410c;
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.4;
-}
 
 /* 微信式圆形对话头像：user 蓝底白字"你"，agent 粉底深粉字"花" */
 .wf-avatar-user {

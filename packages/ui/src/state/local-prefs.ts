@@ -14,6 +14,7 @@
 
 import { applyThemeTokens, clearThemeTokens, type ThemeApplyResult } from '../theme/apply-theme.js';
 import { applyPreset, type ThemeId } from '../theme/presets.js';
+import { DEFAULT_MODE, isAppModeId, type AppModeId } from '../mode/types.js';
 
 export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
 
@@ -61,6 +62,13 @@ export interface LocalPrefs {
   /** Passed through `--font-mono`. Empty keeps the stylesheet stack. */
   fontMono: string;
   planApproval: 'always' | 'auto';
+  /**
+   * Mode a new window opens in. Window chrome, not domain state — the engine has no
+   * notion of a mode. See `mode/types.ts`.
+   */
+  preferredMode: AppModeId;
+  /** WeChat-style message avatars. Default on; the toggle lives in Settings → 外观. */
+  showAvatars: boolean;
   window?: WindowGeometry;
 }
 
@@ -77,6 +85,8 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   motion: 'system',
   fontMono: '',
   planApproval: 'always',
+  preferredMode: DEFAULT_MODE,
+  showAvatars: true,
 };
 
 const THEME_IDS: readonly ThemeId[] = ['warm-dark', 'cool-dark', 'light', 'high-contrast'];
@@ -139,6 +149,10 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     motion,
     fontMono,
     planApproval,
+    // Unknown / legacy values fall back to the default rather than reaching the UI.
+    preferredMode: isAppModeId(raw?.preferredMode) ? raw.preferredMode : DEFAULT_LOCAL_PREFS.preferredMode,
+    // Only an explicit `false` disables avatars; absent (older install) means on.
+    showAvatars: raw?.showAvatars !== false,
     ...(window ? { window } : {}),
   };
 }

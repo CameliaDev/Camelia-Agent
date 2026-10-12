@@ -15,11 +15,18 @@ import { IconSheet } from './components/IconSheet.js';
 import { createUiStore } from './state/store.js';
 import { UiProvider } from './state/UiProvider.js';
 import { createTransport } from './transport/index.js';
+import { readBootConfig } from './transport/boot.js';
+import { applySceneBoot } from './modes/math/demoBoot.js';
 import { revealWindow, watchWindowGeometry } from './window/shell.js';
 
 const transport = createTransport(window.location.search);
 const store = createUiStore(transport);
 const sheet = new URLSearchParams(window.location.search).get('sheet');
+
+// Scene-specific chrome (e.g. the labelled math demo) is applied *outside* the event
+// stream, so a demonstration scene can never be mistaken for projected engine state.
+const shellBoot = readBootConfig();
+applySceneBoot(store, shellBoot.scene ?? new URLSearchParams(window.location.search).get('scene'));
 
 async function boot(): Promise<void> {
   await Promise.race([revealWindow(), new Promise((resolve) => setTimeout(resolve, 800))]);

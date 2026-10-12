@@ -15,6 +15,8 @@ import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
 import { relaunchDesktop } from '../window/model-settings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
+import { MODE_REGISTRY } from '../mode/ModeRegistry.js';
+import type { AppModeId } from '../mode/types.js';
 import { openEngineLog, readEngineLog, readEngineTrust } from '../window/engine.js';
 import { isTauri } from '../window/shell.js';
 import { Avatar, Icon } from './primitives.js';
@@ -183,6 +185,7 @@ function AppearanceSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => strin
             <option value="hidden">{tr('settings.topBar.hidden')}</option>
           </select>
         </label>
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.topbar.alwaysOnTask.hint')}</p>
         <label className="block text-[12px] text-ink-2">
           {tr('settings.motion')}
           <select
@@ -195,6 +198,36 @@ function AppearanceSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => strin
             <option value="reduce">{tr('settings.motion.reduce')}</option>
           </select>
         </label>
+        <label className="flex items-center gap-2 text-[12px] text-ink-2">
+          <input
+            type="checkbox"
+            aria-label={tr('settings.appearance.avatars')}
+            checked={prefs.showAvatars}
+            onChange={(event) => setLocalPrefs({ showAvatars: event.target.checked })}
+          />
+          {tr('settings.appearance.avatars')}
+        </label>
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.appearance.avatars.hint')}</p>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.modes.title')}</h3>
+        <label className="block text-[12px] text-ink-2">
+          {tr('settings.modes.default')}
+          <select
+            aria-label={tr('settings.modes.default')}
+            className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 text-[12px] text-ink"
+            value={prefs.preferredMode}
+            onChange={(event) => setLocalPrefs({ preferredMode: event.target.value as AppModeId })}
+          >
+            {MODE_REGISTRY.map((def) => (
+              <option key={def.id} value={def.id}>
+                {tr(def.labelKey as Parameters<typeof t>[1])}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.modes.hint')}</p>
       </section>
 
       <section className="space-y-3">

@@ -8,7 +8,7 @@
  * @module
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import type { Artifact, Id } from '@camelia/core';
 import type { CheckpointView, NarrationView, TaskView, ToolCallView } from '@camelia/agent/view';
@@ -19,7 +19,6 @@ import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
 import { canIntervene, interveneUnavailableReason } from '../window/capabilities.js';
 import { ActivityBar } from './ActivityBar.js';
-import { PlanReview } from './PlanReview.js';
 import { ApprovalCard, FailureCard, NoticeBanner } from './Reliability.js';
 import { StepCard } from './StepCard.js';
 import { Avatar, Chip, ErrorState, Icon, LoadingState, SkeletonRows } from './primitives.js';
@@ -46,6 +45,7 @@ function rollbackTarget(task: TaskView): CheckpointView | undefined {
 
 function IntentCard({ task }: { task: TaskView }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
+  const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [showAssumptions, setShowAssumptions] = useState(false);
   return (
@@ -99,17 +99,18 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
           </div>
         ) : null}
       </div>
-      <Avatar kind="user" size={32} title={tr('avatar.user')} />
+      {showAvatars ? <Avatar kind="user" size={32} title={tr('avatar.user')} /> : null}
     </div>
   );
 }
 
 function DeliveryCard({ task }: { task: TaskView }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
+  const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   return (
     <div className="flex items-start gap-2.5" data-message="agent">
-      <Avatar kind="agent" size={32} title={tr('avatar.agent')} />
+      {showAvatars ? <Avatar kind="agent" size={32} title={tr('avatar.agent')} /> : null}
       <div className="min-w-0 flex-1 rounded-lg border border-ok/35 bg-ok/10 p-3">
       <div className="flex items-center gap-2">
         <Icon name="check" size={15} className="text-ok" />
@@ -135,6 +136,7 @@ function DeliveryCard({ task }: { task: TaskView }): ReactNode {
 
 function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx: number, stepId: Id) => void }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
+  const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const toolsByStep = new Map<Id, ToolCallView[]>();
   for (const call of Object.values(task.toolCalls)) {
@@ -160,7 +162,7 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
 
       {introNarration.length ? (
         <div className="flex items-start gap-2.5" data-message="agent">
-          <Avatar kind="agent" size={32} title={tr('avatar.agent')} />
+          {showAvatars ? <Avatar kind="agent" size={32} title={tr('avatar.agent')} /> : null}
           <div className="max-w-[75%]">
             <div className="wf-bubble-agent px-3.5 py-2.5">
               {introNarration.map((n) => (
@@ -210,13 +212,8 @@ export function Conversation(): ReactNode {
   const degradeOk = canIntervene('select_provider');
   const [steering, setSteering] = useState(false);
   const [steerText, setSteerText] = useState('');
-  const [center, setCenter] = useState<'plan' | 'conversation'>('conversation');
   const task = snapshot.task;
 
-  useEffect(() => {
-    if (!task) return;
-    setCenter(task.phase === 'awaiting-approval' ? 'plan' : 'conversation');
-  }, [task?.id, task?.phase]);
 
   const rollback = (stepIdx: number, checkpointId: Id): void => {
     void stepIdx;
@@ -236,17 +233,19 @@ export function Conversation(): ReactNode {
     ];
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 text-center">
-        {/* 吉祥物占位 */}
-        <div className="relative">
-          <div className="wf-dash-brand grid h-24 w-24 place-items-center rounded-full">
-            <Icon name="camellia" size={36} />
-          </div>
-          <span className="wf-orange-tag absolute -right-4 top-0">友好吉祥物占位</span>
+        {/* Transitional brand mark. The name is deliberately not final here — see the
+            plan book §10; what was removed is the orange "TBD" wireframe annotation,
+            which read as a defect rather than as a placeholder. */}
+        <div
+          data-brand-mark
+          className="grid h-20 w-20 place-items-center rounded-full border border-line bg-elevated/60 text-accent"
+        >
+          <Icon name="camellia" size={34} />
         </div>
-        <p className="mt-4 text-[15px] font-semibold text-[#9a3412]">待定：名字 / 吉祥物</p>
-        <p className="mt-1 text-[11.5px] text-ink-3">此处放最终 App 图标 / 吉祥物立绘 · 勿在线框阶段定名</p>
+        <p className="mt-3 text-[14px] font-semibold text-ink">{tr('brand.transition')}</p>
+        <p className="mt-0.5 text-[11px] text-ink-3">{tr('brand.placeholder.hint')}</p>
 
-        <h2 className="mt-8 text-[17px] font-semibold text-ink">暂无任务</h2>
+        <h2 className="mt-7 text-[17px] font-semibold text-ink">暂无任务</h2>
         <p className="mt-2 max-w-md text-[12.5px] leading-6 text-ink-3">
           描述你想构建、修复或调查的内容。Camelia 会规划、逐步执行、校验每个验收点，并向你展示完整运行过程。
         </p>
@@ -281,30 +280,8 @@ export function Conversation(): ReactNode {
         onIntervene={() => setSteering((v) => !v)}
       />
 
-      <div className="flex gap-1 border-b border-line px-4 py-1.5" role="tablist" aria-label="Center view">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={center === 'conversation'}
-          className={`rounded-md px-2 py-1 text-[11.5px] ${center === 'conversation' ? 'bg-panel text-ink' : 'text-ink-3'}`}
-          onClick={() => setCenter('conversation')}
-        >
-          {tr('conversation.tab')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={center === 'plan'}
-          className={`rounded-md px-2 py-1 text-[11.5px] ${center === 'plan' ? 'bg-panel text-ink' : 'text-ink-3'}`}
-          onClick={() => setCenter('plan')}
-        >
-          {tr('plan.tab')}
-        </button>
-      </div>
 
-      {center === 'plan' ? <PlanReview task={task} /> : null}
-
-      <div data-conversation className={`min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 ${center === 'plan' ? 'hidden' : ''}`}>
+      <div data-conversation className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {steering ? (
           <form
             className="rounded-lg border border-info/40 bg-info/10 p-3"
