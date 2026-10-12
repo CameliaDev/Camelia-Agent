@@ -60,6 +60,34 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-open-right-rail]')).not.toBeNull();
   });
 
+  it('hides Memory when collapsed and shows it after expand — even with sticky expanded prefs', () => {
+    localStorage.setItem(
+      'camelia.localPrefs',
+      JSON.stringify({
+        version: 3,
+        leftWidth: 260,
+        rightWidth: 360,
+        leftCollapsed: false,
+        rightCollapsed: false,
+        userSetRightRail: true,
+        themeId: 'light',
+        language: 'zh',
+        topBar: 'pinned',
+        motion: 'system',
+        fontMono: '',
+        planApproval: 'always',
+      }),
+    );
+    const { container } = renderScene('empty');
+    expect(container.querySelector('[data-rail-collapsed="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="memory-panel"]')).toBeNull();
+    expect(screen.queryByText('记忆')).not.toBeInTheDocument();
+    expandRightRail(container);
+    expect(container.querySelector('[data-rail-collapsed="false"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="memory-panel"]')).not.toBeNull();
+    expect(screen.getByText('记忆')).toBeInTheDocument();
+  });
+
   it('pins and deletes a session from the left list', () => {
     localStorage.removeItem('camelia.sessionMarks');
     const { container } = renderScene('running');

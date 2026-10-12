@@ -55,15 +55,16 @@ describe('localPrefs', () => {
     const store = createUiStore(new FixtureTransport({ scene: 'empty' }));
     expect(store.getState().localPrefs.leftWidth).toBe(300);
     expect(store.getState().localPrefs.themeId).toBe('light');
-    expect(store.getState().localPrefs.rightCollapsed).toBe(false);
-    expect(store.getState().localPrefs.userSetRightRail).toBe(true);
+    // boot policy: expand does not survive createUiStore / loadLocalPrefs
+    expect(store.getState().localPrefs.rightCollapsed).toBe(true);
+    expect(store.getState().localPrefs.userSetRightRail).toBe(false);
     expect(store.getState().snapshot.task).toBeUndefined();
     expect(loadLocalPrefs().topBar).toBe('pinned');
     expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#f3f0ed');
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
-  it('migrates pre-v3 prefs (including stuck v2 expanded) to a collapsed right rail', () => {
+  it('boots collapsed even when sticky v3 expanded prefs are in storage', () => {
     localStorage.setItem(
       'camelia.localPrefs',
       JSON.stringify({
@@ -80,23 +81,24 @@ describe('localPrefs', () => {
       }),
     );
     const migrated = loadLocalPrefs();
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated.rightCollapsed).toBe(true);
     expect(migrated.userSetRightRail).toBe(false);
     expect(migrated.leftWidth).toBe(300);
     const stored = JSON.parse(localStorage.getItem('camelia.localPrefs')!);
-    expect(stored.version).toBe(3);
+    expect(stored.version).toBe(4);
     expect(stored.rightCollapsed).toBe(true);
 
-    // Stuck v2: version already 2 but still expanded (the bug 239e7f1 could not fix).
+    // Stuck v3: version already 3 + userSetRightRail after smoke expand — must still boot collapsed.
     localStorage.setItem(
       'camelia.localPrefs',
       JSON.stringify({
-        version: 2,
+        version: 3,
         leftWidth: 300,
         rightWidth: 400,
         leftCollapsed: false,
         rightCollapsed: false,
+        userSetRightRail: true,
         themeId: 'light',
         language: 'zh',
         topBar: 'pinned',
@@ -105,23 +107,29 @@ describe('localPrefs', () => {
         planApproval: 'always',
       }),
     );
-    const fromV2 = loadLocalPrefs();
-    expect(fromV2.version).toBe(3);
-    expect(fromV2.rightCollapsed).toBe(true);
-    expect(fromV2.userSetRightRail).toBe(false);
+    const fromSticky = loadLocalPrefs();
+    expect(fromSticky.version).toBe(4);
+    expect(fromSticky.rightCollapsed).toBe(true);
+    expect(fromSticky.userSetRightRail).toBe(false);
 
-    saveLocalPrefs({ ...fromV2, ...rightRailUserPatch(false) });
-    expect(loadLocalPrefs().rightCollapsed).toBe(false);
-    expect(loadLocalPrefs().userSetRightRail).toBe(true);
+    // In-session expand still works via sanitize + save; next load boots collapsed again.
+    saveLocalPrefs({ ...fromSticky, ...rightRailUserPatch(false) });
+    expect(JSON.parse(localStorage.getItem('camelia.localPrefs')!).rightCollapsed).toBe(false);
+    expect(loadLocalPrefs().rightCollapsed).toBe(true);
+    expect(loadLocalPrefs().userSetRightRail).toBe(false);
   });
 
-  it('ignores expanded state without userSetRightRail even at current version', () => {
-    expect(sanitizeLocalPrefs({ version: 3, rightCollapsed: false }).rightCollapsed).toBe(true);
+  it('sanitize allows in-session expand only at v4+ with userSetRightRail', () => {
+    expect(sanitizeLocalPrefs({ version: 4, rightCollapsed: false }).rightCollapsed).toBe(true);
     expect(
-      sanitizeLocalPrefs({ version: 3, rightCollapsed: false, userSetRightRail: true }).rightCollapsed,
+      sanitizeLocalPrefs({ version: 4, rightCollapsed: false, userSetRightRail: true }).rightCollapsed,
     ).toBe(false);
     expect(
-      sanitizeLocalPrefs({ version: 3, rightCollapsed: true, userSetRightRail: true }).rightCollapsed,
+      sanitizeLocalPrefs({ version: 4, rightCollapsed: true, userSetRightRail: true }).rightCollapsed,
+    ).toBe(true);
+    // Pre-v4 sticky expand is ignored by sanitize too.
+    expect(
+      sanitizeLocalPrefs({ version: 3, rightCollapsed: false, userSetRightRail: true }).rightCollapsed,
     ).toBe(true);
     expect(sanitizeLocalPrefs({}).rightCollapsed).toBe(true);
     expect(sanitizeLocalPrefs({ version: 2, rightCollapsed: false }).rightCollapsed).toBe(true);

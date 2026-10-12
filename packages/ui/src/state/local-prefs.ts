@@ -18,7 +18,7 @@ import { applyPreset, type ThemeId } from '../theme/presets.js';
 export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
 
 /** Bump when a one-shot layout migration must run for existing installs. */
-export const LOCAL_PREFS_VERSION = 3;
+export const LOCAL_PREFS_VERSION = 4;
 
 export const RAIL_LEFT_DEFAULT = 260;
 export const RAIL_RIGHT_DEFAULT = 360;
@@ -41,7 +41,7 @@ export interface WindowGeometry {
 }
 
 export interface LocalPrefs {
-  /** Schema version. < 3 means a forced right-rail collapse migration is due. */
+  /** Schema version. < 4 means boot must ignore sticky expanded right rail. */
   version: number;
   leftWidth: number;
   rightWidth: number;
@@ -122,11 +122,9 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
   const planApproval = raw?.planApproval === 'auto' ? 'auto' : 'always';
   const window = sanitizeWindow(raw?.window);
   const rawVersion = prefsVersionOf(raw);
-  // v3: force collapse for anyone who has not explicitly toggled the rail.
-  // Covers (a) pre-v2 expanded defaults, (b) v2 installs that stamped
-  // version:2 while keeping rightCollapsed:false from old storage.
-  const migratingToV3 = rawVersion < 3;
-  const userSetRightRail = !migratingToV3 && raw?.userSetRightRail === true;
+  // Keep sanitize permissive for in-session expand (userSetRightRail + false).
+  // Boot policy lives in loadLocalPrefs — sticky expand must not survive restart.
+  const userSetRightRail = rawVersion >= 4 && raw?.userSetRightRail === true;
   const rightCollapsed = userSetRightRail ? raw?.rightCollapsed === true : true;
   return {
     version: LOCAL_PREFS_VERSION,
@@ -164,16 +162,24 @@ export function loadLocalPrefs(storage?: Storage): LocalPrefs {
     if (!raw) return { ...DEFAULT_LOCAL_PREFS };
     const parsedRaw = JSON.parse(raw) as Partial<LocalPrefs>;
     const parsed = sanitizeLocalPrefs(parsedRaw);
-    // Persist the migration immediately so a later expand/collapse is not
-    // re-forced on the next boot.
+    // Wireframe v2 product rule: right data rail ALWAYS boots collapsed.
+    // Expand is session-only. Persisted userSetRightRail+expanded (seen in
+    // WebView localStorage after smoke clicks) fought v2/v3 migrations.
+    const boot: LocalPrefs = {
+      ...parsed,
+      version: LOCAL_PREFS_VERSION,
+      rightCollapsed: true,
+      userSetRightRail: false,
+    };
     if (
       prefsVersionOf(parsedRaw) < LOCAL_PREFS_VERSION ||
-      parsedRaw.userSetRightRail !== parsed.userSetRightRail ||
-      parsedRaw.rightCollapsed !== parsed.rightCollapsed
+      parsedRaw.rightCollapsed !== true ||
+      parsedRaw.userSetRightRail === true ||
+      parsedRaw.userSetRightRail !== boot.userSetRightRail
     ) {
-      bin.setItem(LOCAL_PREFS_KEY, JSON.stringify(parsed));
+      bin.setItem(LOCAL_PREFS_KEY, JSON.stringify(boot));
     }
-    return parsed;
+    return boot;
   } catch {
     return { ...DEFAULT_LOCAL_PREFS };
   }
