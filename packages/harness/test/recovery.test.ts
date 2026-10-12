@@ -52,9 +52,10 @@ describe('ErrorRecovery.strategy', () => {
     expect(recovery.strategy('transient', 3).kind).toBe('switch-provider');
   });
 
-  it('rolls back an unrecoverable tool failure', () => {
+  it('degrades to read-only on repeated tool failure, then rolls back', () => {
     expect(recovery.strategy('tool', 1).kind).toBe('retry');
-    expect(recovery.strategy('tool', 3).kind).toBe('rollback');
+    expect(recovery.strategy('tool', 3).kind).toBe('degrade-readonly');
+    expect(recovery.strategy('tool', 5).kind).toBe('rollback');
   });
 
   it('asks a human for a policy block, then aborts', () => {

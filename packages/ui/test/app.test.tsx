@@ -35,6 +35,10 @@ function expandRightRail(container: HTMLElement): void {
   if (open) fireEvent.click(open);
 }
 
+function switchRightTab(label: RegExp | string): void {
+  fireEvent.click(screen.getByRole('tab', { name: label }));
+}
+
 
 // ---------------------------------------------------------------------------
 // layout contract (§6.4 grid)
@@ -175,6 +179,7 @@ describe('App — planning scene', () => {
     const { container } = renderScene('planning');
     expect(screen.getAllByText(/Drafting the plan|正在制定计划/).length).toBeGreaterThan(0);
     expandRightRail(container);
+    switchRightTab(/运行/);
     expect(screen.getByText('No plan yet — the planner has not returned.')).toBeInTheDocument();
   });
 
@@ -199,6 +204,7 @@ describe('App — running scene exposes the whole run', () => {
   it('shows the step list with per-step status', () => {
     const { container } = renderScene('running');
     expandRightRail(container);
+    switchRightTab(/运行/);
     expect(screen.getAllByText('步骤').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/STEP 1|步骤 1/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/STEP 4|步骤 4/).length).toBeGreaterThan(0);
@@ -231,6 +237,7 @@ describe('App — running scene exposes the whole run', () => {
   it('shows context usage as tokens and a window share', () => {
     const { container } = renderScene('running');
     expandRightRail(container);
+    switchRightTab(/上下文/);
     expect(screen.getAllByText('上下文').length).toBeGreaterThan(0);
     expect(screen.getByText(/\/ .* tokens/)).toBeInTheDocument();
   });
@@ -238,6 +245,7 @@ describe('App — running scene exposes the whole run', () => {
   it('lets the user inspect what compaction dropped', () => {
     const { container } = renderScene('running');
     expandRightRail(container);
+    switchRightTab(/上下文/);
     expect(screen.getByText('1 compaction')).toBeInTheDocument();
     expect(screen.getByText(/located the CLI entrypoint/)).toBeInTheDocument();
     expect(screen.getByText('protected slots that survived')).toBeInTheDocument();
@@ -246,6 +254,7 @@ describe('App — running scene exposes the whole run', () => {
   it('shows the original text of the messages compaction dropped', () => {
     const { container } = renderScene('running');
     expandRightRail(container);
+    switchRightTab(/上下文/);
     expect(screen.getByText('dropped originals')).toBeInTheDocument();
     // The raw text of a dropped tool call, not just its one-line summary.
     expect(screen.getByText(/export function main\(argv: string\[\]\): number/)).toBeInTheDocument();
@@ -257,7 +266,7 @@ describe('App — running scene exposes the whole run', () => {
   it('shows the sub-agent that ran in isolation', () => {
     const { container } = renderScene('running');
     expandRightRail(container);
-    expect(screen.getByText('子代理')).toBeInTheDocument();
+    switchRightTab(/子代理/);
     expect(screen.getByText(/Locate the format switch/)).toBeInTheDocument();
   });
 

@@ -830,7 +830,22 @@ export class CameliaRuntime {
       { providerId: this.fallback.active.id, model: model ?? this.decision.model, reason: 'user-selected' },
       { traceId: 'user-action', sessionId: this.session.id, taskId: this.activeLoop?.currentTaskId },
     );
+    this.persistSelectedProvider(this.fallback.active.id, model ?? this.decision.model);
     return true;
+  }
+
+  /** Best-effort persistence of the user's provider choice across restarts. */
+  private persistSelectedProvider(providerId: string, model: string): void {
+    try {
+      const configPath = paths.config();
+      const raw = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '{}';
+      const cfg = JSON.parse(raw) as Record<string, unknown>;
+      cfg.lastSelectedProvider = { providerId, model, at: new Date().toISOString() };
+      fs.mkdirSync(path.dirname(configPath), { recursive: true });
+      fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf8');
+    } catch {
+      // best effort — never throw into user action
+    }
   }
 
   /** Wait until every emitted event has been written to SQLite. */

@@ -574,7 +574,7 @@ export function RightRail(): ReactNode {
             ['events', '事件'],
             ['run', '运行'],
             ['context', '上下文'],
-            ['sub', '子代埋'],
+            ['sub', '子代理'],
           ] as const).map(([id, label]) => (
             <button
               key={id}
@@ -606,21 +606,20 @@ export function RightRail(): ReactNode {
         <span className="wf-orange-tag mb-1 shrink-0">仅检查数据时出现</span>
       </div>
 
-      {task ? (
+      {tab === 'memory' ? <MemoryPanel /> : null}
+      {tab === 'events' ? <EventSection timeline={timeline} taskId={task?.id} /> : null}
+      {tab === 'run' && task ? (
         <>
           <RunSection task={task} />
           <StepsSection task={task} />
           <CheckpointSection task={task} />
-          <ContextSection task={task} />
-          <SubAgentsSection task={task} />
         </>
-      ) : (
-        <div className="border-b border-line px-3 py-4 text-[11.5px] text-ink-3">
-          {tr('events.hint')}
-        </div>
-      )}
-      {tab === 'memory' ? <MemoryPanel /> : null}
-      {tab === 'events' || tab === 'run' || tab === 'context' || tab === 'sub' ? <EventSection timeline={timeline} taskId={task?.id} /> : null}
+      ) : null}
+      {tab === 'context' && task ? <ContextSection task={task} /> : null}
+      {tab === 'sub' && task ? <SubAgentsSection task={task} /> : null}
+      {!task && tab !== 'memory' && tab !== 'events' ? (
+        <div className="border-b border-line px-3 py-4 text-[11.5px] text-ink-3">{tr('events.hint')}</div>
+      ) : null}
     </aside>
   );
 }

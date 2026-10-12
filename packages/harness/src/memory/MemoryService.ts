@@ -350,6 +350,9 @@ export class MemoryService {
     for (const item of all) {
       if (item.layer !== 'short') continue;
       if ((item.importance ?? 0.5) < threshold) continue;
+      // Known-bad items (correctness === 0, marked disproved by an outcome)
+      // must never promote to long-term — they are actively wrong.
+      if ((item.correctness ?? 0.5) === 0) continue;
       await this.store.updateMemory(item.id, { layer: 'long', scope: 'global' });
       this.bus.emit(
         'memory.promoted',

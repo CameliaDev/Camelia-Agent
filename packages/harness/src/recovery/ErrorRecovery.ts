@@ -104,7 +104,10 @@ export class ErrorRecovery {
         if (canRetry) {
           return { kind: 'retry', attempt, backoffMs: 0, note: 'tool failed — retry with corrected arguments' };
         }
-        return { kind: 'rollback', attempt, note: 'tool unrecoverable — roll the step back' };
+        if (attempt <= this.maxRetries + 1) {
+          return { kind: 'degrade-readonly', attempt, note: 'tool keeps failing — degrade to read-only and finish what we can' };
+        }
+        return { kind: 'rollback', attempt, note: 'tool unrecoverable even in read-only — roll the step back' };
       case 'policy':
         if (attempt < 2) {
           return { kind: 'ask-human', attempt, note: 'action blocked by policy — request human approval' };
