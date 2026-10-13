@@ -17,9 +17,9 @@
   }
 }
 
-/* Page is the warm light gray; rails and the conversation column read as white cards. */
+/* Page matches Ink Light paper (--color-base #fafafa); rails stay white cards. */
 html[data-theme='light'] [data-shell] {
-  background: #f3f0ed !important;
+  background: #fafafa !important;
 }
 html[data-theme='light'] [data-rail] {
   background: #ffffff !important;
@@ -153,7 +153,7 @@ html[data-theme='light'] .wf-avatar-user {
 
 /* Soft agent bubbles - hairline only, no harsh rim. */
 html[data-theme='light'] .wf-bubble-agent {
-  border-color: #ebe7e3 !important;
+  border-color: #e8e8e8 !important;
   background: #ffffff !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }

@@ -13,6 +13,7 @@ import { ModeHeader } from '../ModeHeader.js';
 import { useUiStore } from '../../state/UiProvider.js';
 import { isFreshChatSession } from '../../state/fresh-session.js';
 
+import { ChatReplyProgress } from '../../components/ChatReplyProgress.js';
 import { ChatTranscript } from './ChatTranscript.js';
 
 export function ChatWorkspace(): ReactNode {
@@ -26,6 +27,7 @@ export function ChatWorkspace(): ReactNode {
       data-chat-fresh={fresh || undefined}
     >
       <ModeHeader />
+      <ChatReplyProgress />
       {fresh ? null : <ChatTranscript />}
     </div>
   );
