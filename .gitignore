@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 coverage/
 .turbo/
@@ -11,3 +11,14 @@ coverage/
 .vite/
 target/
 *.timestamp-*.mjs
+
+# 图标/主题改动前的原始文件快照（含 SHA256SUMS），仅供回滚，不入库。
+.icon-backup/
+
+# 本地临时补丁脚本、探测产物、serve 冒烟输出（勿入库）
+.tmp/
+.tmp-*
+.tmp-serve/
+scripts/_*-probe.mjs
+scripts/_with-preview.mjs
+goal-spec.md
