@@ -82,10 +82,11 @@ export function SessionRail(): ReactNode {
           dispatch(makeCommand('select_session', { sessionId: session.id }));
           setActiveSession(session.id);
         }}
+        data-active={active || undefined}
         className={`group relative flex items-center gap-1.5 rounded-md border px-2 py-1 ${
           active
-            ? 'border-accent bg-accent/[0.04] shadow-[0_0_0_1px_var(--color-accent)]'
-            : 'cursor-pointer border-transparent hover:border-line hover:bg-hover/60'
+            ? 'border-transparent bg-hover'
+            : 'cursor-pointer border-transparent hover:bg-hover/60'
         }`}
         title={`${session.title} · ${session.model}`}
       >

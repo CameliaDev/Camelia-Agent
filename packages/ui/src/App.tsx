@@ -150,6 +150,16 @@ export function App(): ReactNode {
     return () => window.removeEventListener('keydown', onKey);
   }, [setSettingsOpen]);
 
+  /* Native Chromium/Tauri right-click menu (Copy / Print / Inspect) looks wrong in-app. */
+  useEffect(() => {
+    const blockNativeMenu = (event: MouseEvent): void => {
+      event.preventDefault();
+    };
+    document.addEventListener('contextmenu', blockNativeMenu);
+    return () => document.removeEventListener('contextmenu', blockNativeMenu);
+  }, []);
+
+
   const left = railWidth(prefs);
   const panelId = useUiStore((s) => s.panelId);
   const right = panelId ? prefs.rightWidth : 0;

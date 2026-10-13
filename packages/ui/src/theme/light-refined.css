@@ -26,6 +26,12 @@ html[data-theme='light'] [data-rail] {
 }
 html[data-theme='light'] [data-session] {
   border: none !important;
+  box-shadow: none !important;
+}
+html[data-theme='light'] [data-session][data-active] {
+  background: #f0eeeb !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Step cards: drop the nested border, keep a quiet shadow. */
@@ -132,12 +138,12 @@ html[data-motion='reduce'] [data-step-status='verifying'] {
   animation: none;
 }
 
-/* Soft user bubbles — Ink Light accent is near-black; WeChat-style soft tint instead. */
+/* Soft user bubbles - WeChat-style tint instead of coral accent fill. */
 html[data-theme='light'] .wf-bubble-user {
   background: #e8f1fb !important;
   color: #1a1a1a !important;
-  border: 1px solid #c9ddf2 !important;
-  box-shadow: 0 1px 2px rgba(43, 108, 176, 0.06);
+  border: 1px solid #d7e6f5 !important;
+  box-shadow: 0 1px 2px rgba(43, 108, 176, 0.05);
 }
 html[data-theme='light'] .wf-avatar-user {
   background: #2b6cb0 !important;
@@ -145,12 +151,22 @@ html[data-theme='light'] .wf-avatar-user {
   border-color: #2b6cb0 !important;
 }
 
-
-/* Soften composer chrome — avoid a heavy black rim on paper. */
-html[data-theme='light'] [data-composer] {
-  border-color: #e8e4e0 !important;
+/* Soft agent bubbles - hairline only, no harsh rim. */
+html[data-theme='light'] .wf-bubble-agent {
+  border-color: #ebe7e3 !important;
   background: #ffffff !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* Composer: quieter rim; focus stays soft (no accent ring). */
+html[data-theme='light'] [data-composer] {
+  border-color: #ece8e4 !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+html[data-theme='light'] [data-composer]:focus-within {
+  border-color: #ddd8d3 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
 }
 
 /* Empty-state hero: no heavy dark blocks */

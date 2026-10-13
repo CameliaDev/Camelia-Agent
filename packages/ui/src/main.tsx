@@ -10,6 +10,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import './index.css';
+import './theme/light-refined.css';
 import { App } from './App.js';
 import { IconSheet } from './components/IconSheet.js';
 import { createUiStore } from './state/store.js';

@@ -294,7 +294,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       >
         <div
           data-composer
-          className="flex flex-col gap-1.5 rounded-2xl border border-line/50 bg-panel/40 p-2.5 shadow-sm transition-colors focus-within:border-accent/40 focus-within:shadow-md"
+          className="flex flex-col gap-1.5 rounded-2xl border border-line/40 bg-panel/40 p-2.5 shadow-sm transition-colors focus-within:border-line/70 focus-within:shadow-md"
         >
           {pendingImages.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-0.5" data-composer-images>
