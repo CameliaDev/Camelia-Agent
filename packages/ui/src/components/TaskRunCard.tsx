@@ -236,6 +236,12 @@ export function TaskRunCard(): ReactNode {
   if (!task) return null;
 
   const checkpoint = rollbackTarget(task);
+  const terminal =
+    task.status === 'done' || task.status === 'failed' || task.status === 'cancelled';
+  // Goal-drift / reanchor banners are live-run interventions; hide on terminal states.
+  const visibleNotices = terminal
+    ? task.notices.filter((n) => n.kind !== 'drift' && n.action !== 'reanchor')
+    : task.notices;
 
   return (
     <div className="flex min-h-0 flex-col" data-task-run-card data-conversation-workspace>
@@ -252,9 +258,9 @@ export function TaskRunCard(): ReactNode {
               {tr('panels.label')} →
             </button>
           </div>
-          {task.notices.length ? (
+          {visibleNotices.length ? (
             <div className="space-y-2">
-              {task.notices.map((notice, i) => (
+              {visibleNotices.map((notice, i) => (
                 <NoticeBanner key={`${notice.kind}-${notice.at}-${i}`} notice={notice} />
               ))}
             </div>
@@ -312,9 +318,11 @@ export function TaskRunCard(): ReactNode {
             </div>
           ) : null}
 
-          <div data-task-plan-review className="rounded-lg border border-line bg-elevated/40 p-2">
-            <PlanReview task={task} />
-          </div>
+          {task.status === 'awaiting-approval' ? (
+            <div data-task-plan-review className="rounded-lg border border-line bg-elevated/40 p-2">
+              <PlanReview task={task} />
+            </div>
+          ) : null}
 
           <TaskRecord task={task} onRollback={rollback} />
 

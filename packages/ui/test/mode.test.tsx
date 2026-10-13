@@ -136,14 +136,16 @@ describe('plan approval is always reachable', () => {
   // tab strip. When that moved into plan mode, chat mode lost every approve/reject control
   // — so a task waiting on approval was a dead end unless the user guessed to switch modes.
   // These assertions fail if that ever happens again.
-  it('auto-routes to plan mode when a task is awaiting approval', () => {
-    const { container } = renderScene('approval');
+  it('auto-routes to Work when a task is awaiting plan approval', () => {
+    // Scene plan ends at task.status === 'awaiting-approval'. Scene pproval is
+    // tool.approval_required during executing — that is ApprovalCard, not PlanReview.
+    const { container } = renderScene('plan');
     expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
     expect(container.querySelector('[data-plan-review]')).not.toBeNull();
   });
 
   it('offers approve and reject while a plan waits', () => {
-    const { container } = renderScene('approval');
+    const { container } = renderScene('plan');
     const review = container.querySelector('[data-plan-review]') as HTMLElement;
     expect(review).not.toBeNull();
     expect(review.textContent).toMatch(/批准|Approve/);

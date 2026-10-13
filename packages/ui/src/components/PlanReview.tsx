@@ -25,6 +25,9 @@ export function PlanReview({ task }: { task: TaskView }): ReactNode {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
 
+
+  // Defense in depth: TaskRunCard also gates mount; never show approve/reject off-gate.
+  if (task.status !== 'awaiting-approval') return null;
   const send = (edits: PlanEdit[]): void => {
     dispatch(makeCommand('edit_plan', { taskId: task.id, edits }));
   };

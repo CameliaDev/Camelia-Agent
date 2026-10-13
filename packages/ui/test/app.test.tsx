@@ -784,6 +784,21 @@ describe('App — done scene', () => {
     // Intent now renders as a right-aligned user bubble; the raw intent text is the anchor.
     expect(screen.getAllByText(/Add a --json flag to the camelia CLI/).length).toBeGreaterThan(0);
   });
+
+  it('hides PlanReview approve/reject after the task is done', () => {
+    const { container } = renderScene('done');
+    expect(container.querySelector('[data-plan-review]')).toBeNull();
+    expect(container.querySelector('[data-task-plan-review]')).toBeNull();
+    expect(screen.queryByText('Approve once')).not.toBeInTheDocument();
+    expect(screen.queryByText('批准一次')).not.toBeInTheDocument();
+    expect(screen.queryByText('Approve for session')).not.toBeInTheDocument();
+    expect(screen.queryByText('Approve for session')).not.toBeInTheDocument();
+    expect(screen.queryByText('本会话自动批准')).not.toBeInTheDocument();
+    expect(screen.queryByText('本会话批准')).not.toBeInTheDocument();
+    expect(screen.queryByText('Reject')).not.toBeInTheDocument();
+    expect(screen.queryByText('拒绝')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Goal drift detected/)).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
