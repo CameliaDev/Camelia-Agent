@@ -24,6 +24,7 @@ import {
   systemClock,
   type AgentPreset,
   type ChatPolicy,
+  type EffortLevel,
   type ClarifiedIntent,
   type DomainEvent,
   type Id,
@@ -85,6 +86,7 @@ import { loadConfig, type CameliaConfig } from '../config/load.js';
 import { ensureCameliaHome, paths } from '../config/paths.js';
 import { appendAbiMismatch, isAbiMismatchError, migrateAbiMismatch } from './abi.js';
 import { ChatLoop } from './ChatLoop.js';
+import { withEffort } from './effort.js';
 import { FallbackLLMPort } from '../FallbackLLMPort.js';
 import { ModelRouter } from '../ModelRouter.js';
 import { PluginLoader, type PluginLoadResult, type LoadedProviderPlugin } from '../plugins/PluginLoader.js';
@@ -180,6 +182,10 @@ export interface RunTaskOptions {
    * session. Used by the UI "new session" / "switch session" flow.
    */
   sessionId?: Id;
+  /**
+   * Composer effort. Stored as a planning constraint. Does not change the model.
+   */
+  effort?: EffortLevel;
 }
 
 export interface CameliaRunResult {
@@ -713,9 +719,9 @@ export class CameliaRuntime {
    * One chat turn. While a task run is active the chat is refused — one
    * workspace-mutation stream at a time keeps both paths honest.
    */
-  async chat(sessionId: Id, text: string, policy: ChatPolicy): Promise<void> {
+  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel): Promise<void> {
     if (this.activeLoop) throw new Error('a task run is active — chat is unavailable until it finishes');
-    await this.chatLoop.chat(sessionId, text, policy);
+    await this.chatLoop.chat(sessionId, text, policy, effort);
   }
 
   /** Answer an open `ask_user` picker from the chat path. */
@@ -858,8 +864,9 @@ export class CameliaRuntime {
     // On resume the persisted intent is reused when available; otherwise the
     // deterministic (offline) restatement avoids a redundant model call.
     const persistedIntent = resumeTaskId ? task.intentClarified : undefined;
-    const intent =
+    const clarified =
       persistedIntent ?? (await clarifier.clarify(rawIntent, { offline: options.offlineClarify || Boolean(resumeTaskId) }));
+    const intent = withEffort(clarified, options.effort);
     await this.store.updateTask(task.id, { intentClarified: intent });
     this.bus.emit('task.clarified', { intent }, meta);
 

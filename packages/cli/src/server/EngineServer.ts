@@ -14,7 +14,7 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-import type { ChatPolicy, Command, DomainEvent, Id, LoggerPort, MemoryLayer, StoredEvent } from '@camelia/core';
+import type { ChatPolicy, Command, DomainEvent, EffortLevel, Id, LoggerPort, MemoryLayer, StoredEvent } from '@camelia/core';
 import type { CameliaRuntime } from '@camelia/agent';
 import {
   ENGINE_ROUTES,
@@ -35,9 +35,17 @@ function isMemoryLayer(value: unknown): value is MemoryLayer {
 }
 
 const CHAT_POLICIES = new Set<string>(['readonly-sandbox', 'ask', 'full']);
+const EFFORT_LEVELS = new Set<string>(['max', 'high', 'low']);
 
 function isChatPolicy(value: unknown): value is ChatPolicy {
   return typeof value === 'string' && CHAT_POLICIES.has(value);
+}
+
+/** Absent is fine (older clients). A present-but-unknown value is a rejection. */
+function parseEffort(value: unknown): EffortLevel | undefined | null {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string' && EFFORT_LEVELS.has(value)) return value as EffortLevel;
+  return null;
 }
 
 export interface EngineServerOptions {
@@ -324,8 +332,11 @@ export class EngineServer {
   /** Map one UI command onto the runtime. Pure dispatch — no queuing, no magic. */
   private async dispatch(command: Command): Promise<CommandAck> {
     switch (command.type) {
-      case 'submit_task':
-        return this.submit(command.payload.intent, command.payload.sessionId);
+      case 'submit_task': {
+        const effort = parseEffort(command.payload.effort);
+        if (effort === null) return { ok: false, error: `无效的力度: ${String(command.payload.effort)}` };
+        return this.submit(command.payload.intent, command.payload.sessionId, effort);
+      }
       case 'resume_task':
         return this.resume(command.payload.taskId);
       case 'approve_tool':
@@ -468,15 +479,17 @@ export class EngineServer {
 
       // ---- chat (对话 mode): direct conversation, no task machinery --------
       case 'chat_message': {
-        const { sessionId, text, policy } = command.payload;
+        const { sessionId, text, policy, effort: rawEffort } = command.payload;
         if (this.activeRun) return { ok: false, error: '已有任务正在运行，聊天暂不可用' };
         if (this.activeChat) return { ok: false, error: '已有对话正在处理，请稍候' };
         if (typeof text !== 'string' || !text.trim()) return { ok: false, error: '消息不能为空' };
         if (!isChatPolicy(policy)) return { ok: false, error: `无效的聊天权限策略: ${String(policy)}` };
+        const effort = parseEffort(rawEffort);
+        if (effort === null) return { ok: false, error: `无效的力度: ${String(rawEffort)}` };
         const chatSessionId =
           typeof sessionId === 'string' && sessionId ? sessionId : this.options.runtime.session.id;
         this.activeChat = this.options.runtime
-          .chat(chatSessionId, text, policy)
+          .chat(chatSessionId, text, policy, effort)
           .catch((error: unknown) => {
             this.options.logger?.error('chat turn failed', { error: String(error) });
           })
@@ -499,12 +512,12 @@ export class EngineServer {
     }
   }
 
-  private submit(intent: string, sessionId?: string): CommandAck {
+  private submit(intent: string, sessionId?: string, effort?: EffortLevel): CommandAck {
     if (this.activeRun) return { ok: false, error: '已有任务正在运行' };
     const trimmed = intent.trim();
     if (!trimmed) return { ok: false, error: '任务描述不能为空' };
     this.activeRun = this.options.runtime
-      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId })
+      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId, effort })
       .catch((error: unknown) => {
         this.options.logger?.error('task run failed', { error: String(error) });
       })

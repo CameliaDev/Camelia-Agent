@@ -55,6 +55,7 @@ describe('composer chat dispatch', () => {
     expect(sent.map((c) => c.type)).toEqual(['chat_message']);
     expect(sent[0]!.payload.text).toBe('hello');
     expect(sent[0]!.payload.policy).toBe('readonly-sandbox');
+    expect(sent[0]!.payload.effort).toBe('high');
     expect(sent.some((c) => c.type === 'submit_task')).toBe(false);
     // The box clears — a chat app, not a form.
     expect(composer(container).value).toBe('');

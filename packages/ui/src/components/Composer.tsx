@@ -162,7 +162,12 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       // 对话 mode: a direct chat turn — no task machinery; the picker decides the
       // tool posture, and the engine refuses while a task run is active.
       dispatch(
-        makeCommand('chat_message', { sessionId: activeSessionId ?? 'ses_new', text: intent, policy: chatPolicy }),
+        makeCommand('chat_message', {
+          sessionId: activeSessionId ?? 'ses_new',
+          text: intent,
+          policy: chatPolicy,
+          effort,
+        }),
       );
     } else if (running && task) {
       dispatch(makeCommand('intervene_goal', { taskId: task.id, instruction: intent }));
@@ -172,6 +177,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
           sessionId: activeSessionId ?? 'ses_new',
           intent,
           workspace: snapshot.session?.workspace ?? '.',
+          effort,
         }),
       );
     }
