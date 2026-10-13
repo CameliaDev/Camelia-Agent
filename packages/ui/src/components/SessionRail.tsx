@@ -199,11 +199,12 @@ export function SessionRail(): ReactNode {
           <button
             type="button"
             data-new-session
-            className="inline-flex items-center gap-0.5 rounded-md bg-accent px-1.5 py-[2px] text-[11px] font-medium leading-4 text-base hover:bg-accent-2"
+            aria-label={tr('rail.new')}
+            title={tr('rail.new')}
+            className="grid h-5 w-5 place-items-center rounded-md bg-accent text-[15px] font-medium leading-none text-base hover:bg-accent-2"
             onClick={newSession}
           >
-            <span className="text-[13px] leading-none">+</span>
-            新建
+            <span aria-hidden>+</span>
           </button>
           <button
             type="button"

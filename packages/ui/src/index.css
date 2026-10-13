@@ -158,6 +158,19 @@ body {
 .camelia-pulse {
   animation: camelia-pulse 1.6s ease-in-out infinite;
 }
+@keyframes camelia-reply-bar {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.camelia-reply-bar {
+  animation: camelia-reply-bar 1.8s ease-in-out infinite;
+}
+
 
 @keyframes camelia-sweep {
   0% {
@@ -178,6 +191,7 @@ body {
   .camelia-rails,
   .camelia-topbar,
   .camelia-pulse,
+  .camelia-reply-bar,
   .camelia-sweep::after {
     transition: none;
     animation: none;
@@ -189,6 +203,7 @@ html[data-resizing] .camelia-rails {
 html[data-motion='reduce'] .camelia-rails,
 html[data-motion='reduce'] .camelia-topbar,
 html[data-motion='reduce'] .camelia-pulse,
+html[data-motion='reduce'] .camelia-reply-bar,
 html[data-motion='reduce'] .camelia-sweep::after {
   transition: none;
   animation: none;

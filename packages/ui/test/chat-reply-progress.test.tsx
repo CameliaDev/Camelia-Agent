@@ -1,5 +1,5 @@
 /**
- * ChatReplyProgress — in-flight helper + presence while streaming.
+ * ChatReplyProgress — phase helper + green/red presence.
  * @module
  */
 
@@ -9,7 +9,11 @@ import { describe, expect, it } from 'vitest';
 import type { ChatView } from '@camelia/agent/view';
 
 import { App } from '../src/App.js';
-import { ChatReplyProgress, isChatReplyInFlight } from '../src/components/ChatReplyProgress.js';
+import {
+  ChatReplyProgress,
+  chatReplyProgressPhase,
+  isChatReplyInFlight,
+} from '../src/components/ChatReplyProgress.js';
 import { createUiStore } from '../src/state/store.js';
 import { UiProvider } from '../src/state/UiProvider.js';
 import { FixtureTransport } from '../src/transport/fixture.js';
@@ -22,11 +26,11 @@ function chat(overrides: Partial<ChatView> = {}): ChatView {
   };
 }
 
-describe('isChatReplyInFlight', () => {
-  it('is false on an empty or finished transcript', () => {
-    expect(isChatReplyInFlight(chat())).toBe(false);
+describe('chatReplyProgressPhase', () => {
+  it('is hidden on an empty or finished transcript', () => {
+    expect(chatReplyProgressPhase(chat())).toBe('hidden');
     expect(
-      isChatReplyInFlight(
+      chatReplyProgressPhase(
         chat({
           turns: [
             { id: 'u1', role: 'user', text: 'hi', streaming: false, toolCalls: [], at: 1 },
@@ -34,19 +38,19 @@ describe('isChatReplyInFlight', () => {
           ],
         }),
       ),
-    ).toBe(false);
+    ).toBe('hidden');
   });
 
-  it('is true while waiting after a user turn or while the assistant streams', () => {
+  it('is running while waiting after a user turn or while the assistant streams', () => {
     expect(
-      isChatReplyInFlight(
+      chatReplyProgressPhase(
         chat({
           turns: [{ id: 'u1', role: 'user', text: 'hi', streaming: false, toolCalls: [], at: 1 }],
         }),
       ),
-    ).toBe(true);
+    ).toBe('running');
     expect(
-      isChatReplyInFlight(
+      chatReplyProgressPhase(
         chat({
           turns: [
             { id: 'u1', role: 'user', text: 'hi', streaming: false, toolCalls: [], at: 1 },
@@ -54,23 +58,65 @@ describe('isChatReplyInFlight', () => {
           ],
         }),
       ),
-    ).toBe(true);
+    ).toBe('running');
+  });
+
+  it('is error when the assistant turn failed or a command rejected after the send', () => {
+    expect(
+      chatReplyProgressPhase(
+        chat({
+          turns: [
+            { id: 'u1', role: 'user', text: 'hi', streaming: false, toolCalls: [], at: 1 },
+            {
+              id: 'a1',
+              role: 'assistant',
+              text: '',
+              streaming: false,
+              toolCalls: [],
+              error: 'quota exceeded',
+              at: 2,
+            },
+          ],
+        }),
+      ),
+    ).toBe('error');
+    expect(
+      chatReplyProgressPhase(
+        chat({
+          turns: [{ id: 'u1', role: 'user', text: 'hi', streaming: false, toolCalls: [], at: 10 }],
+        }),
+        { type: 'chat', error: '401', at: 11 },
+      ),
+    ).toBe('error');
   });
 
   it('stays hidden while an ask_user picker is open', () => {
     expect(
-      isChatReplyInFlight(
+      chatReplyProgressPhase(
         chat({
           turns: [{ id: 'a1', role: 'assistant', text: 'pick one', streaming: false, toolCalls: [], at: 1 }],
           pendingAsk: { askId: 'ask_1', question: '?', options: ['a', 'b'], at: 2 },
         }),
       ),
-    ).toBe(false);
+    ).toBe('hidden');
+  });
+});
+
+describe('isChatReplyInFlight', () => {
+  it('matches the running phase only', () => {
+    expect(isChatReplyInFlight(chat())).toBe(false);
+    expect(
+      isChatReplyInFlight(
+        chat({
+          turns: [{ id: 'u1', role: 'user', text: 'hi', streaming: false, toolCalls: [], at: 1 }],
+        }),
+      ),
+    ).toBe(true);
   });
 });
 
 describe('ChatReplyProgress', () => {
-  it('renders the two-dot bar only while a reply is in flight', () => {
+  it('renders green while in flight, hides on finish, red on error', () => {
     const transport = new FixtureTransport({ scene: 'empty' });
     const store = createUiStore(transport);
     const { container, rerender } = render(
@@ -101,10 +147,11 @@ describe('ChatReplyProgress', () => {
       </UiProvider>,
     );
 
-    const bar = container.querySelector('[data-chat-reply-progress]');
+    let bar = container.querySelector('[data-chat-reply-progress]');
     expect(bar).not.toBeNull();
-    expect(bar!.querySelectorAll('[data-progress-dot]')).toHaveLength(2);
-    expect(bar!.querySelector('[data-progress-line]')).not.toBeNull();
+    expect(bar!.getAttribute('data-phase')).toBe('running');
+    expect(bar!.querySelector('[data-progress-line]')!.className).toContain('camelia-reply-bar');
+    expect(bar!.querySelector('[data-progress-line]')!.className).not.toContain('camelia-pulse');
 
     act(() => {
       store.setState((state) => ({
@@ -126,6 +173,38 @@ describe('ChatReplyProgress', () => {
       </UiProvider>,
     );
     expect(container.querySelector('[data-chat-reply-progress]')).toBeNull();
+
+    act(() => {
+      store.setState((state) => ({
+        snapshot: {
+          ...state.snapshot,
+          chat: {
+            ...state.snapshot.chat,
+            turns: [
+              { id: 'u1', role: 'user', text: 'hi', streaming: false, toolCalls: [], at: 1 },
+              {
+                id: 'a1',
+                role: 'assistant',
+                text: '',
+                streaming: false,
+                toolCalls: [],
+                error: 'no quota',
+                at: 2,
+              },
+            ],
+          },
+        },
+      }));
+    });
+    rerender(
+      <UiProvider store={store}>
+        <App />
+      </UiProvider>,
+    );
+    bar = container.querySelector('[data-chat-reply-progress]');
+    expect(bar).not.toBeNull();
+    expect(bar!.getAttribute('data-phase')).toBe('error');
+    expect(bar!.querySelector('[data-progress-line]')!.className).toContain('bg-bad');
   });
 
   it('mounts the isolated component without crashing', () => {

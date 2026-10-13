@@ -91,6 +91,7 @@ type StringKey =
   | 'composer.policy.full'
   | 'chat.empty'
 | 'chat.running'
+  | 'chat.failed'
   | 'chat.askTitle'
   | 'composer.noActiveRun'
   | 'composer.enterToSend'
@@ -504,6 +505,7 @@ const en: Record<StringKey, string> = {
   'composer.policy.ask': 'Ask before writes',
   'composer.policy.full': 'Full access',
   'chat.running': 'Replying…',
+  'chat.failed': 'Reply failed',
   'chat.empty': 'Conversation mode — the model answers directly. No plan, no task machinery.',
   'chat.askTitle': 'Camelia needs your choice',
   'composer.noActiveRun': 'no active run',
@@ -912,6 +914,7 @@ const zh: Record<StringKey, string> = {
   'composer.policy.ask': '写入前询问',
   'composer.policy.full': '完全放行',
   'chat.running': '回复中…',
+  'chat.failed': '回复失败',
   'chat.empty': '对话模式——模型直接回答，不建任务、不做计划。',
   'chat.askTitle': 'Camelia 需要你的选择',
   'composer.noActiveRun': '无运行中任务',
