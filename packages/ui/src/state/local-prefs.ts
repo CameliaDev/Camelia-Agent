@@ -16,7 +16,7 @@ import type { ChatPolicy } from '@camelia/core';
 
 import { applyThemeTokens, clearThemeTokens, type ThemeApplyResult } from '../theme/apply-theme.js';
 import { applyPreset, type ThemeId } from '../theme/presets.js';
-import { DEFAULT_MODE, isAppModeId, type AppModeId } from '../mode/types.js';
+import { DEFAULT_MODE, normalizeModeId, type AppModeId } from '../mode/types.js';
 
 export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
 
@@ -27,10 +27,10 @@ export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
  *      an older install is a leftover default, not a choice, and is re-read as unset.
  * v6 — the right data rail is gone (its panels moved into the header + a main-area deck).
  *      Stored `rightWidth` / `rightCollapsed` are dropped, not migrated.
- * v7 — `chatPolicy` added: the 对话 mode's tool permission posture. Absent (pre-v7)
- *      means "never chosen" and re-reads as the restrictive default.
+ * v7 — `chatPolicy` added.
+ * v8 — Work|Math modes; right rail prefs restored (F3); preferredMode chat/plan → work.
  */
-export const LOCAL_PREFS_VERSION = 7;
+export const LOCAL_PREFS_VERSION = 8;
 
 export const RAIL_LEFT_DEFAULT = 260;
 export const RAIL_COLLAPSED = 48;
@@ -45,6 +45,9 @@ export const RAIL_COLLAPSED = 48;
 export const RAIL_ICON_WIDTH = RAIL_COLLAPSED;
 export const RAIL_LEFT_MIN = 200;
 export const RAIL_LEFT_MAX = 420;
+export const RAIL_RIGHT_DEFAULT = 320;
+export const RAIL_RIGHT_MIN = 240;
+export const RAIL_RIGHT_MAX = 480;
 
 export type TopBarMode = 'auto' | 'pinned' | 'hidden';
 export type MotionPref = 'system' | 'reduce';
@@ -72,6 +75,8 @@ export interface LocalPrefs {
   version: number;
   leftWidth: number;
   leftCollapsed: boolean;
+  rightWidth: number;
+  rightCollapsed: boolean;
   themeId: ThemeId;
   language: LanguagePref;
   topBar: TopBarMode;
@@ -121,6 +126,8 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   version: LOCAL_PREFS_VERSION,
   leftWidth: RAIL_LEFT_DEFAULT,
   leftCollapsed: false,
+  rightWidth: RAIL_RIGHT_DEFAULT,
+  rightCollapsed: true,
   themeId: 'light',
   language: 'zh',
   topBar: 'pinned',
@@ -148,8 +155,9 @@ const CHAT_POLICIES: readonly ChatPolicy[] = ['readonly-sandbox', 'ask', 'full']
  * clamped is the session column. A one-valued discriminator would be a knob that cannot
  * turn.
  */
-export function clampRail(width: number): number {
-  if (!Number.isFinite(width)) return RAIL_LEFT_DEFAULT;
+export function clampRail(width: number, side: 'left' | 'right' = 'left'): number {
+  if (!Number.isFinite(width)) return side === 'right' ? RAIL_RIGHT_DEFAULT : RAIL_LEFT_DEFAULT;
+  if (side === 'right') return Math.round(Math.min(RAIL_RIGHT_MAX, Math.max(RAIL_RIGHT_MIN, width)));
   return Math.round(Math.min(RAIL_LEFT_MAX, Math.max(RAIL_LEFT_MIN, width)));
 }
 
@@ -196,6 +204,8 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     version: LOCAL_PREFS_VERSION,
     leftWidth: clampRail(raw?.leftWidth ?? RAIL_LEFT_DEFAULT),
     leftCollapsed: raw?.leftCollapsed === true,
+    rightWidth: clampRail(raw?.rightWidth ?? RAIL_RIGHT_DEFAULT, 'right'),
+    rightCollapsed: true,
     themeId,
     language,
     topBar,
@@ -203,7 +213,7 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     fontMono,
     planApproval,
     // Unknown / legacy values fall back to the default rather than reaching the UI.
-    preferredMode: isAppModeId(raw?.preferredMode) ? raw.preferredMode : DEFAULT_LOCAL_PREFS.preferredMode,
+    preferredMode: normalizeModeId(raw?.preferredMode),
     // Only an explicit `false` disables avatars; absent (older install) means on.
     showAvatars: raw?.showAvatars !== false,
     // Same permissive rule: an older install has no opinion, so it gets the mascot.

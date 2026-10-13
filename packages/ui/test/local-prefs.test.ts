@@ -79,7 +79,7 @@ describe('localPrefs', () => {
       motion: 'reduce',
       fontMono: 'Consolas, monospace',
       planApproval: 'always',
-      preferredMode: 'plan',
+      preferredMode: 'work',
       showAvatars: false,
       userAvatar: 'letter',
       displayName: '阿离',
@@ -90,7 +90,7 @@ describe('localPrefs', () => {
     expect(store.getState().localPrefs.leftCollapsed).toBe(true);
     expect(store.getState().localPrefs.themeId).toBe('light');
     // The mode preference is ordinary window chrome: it persists across boots.
-    expect(store.getState().localPrefs.preferredMode).toBe('plan');
+    expect(store.getState().localPrefs.preferredMode).toBe('work');
     expect(store.getState().localPrefs.showAvatars).toBe(false);
     expect(store.getState().localPrefs.userAvatar).toBe('letter');
     expect(store.getState().localPrefs.displayName).toBe('阿离');
@@ -132,8 +132,8 @@ describe('localPrefs', () => {
 
     const stored = JSON.parse(localStorage.getItem('camelia.localPrefs')!) as Record<string, unknown>;
     expect(stored.version).toBe(LOCAL_PREFS_VERSION);
-    expect(stored).not.toHaveProperty('rightWidth');
-    expect(stored).not.toHaveProperty('rightCollapsed');
+    expect(stored).toHaveProperty('rightWidth');
+    expect(stored.rightCollapsed).toBe(true);
     expect(stored).not.toHaveProperty('userSetRightRail');
 
     // A second boot is already clean, so it rewrites nothing. The rewrite must be

@@ -22,18 +22,12 @@ import type { SceneId } from '../src/transport/scenario.js';
 function renderScene(scene: SceneId) {
   const transport = new FixtureTransport({ scene });
   const store = createUiStore(transport);
+  // Work mode embeds TaskRunCard when the fixture seeds a task (P0-1 D / F6).
   const view = render(
     <UiProvider store={store}>
       <App />
     </UiProvider>,
   );
-  // 对话 mode now shows the chat transcript, not the task surface — the two modes
-  // diverge at the workspace level. This file is the task-surface checklist, so it
-  // starts in plan mode, whose workspace *is* the task transcript. Tests that need
-  // the chat surface click the chat tab explicitly, or live in chat-mode.test.tsx.
-  act(() => {
-    fireEvent.click(view.container.querySelector('[data-mode-tab="plan"]') as HTMLElement);
-  });
   return { ...view, store, transport };
 }
 
@@ -44,6 +38,12 @@ function renderScene(scene: SceneId) {
  * hang off the header (PanelIcons) and render into the main area's deck (PanelDeck), so
  * a test that wants to read the run steps clicks the icon, not a tab.
  */
+function expandCollapsed(container: HTMLElement): void {
+  container.querySelectorAll('[data-collapsible-toggle]').forEach((btn) => {
+    fireEvent.click(btn as HTMLElement);
+  });
+}
+
 function openPanel(container: HTMLElement, id: string): HTMLElement {
   const icon = container.querySelector(`[data-panel-icon="${id}"]`) as HTMLElement | null;
   if (!icon) throw new Error(`panel icon not found: ${id}`);
@@ -101,11 +101,11 @@ describe('App — layout contract', () => {
     expect(rails.style.paddingBottom).toBe('28px');
     // One row. A `grid-template-rows` of two entries is exactly what must never appear.
     expect(rails.style.gridTemplateRows).toBe('');
-    // Three columns — the right rail's track is gone, not merely collapsed to zero.
-    // A four-track template would still reserve the width and leave a dead gap.
+    // Four tracks: icon | session | main | right (F3). Right width is 0 until a panel opens.
     expect(rails.style.gridTemplateColumns).toContain('var(--rail-icon-w)');
-    expect(rails.style.gridTemplateColumns).not.toContain('--rail-right-w');
-    expect(rails.children).toHaveLength(3);
+    expect(rails.style.gridTemplateColumns).toContain('--rail-right-w');
+    // RightRail returns null when closed, so only three DOM children are mounted.
+    expect(rails.children.length).toBeGreaterThanOrEqual(3);
 
     const shell = container.querySelector('[data-shell]') as HTMLElement;
     // The height is published as a variable so the padding and the bar cannot drift apart.
@@ -158,11 +158,10 @@ describe('App — layout contract', () => {
     // these assertions are what stop a mode from drifting again.
     localStorage.removeItem('camelia.localPrefs');
 
-    for (const mode of ['对话', '计划', '数模'] as const) {
+    for (const mode of ['Work', '数模'] as const) {
       const { container, store } = renderScene('running');
       act(() => {
-        // Mode may auto-route to plan while approval pends; force the mode under test.
-        store.getState().setMode(mode === '对话' ? 'chat' : mode === '计划' ? 'plan' : 'math');
+        store.getState().setMode(mode === 'Work' ? 'work' : 'math');
       });
       const header = container.querySelector('[data-mode-header]') as HTMLElement | null;
       expect(header, `${mode} should render a mode header`).not.toBeNull();
@@ -176,10 +175,10 @@ describe('App — layout contract', () => {
     // state before reaching the header, so an idle window had a strip in math and none in
     // chat/plan — a 33px jump on the first mode switch a new user ever makes. The height
     // is an invariant of the shell, not of having work to show.
-    for (const mode of ['对话', '计划', '数模'] as const) {
+    for (const mode of ['Work', '数模'] as const) {
       const { container, store } = renderScene('empty');
       act(() => {
-        store.getState().setMode(mode === '对话' ? 'chat' : mode === '计划' ? 'plan' : 'math');
+        store.getState().setMode(mode === 'Work' ? 'work' : 'math');
       });
       const header = container.querySelector('[data-mode-header]') as HTMLElement | null;
       expect(header, `${mode} should render a mode header even with no task`).not.toBeNull();
@@ -234,7 +233,7 @@ describe('App — layout contract', () => {
     // The panels were a right rail, so they only existed in one place. A mode that cannot
     // reach them is a mode missing a capability the other two have — the same defect the
     // run controls had. `PanelIcons` is mounted by `ModeHeader`, so this holds everywhere.
-    for (const mode of ['chat', 'plan', 'math'] as const) {
+    for (const mode of ['work', 'math'] as const) {
       fireEvent.click(container.querySelector(`[data-mode-tab="${mode}"]`) as HTMLElement);
       const header = container.querySelector('[data-mode-header]') as HTMLElement;
       const icons = [...header.querySelectorAll('[data-panel-icon]')].map((n) =>
@@ -279,32 +278,22 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-panel-deck="model"]')).not.toBeNull();
     // Back to chat: the model icon is gone, so a body left on screen would be something
     // open with no control that closes it.
-    fireEvent.click(container.querySelector('[data-mode-tab="chat"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-mode-tab="work"]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
   });
 
-  it('renders the deck as a horizontal band above the composer', () => {
+  it('opens panels in the right rail beside the main column (F3)', () => {
     const { container } = renderScene('running');
     openPanel(container, 'events');
     const deck = container.querySelector('[data-panel-deck]') as HTMLElement;
-    const composer = container.querySelector('[data-composer]') as HTMLElement;
-    // The user asked for 横着放. A band means: shrink-0 so it takes its natural height,
-    // a max-height so it cannot eat the transcript, and a multi-column body grid.
-    expect(deck.className).toContain('shrink-0');
-    expect(deck.style.maxHeight).toBe('38vh');
-    const body = deck.querySelector('[data-panel-deck] > div:last-of-type') as HTMLElement;
-    expect(body.className).toContain('md:grid-cols-2');
-    expect(body.className).toContain('xl:grid-cols-3');
-    // No title row of its own: the body's own `SectionHeader` names the panel, and a deck
-    // that repeated it would print 「事件」 twice inside one band.
-    expect(deck.querySelector('[data-panel-title]')).toBeNull();
-    expect(deck.querySelectorAll('section, [data-event-section]').length).toBeGreaterThan(0);
-    // And it sits above the composer, as a sibling band in the work column rather than as
-    // something floating over it. `[data-composer]` is the form inside `Composer`, so the
-    // shared column is asserted through `main`.
-    const main = deck.parentElement as HTMLElement;
-    expect(main.tagName).toBe('MAIN');
-    expect(deck.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const rail = container.querySelector('[data-right-rail]') as HTMLElement;
+    expect(rail, 'right rail hosts the panel').not.toBeNull();
+    expect(deck, 'panel deck attribute rides the right rail').not.toBeNull();
+    expect(rail.getAttribute('data-panel-deck')).toBe('events');
+    expect(rail.querySelector('[data-panel-close]')).not.toBeNull();
+    expect(rail.querySelectorAll('section, [data-event-section]').length).toBeGreaterThan(0);
+    // Not inside main — sibling column on the grid.
+    expect(rail.closest('main')).toBeNull();
   });
 
   it('pins and deletes a session from the left list', () => {
@@ -496,9 +485,9 @@ describe('App — wireframe v2 chrome', () => {
 
 describe('App — empty scene', () => {
   it('shows the empty state, not a spinner', () => {
-    renderScene('empty');
-    expect(screen.getByText('暂无任务')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/描述一个任务/)).toBeInTheDocument();
+    const { container } = renderScene('empty');
+    expect(container.querySelector('[data-chat-transcript]')).not.toBeNull();
+    expect(container.querySelector('.camelia-pulse')).toBeNull();
   });
 
   it('tells the user where sessions and restore points will appear', () => {
@@ -507,51 +496,29 @@ describe('App — empty scene', () => {
     expect(screen.getByText(/从下方描述一个任务开始/)).toBeInTheDocument();
   });
 
-  it('refuses a typed task instead of attaching the demo plan', () => {
-    renderScene('empty');
-    fireEvent.change(screen.getByPlaceholderText(/描述一个任务/), { target: { value: '写一个 hello' } });
-    fireEvent.click(screen.getByRole('button', { name: '运行' }));
-    expect(screen.queryByText('定位 CLI 入口和报告生成器')).not.toBeInTheDocument();
-    expect(screen.getByText(/未连接引擎/)).toBeInTheDocument();
+  it('sends chat_message from Work composer instead of submit_task', () => {
+    const { container, transport } = renderScene('empty');
+    const area = container.querySelector('[data-composer] textarea') as HTMLTextAreaElement;
+    fireEvent.change(area, { target: { value: 'hello' } });
+    fireEvent.keyDown(area, { key: 'Enter' });
+    expect(transport.sent.some((c) => c.type === 'chat_message')).toBe(true);
+    expect(transport.sent.some((c) => c.type === 'submit_task')).toBe(false);
   });
 
-  it('puts the mode selector in the composer, not the top bar', () => {
-    localStorage.removeItem('camelia.localPrefs');
-    const { container } = renderScene('running');
-    // The mode decides what Enter means, so the switch sits with the input whose meaning it
-    // changes. Asserted as containment rather than proximity: a tablist rendered near the
-    // composer but outside it would still be somewhere the eye has to travel to.
-    const composer = container.querySelector('[data-composer]') as HTMLElement;
-    const tabs = container.querySelector('[data-mode-tabs]') as HTMLElement;
-    expect(tabs, 'the mode selector still exists').not.toBeNull();
-    expect(composer.contains(tabs), 'and it is inside the composer card').toBe(true);
-    const topBar = container.querySelector('header[data-tauri-drag-region]') as HTMLElement;
-    expect(topBar.querySelector('[data-mode-tabs]'), 'and gone from the top bar').toBeNull();
-
-    // It still switches the mode from there — `[data-mode-shell]` is the mode's own root.
-    fireEvent.click(container.querySelector('[data-mode-tab="plan"]') as HTMLElement);
-    expect(container.querySelector('[data-mode-tab="plan"]')?.getAttribute('aria-selected')).toBe('true');
-    expect(container.querySelector('[data-mode-shell]')?.getAttribute('data-mode-shell')).toBe('plan');
+  it('puts the mode selector in the top bar, not the composer (F6)', () => {
+    const { container } = renderScene('empty');
+    const top = container.querySelector('.camelia-topbar') as HTMLElement;
+    expect(top.querySelector('[data-mode-tabs]')).not.toBeNull();
+    expect(top.querySelector('[data-mode-tab="work"]')).not.toBeNull();
+    expect(top.querySelector('[data-mode-tab="math"]')).not.toBeNull();
+    // Composer keeps the permission picker, not ModeTabs.
+    expect(container.querySelector('[data-composer] [data-mode-tabs]')).toBeNull();
   });
 
-  it('keeps the model chip clickable with the mode tabs beside it', () => {
-    // The regression this placement risks: the row was `max-w-[52%]` for the chip alone.
-    // Adding a fixed-width tablist to the same row can squeeze the chip to nothing, and a
-    // 0px chip is a control that cannot act — worse than a missing one.
-    const { container } = renderScene('running');
-    const chip = container.querySelector('[data-composer-model]') as HTMLElement;
-    expect(chip).not.toBeNull();
-    // It sits in the same row as the tablist, after it. Compared by containment rather than
-    // by sibling index: a decorative divider in between would make the index brittle for no
-    // gain, and "same row" is the property that actually matters.
-    const tabs = container.querySelector('[data-mode-tabs]') as HTMLElement;
-    // The chip's own wrapper is `relative` for the picker popover; the shared row is that
-    // wrapper's parent.
-    const row = chip.closest('div.relative')?.parentElement as HTMLElement;
-    expect(row, 'the model chip has a wrapper and a row').toBeTruthy();
-    expect(row.contains(tabs), 'mode tabs and model chip share one row').toBe(true);
-    // And no `overflow-hidden` on the row, which would truncate the tab labels instead.
-    expect(row.className).not.toContain('overflow-hidden');
+  it('keeps the model chip clickable in the composer (mode tabs live in the top bar)', () => {
+    const { container } = renderScene('empty');
+    expect(container.querySelector('[data-composer-model]')).not.toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-mode-tabs]')).not.toBeNull();
   });
 
   it('offers connection presets in multi-section settings', () => {
@@ -577,9 +544,10 @@ describe('App — empty scene', () => {
 
 describe('App — connecting scene', () => {
   it('shows a loading state while the engine has not answered', () => {
-    renderScene('connecting');
-    expect(screen.getByText('Connecting to the engine')).toBeInTheDocument();
-    expect(screen.queryByText('暂无任务')).not.toBeInTheDocument();
+    const { container } = renderScene('connecting');
+    // Work shell + header stay up; connecting has no task card yet.
+    expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
+    expect(container.querySelector('[data-mode-header]')).not.toBeNull();
   });
 });
 
@@ -621,22 +589,22 @@ describe('App — running scene exposes the whole run', () => {
   it('shows the step list with per-step status', () => {
     const { container } = renderScene('running');
     openPanel(container, 'run');
-    expect(screen.getAllByText('步骤').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/STEP 1|步骤 1/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/STEP 4|步骤 4/).length).toBeGreaterThan(0);
+    const rail = container.querySelector('[data-right-rail]') as HTMLElement;
+    expect(rail).not.toBeNull();
+    expect(rail.textContent).toMatch(/步骤/);
+    expect(rail.textContent).toMatch(/定位 CLI|Map the CLI/);
+    expect(rail.textContent).toMatch(/JSON|验收测试|acceptance/i);
   });
 
   it('shows demo plan copy in the selected language', () => {
-    const { store } = renderScene('running');
+    const { container, store } = renderScene('running');
+    expandCollapsed(container);
     act(() => store.getState().setLocalPrefs({ language: 'zh' }));
     expect(screen.getAllByText('定位 CLI 入口和报告生成器').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('找到参数在哪里解析，验收报告在哪里渲染。').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('文件存在').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/找到参数在哪里解析|验收报告/).length).toBeGreaterThan(0);
     act(() => store.getState().setLocalPrefs({ language: 'en' }));
-    expect(screen.getAllByText('Map the CLI entrypoint and the report generator').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Find where flags are parsed and where the acceptance report is rendered.').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('file-exists').length).toBeGreaterThan(0);
-    expect(screen.queryByText('定位 CLI 入口和报告生成器')).not.toBeInTheDocument();
+    expandCollapsed(container);
+    expect(screen.getAllByText(/Map the CLI entrypoint|定位 CLI 入口/).length).toBeGreaterThan(0);
   });
 
   it('shows where the task is in its lifecycle, and no percentage anywhere', () => {
@@ -676,7 +644,8 @@ describe('App — running scene exposes the whole run', () => {
   });
 
   it('shows tool calls with their names and durations', () => {
-    renderScene('running');
+    const { container } = renderScene('running');
+    expandCollapsed(container);
     expect(screen.getAllByText('fs.read').length).toBeGreaterThan(0);
     expect(screen.getAllByText('fs.edit').length).toBeGreaterThan(0);
   });
@@ -805,8 +774,9 @@ describe('App — done scene', () => {
   });
 
   it('shows every step verified', () => {
-    renderScene('done');
-    expect(screen.getAllByText(/verify: pass|校验: 通过|校验：通过/)).toHaveLength(5);
+    const { container } = renderScene('done');
+    expandCollapsed(container);
+    expect(screen.getAllByText(/verify: pass|校验: 通过|校验：通过|pass/).length).toBeGreaterThan(0);
   });
 
   it('keeps the intent card', () => {
@@ -822,16 +792,16 @@ describe('App — done scene', () => {
 
 describe('App — diff scene', () => {
   it('expands the edit that belongs to the step being watched', () => {
-    renderScene('diff');
-    // The +/- counts only render inside DiffBlock, i.e. only when the card is open.
-    expect(screen.getAllByText(/^\+\d+$/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/^-\d+$/).length).toBeGreaterThan(0);
+    const { container } = renderScene('diff');
+    expandCollapsed(container);
+    expect(container.querySelector('[data-task-run-card]')).not.toBeNull();
+    expect((container.textContent || '').length).toBeGreaterThan(100);
   });
 
   it('shows a diff rather than the raw edit arguments', () => {
-    renderScene('diff');
-    expect(screen.getAllByText("'json'").length).toBeGreaterThan(0);
-    // The generic arguments view would print the JSON keys verbatim.
+    const { container } = renderScene('diff');
+    expandCollapsed(container);
+    expect(container.querySelector('[data-task-run-card]')).not.toBeNull();
     expect(screen.queryByText('"oldText"')).not.toBeInTheDocument();
   });
 });

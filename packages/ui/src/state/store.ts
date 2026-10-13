@@ -41,7 +41,7 @@ import {
 import { create, type UseBoundStore, type StoreApi } from 'zustand';
 
 import type { ConnectionStatus, Transport } from '../transport/types.js';
-import type { AppModeId } from '../mode/types.js';
+import { normalizeModeId, type AppModeId } from '../mode/types.js';
 import type { MathDemoSnapshot } from '../modes/math/mathDemoFixture.js';
 import type { PanelId } from '../panels.js';
 import {
@@ -223,7 +223,7 @@ export function createUiStore(transport: Transport): UiStore {
     panelId: undefined,
     settingsSection: 'connections',
     steeringOpen: false,
-    mode: bootPrefs.preferredMode,
+    mode: normalizeModeId(bootPrefs.preferredMode),
     ...(bootTheme
       ? { activeTheme: { id: bootPrefs.themeId, label: themeLabel(bootPrefs.themeId), rejected: bootTheme.rejected } }
       : {}),
@@ -237,7 +237,7 @@ export function createUiStore(transport: Transport): UiStore {
     setSettingsSection: (settingsSection) => set({ settingsSection }),
     setSteeringOpen: (steeringOpen) => set({ steeringOpen }),
     setPanelId: (panelId) => set({ panelId }),
-    setMode: (mode) => set({ mode }),
+    setMode: (mode) => set({ mode: normalizeModeId(mode) }),
     setMathDemo: (mathDemo) => set({ mathDemo }),
     setActiveSession: (id) => set({ activeSessionId: id }),
     clearCommandError: () => set({ lastCommandError: undefined }),

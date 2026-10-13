@@ -90,6 +90,7 @@ type StringKey =
   | 'composer.policy.ask'
   | 'composer.policy.full'
   | 'chat.empty'
+| 'chat.running'
   | 'chat.askTitle'
   | 'composer.noActiveRun'
   | 'composer.enterToSend'
@@ -275,14 +276,16 @@ type StringKey =
   | 'lang.en'
   | 'lang.zh'
   // ---- Workbench modes (wireframe v3) --------------------------------------
-  | 'mode.chat'
+  | 'mode.work'
+| 'mode.chat'
   | 'mode.plan'
   | 'mode.math'
   | 'mode.eval'
   | 'mode.teach'
   | 'mode.more'
   | 'mode.more.title'
-  | 'mode.chat.desc'
+  | 'mode.work.desc'
+| 'mode.chat.desc'
   | 'mode.plan.desc'
   | 'mode.math.desc'
   | 'mode.math.unavailable'
@@ -447,6 +450,7 @@ const en: Record<StringKey, string> = {
   'composer.policy.readonly': 'Read-only sandbox',
   'composer.policy.ask': 'Ask before writes',
   'composer.policy.full': 'Full access',
+  'chat.running': 'Replying…',
   'chat.empty': 'Conversation mode — the model answers directly. No plan, no task machinery.',
   'chat.askTitle': 'Camelia needs your choice',
   'composer.noActiveRun': 'no active run',
@@ -630,6 +634,7 @@ const en: Record<StringKey, string> = {
   'events.collapse': 'Collapse events',
   'lang.en': 'English',
   'lang.zh': '中文',
+  'mode.work': 'Work',
   'mode.chat': 'Chat',
   'mode.plan': 'Plan',
   'mode.math': 'Math',
@@ -637,6 +642,7 @@ const en: Record<StringKey, string> = {
   'mode.teach': 'Teach',
   'mode.more': 'More modes',
   'mode.more.title': 'Coming soon',
+  'mode.work.desc': 'Daily work: chat with inline task cards when a run exists.',
   'mode.chat.desc': 'Describe a task — the agent plans, runs and verifies it.',
   'mode.plan.desc': 'Review and edit the plan before any step runs.',
   'mode.math.desc': 'Mathematical modeling: assumptions, variables, equations, solver.',
@@ -799,6 +805,7 @@ const zh: Record<StringKey, string> = {
   'composer.policy.readonly': '只读沙箱',
   'composer.policy.ask': '写入前询问',
   'composer.policy.full': '完全放行',
+  'chat.running': '回复中…',
   'chat.empty': '对话模式——模型直接回答，不建任务、不做计划。',
   'chat.askTitle': 'Camelia 需要你的选择',
   'composer.noActiveRun': '无运行中任务',
@@ -981,6 +988,7 @@ const zh: Record<StringKey, string> = {
   'events.collapse': '收起事件',
   'lang.en': 'English',
   'lang.zh': '中文',
+  'mode.work': 'Work',
   'mode.chat': '对话',
   'mode.plan': '计划模式',
   'mode.math': '数模',
@@ -988,6 +996,7 @@ const zh: Record<StringKey, string> = {
   'mode.teach': '教学',
   'mode.more': '更多模式',
   'mode.more.title': '即将推出',
+  'mode.work.desc': '日常：直答聊天，有任务时内联运行卡。',
   'mode.chat.desc': '描述一个任务，代理会规划、执行并校验。',
   'mode.plan.desc': '在任何步骤执行前审阅并编辑计划。',
   'mode.math.desc': '数学建模：假设、变量、方程与求解。',

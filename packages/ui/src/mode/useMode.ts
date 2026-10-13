@@ -18,7 +18,7 @@ import { useCallback } from 'react';
 
 import { useUiStore } from '../state/UiProvider.js';
 import { modeDefinition } from './ModeRegistry.js';
-import { type AppModeId, type ModeDefinition } from './types.js';
+import { normalizeModeId, type AppModeId, type ModeDefinition } from './types.js';
 
 export interface ModeControls {
   mode: AppModeId;
@@ -37,7 +37,7 @@ export function useMode(): ModeControls {
 
   const setMode = useCallback(
     (id: AppModeId) => {
-      setModeRaw(id);
+      setModeRaw(normalizeModeId(id));
     },
     [setModeRaw],
   );
@@ -47,7 +47,7 @@ export function useMode(): ModeControls {
       // Persisting the preference also switches the window: a user who says "open in
       // plan mode" almost always means "and show me plan mode now".
       setLocalPrefs({ preferredMode: id });
-      setModeRaw(id);
+      setModeRaw(normalizeModeId(id));
     },
     [setLocalPrefs, setModeRaw],
   );

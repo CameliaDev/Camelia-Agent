@@ -43,9 +43,12 @@ import { openEngineLog, readEngineTrust } from '../window/engine.js';
 import { relaunchDesktop } from '../window/model-settings.js';
 import { t } from '../i18n/strings.js';
 import { Icon, Mascot, StatusDot } from './primitives.js';
+import { ModeTabs } from '../mode/ModeTabs.js';
+import { useMode } from '../mode/useMode.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
   const { status, localPrefs, setSettingsOpen } = useUiState();
+  const { mode, setMode } = useMode();
   const connection = CONNECTION_META[status];
   const desktop = isTauri();
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
@@ -93,6 +96,8 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
         <Mascot size={16} />
         {tr('brand.transition')}
       </span>
+
+      <ModeTabs mode={mode} language={localPrefs.language} onSelect={setMode} />
 
       {/*
         The gap that used to hold the mode selector and the progress rail. Brand on the

@@ -179,7 +179,7 @@ export function ModeHeader({
     <div
       data-mode-header
       style={{ height: MODE_HEADER_H }}
-      className="flex shrink-0 items-center gap-2.5 overflow-hidden border-b border-line bg-base px-4"
+      className="flex shrink-0 items-center gap-2.5 overflow-hidden bg-base px-4"
     >
       {leading}
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">

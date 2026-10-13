@@ -13,11 +13,14 @@ import { useCallback } from 'react';
 
 import { makeCommand } from './store.js';
 import { useUiState } from './UiProvider.js';
+import { useMode } from '../mode/useMode.js';
 
 export function useNewSession(): () => void {
   const { query: queryEngine, setActiveSession } = useUiState();
+  const { mode } = useMode();
   return useCallback(() => {
-    queryEngine<{ sessionId: string }>(makeCommand('new_session', {}))
+    const kind = mode === 'math' ? 'math' : 'work';
+    queryEngine<{ sessionId: string }>(makeCommand('new_session', { kind }))
       .then((res) => {
         if (res?.sessionId) setActiveSession(res.sessionId);
       })
@@ -26,5 +29,5 @@ export function useNewSession(): () => void {
         // where they were, ready to type, rather than on an error screen.
       });
     document.querySelector<HTMLTextAreaElement>('[data-composer] textarea')?.focus();
-  }, [queryEngine, setActiveSession]);
+  }, [queryEngine, setActiveSession, mode]);
 }

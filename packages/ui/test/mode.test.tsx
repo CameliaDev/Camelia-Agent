@@ -43,30 +43,31 @@ function modeTab(container: HTMLElement, id: string): HTMLElement {
 
 describe('mode types', () => {
   it('guards unknown ids instead of casting', () => {
-    expect(isAppModeId('chat')).toBe(true);
+    expect(isAppModeId('work')).toBe(true);
     expect(isAppModeId('math')).toBe(true);
     expect(isAppModeId('nope')).toBe(false);
     expect(isAppModeId(undefined)).toBe(false);
-    expect(DEFAULT_MODE).toBe('chat');
+    expect(DEFAULT_MODE).toBe('work');
   });
 
   it('registers every mode with an i18n label, and marks math unavailable', () => {
-    expect(MODE_REGISTRY.map((m) => m.id)).toEqual(['chat', 'plan', 'math']);
+    expect(MODE_REGISTRY.map((m) => m.id)).toEqual(['work', 'math']);
     for (const def of MODE_REGISTRY) {
       expect(def.labelKey).toMatch(/^mode\./);
       expect(def.descriptionKey).toMatch(/^mode\./);
     }
     // Math has no engine commands yet; the registry must say so rather than pretend.
-    expect(MODE_REGISTRY.find((m) => m.id === 'math')?.available).toBe(false);
-    expect(MODE_REGISTRY.find((m) => m.id === 'math')?.unavailableReasonKey).toBe('mode.math.unavailable');
+    expect(MODE_REGISTRY.find((m) => m.id === 'math')?.available).toBe(true);
+    // math is available in Work|Math F6
+    expect(MODE_REGISTRY.find((m) => m.id === 'math')?.available).toBe(true);
   });
 });
 
 describe('mode switching', () => {
   it('starts in the preferred mode', () => {
-    localStorage.setItem('camelia.localPrefs', JSON.stringify({ version: 4, preferredMode: 'plan', language: 'zh' }));
-    const { container } = renderScene('plan');
-    expect(container.querySelector('[data-mode-shell="plan"]')).not.toBeNull();
+    localStorage.setItem('camelia.localPrefs', JSON.stringify({ version: 4, preferredMode: 'work', language: 'zh' }));
+    const { container } = renderScene('running');
+    expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
   });
 
   it('switches without touching snapshot or emitting a command', () => {
@@ -90,12 +91,12 @@ describe('mode switching', () => {
 
   it('exposes the current mode on the tab strip', () => {
     const { container } = renderScene('running');
-    expect(modeTab(container, 'chat').getAttribute('aria-selected')).toBe('true');
+    expect(modeTab(container, 'work').getAttribute('aria-selected')).toBe('true');
     act(() => {
       fireEvent.click(modeTab(container, 'math'));
     });
     expect(modeTab(container, 'math').getAttribute('aria-selected')).toBe('true');
-    expect(modeTab(container, 'chat').getAttribute('aria-selected')).toBe('false');
+    expect(modeTab(container, 'work').getAttribute('aria-selected')).toBe('false');
   });
 
   it('keeps a running task alive and says so when the surface is replaced', () => {
@@ -113,18 +114,18 @@ describe('mode switching', () => {
     // And the user is told where it went, with a way back.
     const strip = container.querySelector('[data-cross-mode-strip]');
     expect(strip).not.toBeNull();
-    expect(strip!.textContent).toContain('对话');
+    expect(strip!.textContent).toContain('Work');
 
     act(() => {
       fireEvent.click(container.querySelector('[data-cross-mode-view]') as HTMLElement);
     });
-    expect(container.querySelector('[data-mode-shell="chat"]')).not.toBeNull();
+    expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
   });
 
   it('shows no strip in plan mode, since the conversation surface is still on screen', () => {
     const { container } = renderScene('running');
     act(() => {
-      fireEvent.click(modeTab(container, 'plan'));
+      fireEvent.click(modeTab(container, 'work'));
     });
     expect(container.querySelector('[data-cross-mode-strip]')).toBeNull();
   });
@@ -136,13 +137,13 @@ describe('plan approval is always reachable', () => {
   // — so a task waiting on approval was a dead end unless the user guessed to switch modes.
   // These assertions fail if that ever happens again.
   it('auto-routes to plan mode when a task is awaiting approval', () => {
-    const { container } = renderScene('plan');
-    expect(container.querySelector('[data-mode-shell="plan"]')).not.toBeNull();
+    const { container } = renderScene('approval');
+    expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
     expect(container.querySelector('[data-plan-review]')).not.toBeNull();
   });
 
   it('offers approve and reject while a plan waits', () => {
-    const { container } = renderScene('plan');
+    const { container } = renderScene('approval');
     const review = container.querySelector('[data-plan-review]') as HTMLElement;
     expect(review).not.toBeNull();
     expect(review.textContent).toMatch(/批准|Approve/);
@@ -153,17 +154,17 @@ describe('plan approval is always reachable', () => {
     const { container, store } = renderScene('running');
     // `running` is executing: the user is free to leave plan mode.
     act(() => {
-      fireEvent.click(modeTab(container, 'chat'));
+      fireEvent.click(modeTab(container, 'work'));
     });
-    expect(container.querySelector('[data-mode-shell="chat"]')).not.toBeNull();
+    expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
     expect(store.getState().snapshot.task?.status).toBe('executing');
   });
 
   it('drops the cross-mode strip while approval is pending, since plan mode already shows it', () => {
-    const { container } = renderScene('plan');
+    const { container } = renderScene('approval');
     // Awaiting approval and in math mode would otherwise show a "task running" strip that
     // competes with the approval the user must act on.
-    expect(container.querySelector('[data-mode-shell="plan"]')).not.toBeNull();
+    expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
     expect(container.querySelector('[data-cross-mode-strip]')).toBeNull();
   });
 });
@@ -240,7 +241,7 @@ describe('math workspace', () => {
     // Chat and plan: no model icon at all. `mathOnly` is the rule — a read-only model
     // readout in the other two modes would be a second place showing the same numbers the
     // composer already shows in its own chip.
-    for (const mode of ['chat', 'plan'] as const) {
+    for (const mode of ['work'] as const) {
       act(() => {
         fireEvent.click(modeTab(container, mode));
       });
@@ -269,7 +270,7 @@ describe('run controls are reachable from every mode', () => {
   // right-aligned in the run dock above the composer, with the lifecycle stepper centred
   // in the same dock — reachable no matter which mode is on screen.
   it('draws one run dock above the composer in all three modes', () => {
-    for (const mode of ['chat', 'plan', 'math'] as const) {
+    for (const mode of ['work', 'math'] as const) {
       const { container, unmount } = renderScene('running');
       act(() => {
         fireEvent.click(modeTab(container, mode));
@@ -356,7 +357,7 @@ describe('run controls are reachable from every mode', () => {
   });
 
   it('opens the steering form from any mode, above the composer', () => {
-    for (const mode of ['chat', 'plan', 'math'] as const) {
+    for (const mode of ['work', 'math'] as const) {
       const { container, unmount } = renderScene('running');
       act(() => {
         fireEvent.click(modeTab(container, mode));
@@ -374,7 +375,7 @@ describe('run controls are reachable from every mode', () => {
     // The notice used to be drawn inside the chat transcript, which is why a pause
     // rejected in plan mode showed nothing at all: `{ ok: false }` was recorded and
     // never rendered anywhere the user was looking.
-    for (const mode of ['chat', 'plan', 'math'] as const) {
+    for (const mode of ['work', 'math'] as const) {
       const { container, store, unmount } = renderScene('running');
       act(() => {
         fireEvent.click(modeTab(container, mode));

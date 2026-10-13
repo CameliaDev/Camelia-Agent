@@ -32,6 +32,7 @@ import {
   type SessionMarks,
 } from '../state/session-marks.js';
 import { useNewSession } from '../state/new-session.js';
+import { useMode } from '../mode/useMode.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { Chip, Icon, SectionHeader } from './primitives.js';
 
@@ -44,6 +45,7 @@ export function SessionRail(): ReactNode {
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   /** Shared with the icon rail, so both entry points start a chat the same way. */
   const newSession = useNewSession();
+  const { mode } = useMode();
   const [marks, setMarks] = useState<SessionMarks>(() => loadSessionMarks());
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -52,6 +54,10 @@ export function SessionRail(): ReactNode {
     setMarks(next);
   };
   const needle = query.trim().toLowerCase();
+  const kindFiltered = sessions.filter((session) => {
+    const kind = (session as { kind?: string }).kind ?? 'work';
+    return mode === 'math' ? kind === 'math' : kind !== 'math';
+  });
   const listed = orderSessions(
     needle
       ? sessions.filter((session) => `${session.title} ${session.provider} ${session.model}`.toLowerCase().includes(needle))

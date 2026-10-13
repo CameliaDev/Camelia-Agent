@@ -53,7 +53,7 @@ import { Composer } from './components/Composer.js';
 import { EngineBanner } from './components/EngineBanner.js';
 import { IconRail } from './components/IconRail.js';
 import { RailDivider } from './components/RailDivider.js';
-import { PanelDeck } from './components/PanelDeck.js';
+import { RightRail } from './components/RightRail.js';
 import { RunDock } from './components/RunDock.js';
 import { SessionRail } from './components/SessionRail.js';
 import { SettingsDrawer } from './components/SettingsDrawer.js';
@@ -148,6 +148,8 @@ export function App(): ReactNode {
   }, [setSettingsOpen]);
 
   const left = railWidth(prefs);
+  const panelId = useUiStore((s) => s.panelId);
+  const right = panelId ? prefs.rightWidth : 0;
   const topVisible = prefs.topBar === 'hidden' ? false : prefs.topBar === 'pinned' || revealed;
 
   return (
@@ -157,6 +159,7 @@ export function App(): ReactNode {
       style={{
         ['--rail-icon-w' as string]: `${RAIL_ICON_WIDTH}px`,
         ['--rail-left-w' as string]: `${left}px`,
+        ['--rail-right-w' as string]: `${right}px`,
         ['--top-bar-h' as string]: `${TOP_BAR_H}px`,
         ['--status-bar-h' as string]: `${STATUS_BAR_H}px`,
       }}
@@ -165,7 +168,7 @@ export function App(): ReactNode {
         className="camelia-rails grid h-full min-h-0"
         style={{
           gridTemplateColumns:
-            'var(--rail-icon-w) var(--rail-left-w) minmax(0, 1fr)',
+            'var(--rail-icon-w) var(--rail-left-w) minmax(0, 1fr) var(--rail-right-w)',
           paddingTop: topVisible ? TOP_BAR_H : 0,
           /*
             The status bar is absolutely positioned across the full window width — the way
@@ -190,7 +193,6 @@ export function App(): ReactNode {
             reader's attention is when a control they just used did not take.
           */}
           {/* The open run panel, 横着放 across the work area — see `PanelDeck`. */}
-          <PanelDeck />
           <SteeringForm />
           <CommandErrorNotice />
           {/*
@@ -201,6 +203,7 @@ export function App(): ReactNode {
           <RunDock />
           <Composer />
         </main>
+        <RightRail />
       </div>
 
       <RailDivider />

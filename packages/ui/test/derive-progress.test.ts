@@ -48,7 +48,7 @@ function task(overrides: Partial<TaskView> = {}): TaskView {
 
 describe('deriveProgress — conversation mode', () => {
   it('reports engine progress and a 1-based step number', () => {
-    const result = deriveProgress({ task: task(), mode: 'chat', language: 'zh' });
+    const result = deriveProgress({ task: task(), mode: 'work', language: 'zh' });
     expect(result.progress.kind).toBe('task');
     if (result.progress.kind !== 'task') throw new Error('unreachable');
     expect(result.progress.ratio).toBeCloseTo(0.4, 10);
@@ -59,7 +59,7 @@ describe('deriveProgress — conversation mode', () => {
   });
 
   it('is idle and toneless when there is no task', () => {
-    const result = deriveProgress({ task: undefined, mode: 'chat', language: 'zh' });
+    const result = deriveProgress({ task: undefined, mode: 'work', language: 'zh' });
     expect(result.source).toBe('none');
     if (result.progress.kind !== 'task') throw new Error('unreachable');
     expect(result.progress.status).toBe('idle');
@@ -68,11 +68,11 @@ describe('deriveProgress — conversation mode', () => {
   });
 
   it('maps terminal statuses to their tones', () => {
-    const failed = deriveProgress({ task: task({ status: 'failed' }), mode: 'chat', language: 'zh' });
+    const failed = deriveProgress({ task: task({ status: 'failed' }), mode: 'work', language: 'zh' });
     expect(failed.progress.tone).toBe('bad');
-    const done = deriveProgress({ task: task({ status: 'done' }), mode: 'chat', language: 'zh' });
+    const done = deriveProgress({ task: task({ status: 'done' }), mode: 'work', language: 'zh' });
     expect(done.progress.tone).toBe('ok');
-    const paused = deriveProgress({ task: task({ status: 'paused' }), mode: 'chat', language: 'zh' });
+    const paused = deriveProgress({ task: task({ status: 'paused' }), mode: 'work', language: 'zh' });
     expect(paused.progress.tone).toBe('warn');
   });
 
@@ -97,7 +97,7 @@ describe('deriveProgress — conversation mode', () => {
         acceptance: [],
       },
     ];
-    const zh = deriveProgress({ task: task({ steps, currentStepIdx: 1 }), mode: 'chat', language: 'zh' });
+    const zh = deriveProgress({ task: task({ steps, currentStepIdx: 1 }), mode: 'work', language: 'zh' });
     if (zh.progress.kind !== 'task') throw new Error('unreachable');
     expect(zh.progress.label).toBe('在 CLI 中解析 --json 参数');
   });

@@ -19,6 +19,9 @@ import { t } from '../../i18n/strings.js';
 import { makeCommand } from '../../state/store.js';
 import { useUiState, useUiStore } from '../../state/UiProvider.js';
 import { Icon } from '../../components/primitives.js';
+import { TaskRunCard } from '../../components/TaskRunCard.js';
+import { CollapsibleBlock } from '../../components/CollapsibleBlock.js';
+import { ms } from '../../lib/format.js';
 
 /** Dot colour per tool status, mirroring the conversation's step tones. */
 function toolDot(status: ToolCallStatus): string {
@@ -34,12 +37,13 @@ export function ChatTranscript(): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const chat = snapshot.chat;
+  const task = snapshot.task;
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // jsdom (tests) has no layout engine — the optional call keeps tests honest.
     endRef.current?.scrollIntoView?.({ block: 'end' });
-  }, [chat.turns.length, chat.pendingAsk?.askId]);
+  }, [chat.turns.length, chat.pendingAsk?.askId, task?.id, task?.status]);
 
   const answer = (idx: number): void => {
     if (!chat.pendingAsk) return;
@@ -52,28 +56,36 @@ export function ChatTranscript(): ReactNode {
     );
   };
 
+  const chatRunning = chat.turns.some((turn) => turn.role === 'assistant' && turn.streaming);
+
   return (
     <div data-chat-transcript className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      {chat.turns.length === 0 && !chat.pendingAsk ? (
-        <div className="flex flex-1 items-center justify-center px-6">
-          <p className="max-w-sm text-center text-[12.5px] leading-5 text-ink-3">{tr('chat.empty')}</p>
-        </div>
-      ) : (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-4">
-          {chat.turns.map((turn) => (
-            <ChatBubble key={turn.id} turn={turn} />
-          ))}
-          {chat.pendingAsk ? (
-            <AskUserCard
-              question={chat.pendingAsk.question}
-              options={chat.pendingAsk.options}
-              onAnswer={answer}
-              label={tr('chat.askTitle')}
-            />
-          ) : null}
-          <div ref={endRef} />
-        </div>
-      )}
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-4 py-4">
+        {chat.turns.length === 0 && !chat.pendingAsk && !task ? (
+          <div className="flex flex-1 items-center justify-center px-6">
+            <p className="max-w-sm text-center text-[12.5px] leading-5 text-ink-3">{tr('chat.empty')}</p>
+          </div>
+        ) : null}
+        {chatRunning ? (
+          <div data-chat-running className="inline-flex items-center gap-2 self-start rounded-full border border-info/30 bg-info/10 px-2.5 py-1 text-[11px] text-info">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-info" />
+            {tr('chat.running')}
+          </div>
+        ) : null}
+        {chat.turns.map((turn) => (
+          <ChatBubble key={turn.id} turn={turn} />
+        ))}
+        <TaskRunCard />
+        {chat.pendingAsk ? (
+          <AskUserCard
+            question={chat.pendingAsk.question}
+            options={chat.pendingAsk.options}
+            onAnswer={answer}
+            label={tr('chat.askTitle')}
+          />
+        ) : null}
+        <div ref={endRef} />
+      </div>
     </div>
   );
 }
@@ -111,15 +123,24 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
 
 /** One tool call, inline in the assistant turn — name, risk, status. */
 function ChatToolRow({ call }: { call: ToolCallView }): ReactNode {
-  return (
-    <div
-      data-chat-tool
-      className="mb-1.5 flex items-center gap-1.5 rounded-lg border border-line bg-base/60 px-2 py-1 text-[11.5px] text-ink-2 last:mb-0"
-    >
+  const summary = (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${toolDot(call.status)}`} />
-      <span className="min-w-0 flex-1 truncate font-mono">{call.name}</span>
-      <span className="shrink-0 rounded bg-hover px-1 py-0.5 text-[10px] text-ink-3">{call.risk}</span>
-      <span className="shrink-0 font-mono text-[10.5px] text-ink-3">{call.status}</span>
+      <span className="truncate font-mono">{call.name}</span>
+      {call.durationMs !== undefined ? <span className="text-ink-3">{ms(call.durationMs)}</span> : null}
+      <span className="text-ink-3">{call.status}</span>
+    </span>
+  );
+  return (
+    <div data-chat-tool className="mb-1.5 last:mb-0">
+      <CollapsibleBlock summary={summary} data-collapsible="tool">
+        <div className="flex items-center gap-1.5 rounded-lg border border-line bg-base/60 px-2 py-1 text-[11.5px] text-ink-2">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${toolDot(call.status)}`} />
+          <span className="min-w-0 flex-1 truncate font-mono">{call.name}</span>
+          <span className="shrink-0 rounded bg-hover px-1 py-0.5 text-[10px] text-ink-3">{call.risk}</span>
+          <span className="shrink-0 font-mono text-[10.5px] text-ink-3">{call.status}</span>
+        </div>
+      </CollapsibleBlock>
     </div>
   );
 }

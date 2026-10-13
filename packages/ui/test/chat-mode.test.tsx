@@ -95,7 +95,7 @@ describe('composer chat dispatch', () => {
     expect(store.getState().snapshot.chat.turns.length).toBeGreaterThanOrEqual(2);
     // ...and nothing entered the task state machine.
     expect(store.getState().snapshot.task).toBeUndefined();
-    expect(container.querySelector('[data-mode-shell="chat"]')).not.toBeNull();
+    expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
     expect(container.querySelector('[data-mode-shell="plan"]')).toBeNull();
     expect(container.querySelector('[data-plan-review]')).toBeNull();
   });

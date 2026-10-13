@@ -57,7 +57,6 @@ import { makeCommand } from '../state/store.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
 import { useMode } from '../mode/useMode.js';
-import { ModeTabs } from '../mode/ModeTabs.js';
 import { Icon } from './primitives.js';
 
 /** The permission postures a chat turn can run under — order is the picker's order. */
@@ -80,7 +79,7 @@ export function Composer(): ReactNode {
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const task = snapshot.task;
   const running = task !== undefined && task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled';
-  const { mode, setMode } = useMode();
+  const { mode } = useMode();
   const chatPolicy = useUiStore((s) => s.localPrefs.chatPolicy);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const [policyOpen, setPolicyOpen] = useState(false);
@@ -158,7 +157,7 @@ export function Composer(): ReactNode {
   const submit = (): void => {
     const intent = value.trim();
     if (!intent) return;
-    if (mode === 'chat') {
+    if (mode === 'work') {
       // 对话 mode: a direct chat turn — no task machinery; the picker decides the
       // tool posture, and the engine refuses while a task run is active.
       dispatch(
@@ -203,7 +202,7 @@ export function Composer(): ReactNode {
               }
             }}
             placeholder={tr(
-              mode === 'chat'
+              mode === 'work'
                 ? 'composer.chatPlaceholder'
                 : running
                   ? 'composer.steerPlaceholder'
@@ -220,14 +219,12 @@ export function Composer(): ReactNode {
               truncates, so a narrow window loses the model name rather than the mode name —
               the mode is the one that changes what Enter does.
             */}
-            <ModeTabs mode={mode} language={lang} onSelect={setMode} taskRunning={running} />
-
             {/*
               The chat permission picker, only in 对话 mode: it decides what a tool call
               inside a chat turn may do. Same listbox shape as the model chip, same
               outside-click contract, and the choice persists window-locally.
             */}
-            {mode === 'chat' ? (
+            {mode === 'work' ? (
               <div ref={policyRef} className="relative shrink-0">
                 <button
                   type="button"
