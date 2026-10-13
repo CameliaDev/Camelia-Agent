@@ -323,6 +323,24 @@ describe('PluginLoader.load — provider, theme and preset plugins', () => {
     expect(result.providers[0]?.createPort()).toEqual({ id: 'y' });
   });
 
+  it('loads a provider whose path contains a tilde', async () => {
+    // GitHub's Windows runner temp dir is `C:\\Users\\RUNNER~1\\...`. pathToFileURL
+    // encodes that as `%7E`, and vite-node then looks up the encoded name.
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'camelia~plugins-'));
+    roots.push(parent);
+    const dir = path.join(parent, 'prov');
+    fs.mkdirSync(dir);
+    fs.writeFileSync(
+      path.join(dir, PLUGIN_MANIFEST_FILE),
+      JSON.stringify({ name: 'prov', kind: 'provider', entry: 'index.mjs', permissions: ['net'] }),
+    );
+    fs.writeFileSync(path.join(dir, 'index.mjs'), 'export function createProvider() { return { id: "tilde" }; }\n');
+
+    const result = await new PluginLoader().load(parent);
+    expect(result.rejected).toEqual([]);
+    expect(result.providers[0]?.createPort()).toEqual({ id: 'tilde' });
+  });
+
   it('rejects a provider module with no factory', async () => {
     const root = makeRoot({
       prov: {

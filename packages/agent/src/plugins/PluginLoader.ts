@@ -223,7 +223,7 @@ export class PluginLoader {
     // sandbox the tool's later invocations — those are still governed by the
     // permission-restricted `ToolContext` below, which is the real enforcement.
     const probe = await loadToolsInWorker({
-      entry: pathToFileURL(entryPath).href,
+      entry: moduleHref(entryPath),
       permissions: plugin.manifest.permissions,
       timeoutMs: this.sandboxTimeoutMs,
     });
@@ -295,9 +295,28 @@ export class PluginLoader {
 // Module loading
 // ---------------------------------------------------------------------------
 
+/**
+ * File URL for a plugin entry.
+ *
+ * `pathToFileURL` percent-encodes `~` as `%7E`. vite-node then uses that
+ * sequence as part of the filename (`RUNNER%7E1`) and reports the file
+ * missing. `~` is unreserved in a URL, so put it back after encoding.
+ * A native realpath first expands 8.3 short names when the OS will.
+ */
+function moduleHref(entryPath: string): string {
+  const absolute = path.resolve(entryPath);
+  let canonical = absolute;
+  try {
+    canonical = fs.realpathSync.native(absolute);
+  } catch {
+    canonical = absolute;
+  }
+  return pathToFileURL(canonical).href.replace(/%7E/gi, '~');
+}
+
 /** Dynamic-import a module by absolute path, as an ESM URL. */
 async function importModule(entryPath: string): Promise<Record<string, unknown>> {
-  return (await import(pathToFileURL(entryPath).href)) as Record<string, unknown>;
+  return (await import(moduleHref(entryPath))) as Record<string, unknown>;
 }
 
 /** Accept `tools`, `default.tools`, or a default export that is itself an array. */

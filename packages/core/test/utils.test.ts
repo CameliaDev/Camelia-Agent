@@ -68,6 +68,16 @@ describe('path utils', () => {
     expect(assertWithin(root, 'src/a.ts')).toBe(path.resolve(root, 'src/a.ts'));
   });
 
+  it('keeps a Windows drive workspace stable on POSIX', () => {
+    expect(toPosix(assertWithin('C:/workspace', 'a.txt'))).toBe('C:/workspace/a.txt');
+    expect(relativeTo('C:/workspace', 'src/a.ts')).toBe('src/a.ts');
+    expect(isWithin('C:/workspace', 'src/a.ts')).toBe(true);
+    expect(isWithin('C:/workspace', '../secrets.txt')).toBe(false);
+    expect(isWithin('C:/workspace', 'C:/workspace/../Windows/System32')).toBe(false);
+    expect(isWithin('C:/workspace', 'D:/secret')).toBe(false);
+    expect(() => assertWithin('C:/workspace', '../x')).toThrow(/escapes workspace/);
+  });
+
   it('extracts the stem', () => {
     expect(stem('a/b/c.test.ts')).toBe('c.test');
     expect(stem('README')).toBe('README');
