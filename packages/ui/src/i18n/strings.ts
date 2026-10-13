@@ -205,6 +205,10 @@ type StringKey =
   | 'brand.placeholder'
   | 'account.defaultUser'
   | 'account.profile'
+| 'account.menu.signedOut'
+| 'account.menu.signedOutHint'
+| 'account.menu.openSettings'
+| 'account.menu.cancel'
 | 'account.github.title'
 | 'account.github.hint'
 | 'account.github.login'
@@ -582,8 +586,11 @@ const en: Record<StringKey, string> = {
   'account.defaultUser': 'Local user',
   // The rail's account mark. Not "account & settings": that entry was split in two.
   'account.profile': 'Account',
+  'account.menu.signedOut': 'Not signed in',
+  'account.menu.signedOutHint': 'Sign in with GitHub to use your avatar',
+  'account.menu.openSettings': 'Account settings…',
+  'account.menu.cancel': 'Cancel',
   'avatar.user': 'You',
-  'avatar.agent': 'Camelia',
   'panels.label': 'Run panels',
   'panels.close': 'Close panel',
   'panels.needsTask': 'no task yet',
@@ -951,8 +958,11 @@ const zh: Record<StringKey, string> = {
   'brand.placeholder': '待定：名字 / 吉祥物',
   'account.defaultUser': '本地用户',
   'account.profile': '账户',
+  'account.menu.signedOut': '未登录',
+  'account.menu.signedOutHint': '用 GitHub 登录后消息会使用你的头像',
+  'account.menu.openSettings': '账户设置…',
+  'account.menu.cancel': '取消',
   'avatar.user': '你',
-  'avatar.agent': 'Camelia',
   'panels.label': '运行面板',
   'panels.close': '关闭面板',
   'panels.needsTask': '还没有任务',

@@ -417,11 +417,11 @@ describe('App — left icon rail', () => {
     expect(namedText).toContain('账户');
   });
 
-  it('splits the account mark from the settings gear, and each opens its own page', () => {
+  it('splits the account mark from the settings gear, and each opens its own surface', () => {
     // One button used to do both jobs, labelled "account & settings". Two entries with one
     // shared destination would be that same button wearing two icons, so this asserts the
-    // destinations are genuinely distinct: the mark lands on account (it owns the avatar
-    // and the display name), the gear on the drawer's first page.
+    // destinations are genuinely distinct: the mark opens the Accounts popover, the gear
+    // opens the drawer's first page. Settings → Account is reachable from a menu item.
     writePrefs(false);
     const { container } = renderScene('running');
     const account = railOf(container).querySelector('[data-rail-account]') as HTMLElement;
@@ -437,6 +437,9 @@ describe('App — left icon rail', () => {
     expect(container.querySelector('[data-settings-page]')).toBeNull();
 
     fireEvent.click(account);
+    expect(container.querySelector('[data-account-menu]')).not.toBeNull();
+    expect(container.querySelector('[data-settings-page]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-account-menu-settings]') as HTMLElement);
     expect(within(container).getByRole('heading', { name: '账户' })).toBeInTheDocument();
     expect(container.querySelector('[data-account-section]')).not.toBeNull();
   });
@@ -482,7 +485,7 @@ describe('App — left icon rail', () => {
 // ---------------------------------------------------------------------------
 
 describe('App — wireframe v2 chrome', () => {
-  it('shows circular message avatars and opens settings from the account entry', () => {
+  it('shows circular message avatars and opens the Accounts menu from the account entry', () => {
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('running');
     expect(container.querySelector('[data-message="user"] [data-avatar="user"]')).not.toBeNull();
@@ -491,10 +494,10 @@ describe('App — wireframe v2 chrome', () => {
     expect(container.querySelector('[data-message="user"] [data-avatar="user"] img')).not.toBeNull();
     expect(container.querySelectorAll('[data-avatar="agent"]').length).toBeGreaterThan(0);
     // The entry is the icon rail's — see the "exactly one account avatar" test for why the
-    // session column no longer has one.
+    // session column no longer has one. It opens a popover, not Settings.
     fireEvent.click(screen.getByRole('button', { name: '账户' }));
-    expect(container.querySelector('[data-settings-page]')).not.toBeNull();
-    expect(container.querySelector('[data-settings-nav="connections"]')).not.toBeNull();
+    expect(container.querySelector('[data-account-menu]')).not.toBeNull();
+    expect(container.querySelector('[data-settings-page]')).toBeNull();
   });
 });
 

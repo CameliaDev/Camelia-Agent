@@ -9,11 +9,11 @@
  *
  * ## The foot of the strip: account, then settings
  *
- * Two entries, in that order — the way an editor's activity bar does it. They were once a
- * single button labelled "account & settings", which is one control claiming two jobs: a
- * reader clicking it could not tell whether they were about to configure themselves or the
- * application. Now the mark opens the page where *you* are configured (appearance: avatar,
- * name, theme, language) and the gear opens settings proper. Each says what it opens.
+ * Two entries, in that order — the way an editor's activity bar does it. The account mark
+ * opens a small Accounts menu (VS Code–style) anchored beside the avatar: who is signed in,
+ * GitHub sign-in / sign-out, and an optional jump into Settings → Account. The gear still
+ * opens Settings proper. They must not share a destination — one control claiming two jobs
+ * is how the old "account & settings" button failed.
  *
  * The rail is also the account's only home. It used to draw a mark at its foot while the
  * session column drew a profile row under its list, so an open column showed the same
@@ -46,11 +46,12 @@
  * @module
  */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { t } from '../i18n/strings.js';
 import { useNewSession } from '../state/new-session.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { AccountMenu } from './AccountMenu.js';
 import { Avatar, Icon, userAvatarSrc } from './primitives.js';
 
 /**
@@ -99,6 +100,7 @@ export function IconRail(): ReactNode {
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const newSession = useNewSession();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   /**
    * The name the user configured, or nothing.
@@ -123,7 +125,7 @@ export function IconRail(): ReactNode {
         the flex spacer — so the clip bought nothing and cost the only visible affordance
         these icons have.
       */
-      className="flex h-full w-full flex-col items-center gap-1 border-r border-line bg-base py-2"
+      className="relative flex h-full w-full flex-col items-center gap-1 border-r border-line bg-base py-2"
     >
       {/*
         The view toggle. Clicking the open view closes it, which is what every activity
@@ -174,31 +176,34 @@ export function IconRail(): ReactNode {
       <span className="flex-1" />
 
       {/*
-        The account mark: no name row, no version line — text cannot live in 48px, and the
-        name is one hover away. It opens *appearance*, which is the page that owns the
-        avatar and the display name; sending it to the drawer's first page would make it a
-        second copy of the gear.
-
-        No `title`: the strip draws its own tooltip and a native one would appear beside it.
+        The account mark opens the Accounts menu — not Settings. Settings is the gear below.
+        `relative` on the aside lets the menu anchor to the foot of the strip.
       */}
-      <button
-        type="button"
-        data-rail-account
-        aria-label={tr('account.profile')}
-        className={`${ITEM} ${ITEM_IDLE}`}
-        onClick={() => setSettingsOpen(true, 'account')}
-      >
-        <Avatar kind="user" size={22} src={userAvatarSrc(userAvatar, githubAccount)} />
-        <Tip>
-          {displayName ? (
-            <>
-              {displayName}
-              <span className="text-ink-3"> · </span>
-            </>
+      <div className="relative">
+        <button
+          type="button"
+          data-rail-account
+          aria-label={tr('account.profile')}
+          aria-haspopup="menu"
+          aria-expanded={accountMenuOpen}
+          className={`${ITEM} ${accountMenuOpen ? ITEM_ACTIVE : ITEM_IDLE}`}
+          onClick={() => setAccountMenuOpen((open) => !open)}
+        >
+          <Avatar kind="user" size={22} src={userAvatarSrc(userAvatar, githubAccount)} />
+          {!accountMenuOpen ? (
+            <Tip>
+              {displayName ? (
+                <>
+                  {displayName}
+                  <span className="text-ink-3"> · </span>
+                </>
+              ) : null}
+              {tr('account.profile')}
+            </Tip>
           ) : null}
-          {tr('account.profile')}
-        </Tip>
-      </button>
+        </button>
+        {accountMenuOpen ? <AccountMenu onClose={() => setAccountMenuOpen(false)} /> : null}
+      </div>
 
       {/*
         The gear, set a step further down than the account mark so the two read as separate
@@ -209,7 +214,10 @@ export function IconRail(): ReactNode {
         data-rail-settings
         aria-label={tr('settings.title')}
         className={`${ITEM} ${ITEM_IDLE} mt-1`}
-        onClick={() => setSettingsOpen(true)}
+        onClick={() => {
+          setAccountMenuOpen(false);
+          setSettingsOpen(true);
+        }}
       >
         <Icon name="settings" size={16} />
         <Tip>{tr('settings.title')}</Tip>
