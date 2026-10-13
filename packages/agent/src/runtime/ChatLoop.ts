@@ -100,7 +100,7 @@ function chatSystemPrompt(policy: ChatPolicy, workspace: string, effort?: Effort
     'No goal restatement, no plans, no task machinery, no acceptance checks — just the answer.',
     `Workspace: ${workspace}`,
     posture,
-    'You may call tools when the user asks something that needs the workspace. Never fabricate tool output.',
+    'You may call tools when the user asks something that needs the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',
     'If a tool is denied or fails, say plainly what you were trying to do and what you need — do not retry silently.',
     'When you cannot proceed without the user\'s input, call ask_user with one short question and 2-4 concrete options.',
   ];

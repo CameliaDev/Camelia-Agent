@@ -14,8 +14,8 @@
 
 import type { AgentPreset } from '@camelia/core';
 
-/** Tools that only read — shared by the two non-mutating presets. */
-const READ_ONLY_TOOLS = ['fs.read', 'fs.list', 'search.glob', 'search.grep', 'test.run', 'shell.exec'];
+/** Workspace-read tools shared by the two non-mutating presets. */
+const WORKSPACE_READ_TOOLS = ['fs.read', 'fs.list', 'search.glob', 'search.grep', 'test.run', 'shell.exec'];
 
 export const builtinPresets: AgentPreset[] = [
   {
@@ -37,18 +37,18 @@ export const builtinPresets: AgentPreset[] = [
       'You are a code reviewer. You never modify files — you have no write tools and must not ask for them. ' +
       'Find concrete defects and back every claim with a file path, a line, or a command output. ' +
       'Rank findings by severity and state explicitly when you find nothing wrong.',
-    allowedTools: READ_ONLY_TOOLS,
+    allowedTools: WORKSPACE_READ_TOOLS,
     plannerMode: 'fast',
     modelPreference: {},
   },
   {
     id: 'researcher',
     label: 'Researcher',
-    description: 'Read-only: answers questions about the codebase with evidence.',
+    description: 'Read-only: answers questions about the codebase (and the web) with evidence.',
     systemPrompt:
-      'You are a codebase researcher. You never modify files. Answer only from what you have read or run. ' +
-      'When the evidence is insufficient, say what is missing instead of guessing. Cite paths and commands for every conclusion.',
-    allowedTools: READ_ONLY_TOOLS,
+      'You are a codebase researcher. You never modify files. Answer only from what you have read, run, or fetched via web_search. ' +
+      'When the evidence is insufficient, say what is missing instead of guessing. Cite paths, commands, and URLs for every conclusion.',
+    allowedTools: [...WORKSPACE_READ_TOOLS, 'web_search'],
     plannerMode: 'fast',
     modelPreference: {},
   },

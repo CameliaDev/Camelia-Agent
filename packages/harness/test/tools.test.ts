@@ -7,7 +7,7 @@
  * @module
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { JsonSchema, JsonValue } from '@camelia/core';
 import { newId } from '@camelia/core';
@@ -16,6 +16,7 @@ import { ToolEngine } from '../src/tools/ToolEngine.js';
 import { formatIssues, validateSchema } from '../src/tools/schema-validator.js';
 import { fsReadTool, fsWriteTool, fsEditTool, fsListTool } from '../src/tools/builtin/fs-tools.js';
 import { searchGlobTool, searchGrepTool } from '../src/tools/builtin/search-tools.js';
+import { setWebSearchOverrideForTests, webSearchTool } from '../src/tools/builtin/web-search-tools.js';
 import { shellExecTool, testRunTool } from '../src/tools/builtin/shell-tools.js';
 import { builtinTools } from '../src/tools/builtin/index.js';
 import { WorkspaceJournal } from '../src/checkpoint/WorkspaceJournal.js';
@@ -124,6 +125,14 @@ describe('ToolEngine', () => {
     engine.registerAll(builtinTools);
     expect(engine.has('fs.write')).toBe(true);
     expect(engine.has('shell.exec')).toBe(true);
+    expect(engine.has('web_search')).toBe(true);
+  });
+
+  it('schemas treats * as unrestricted', () => {
+    const engine = new ToolEngine();
+    engine.registerAll(builtinTools);
+    expect(engine.schemas(['*']).map((s) => s.name)).toContain('web_search');
+    expect(engine.schemas(['*']).length).toBe(engine.list().length);
   });
 
   it('returns a helpful error for an unknown tool', async () => {
@@ -298,6 +307,47 @@ describe('shell tools', () => {
   });
 });
 
+
+describe('web_search tool', () => {
+  afterEach(() => {
+    setWebSearchOverrideForTests(undefined);
+  });
+
+  it('returns provider results and clamps maxResults', async () => {
+    setWebSearchOverrideForTests(async (query, maxResults) => {
+      expect(query).toBe('camelia agent');
+      expect(maxResults).toBe(10);
+      return {
+        query,
+        provider: 'duckduckgo',
+        durationMs: 12,
+        results: [
+          { title: 'Camelia', url: 'https://example.com/camelia', snippet: 'Warm intelligence', source: 'duckduckgo' },
+        ],
+      };
+    });
+    const h = makeHarness();
+    const result = (await webSearchTool.run({ query: 'camelia agent', maxResults: 99 }, toolContext(h))) as {
+      provider: string;
+      count: number;
+      results: { title: string; url: string; snippet: string }[];
+    };
+    expect(result.provider).toBe('duckduckgo');
+    expect(result.count).toBe(1);
+    expect(result.results[0]?.url).toBe('https://example.com/camelia');
+  });
+
+  it('rejects an empty query', async () => {
+    const h = makeHarness();
+    await expect(webSearchTool.run({ query: '   ' }, toolContext(h))).rejects.toThrow(/non-empty/);
+  });
+
+  it('is classified as network risk', () => {
+    expect(webSearchTool.risk).toBe('network');
+    expect(webSearchTool.reversible).toBe(true);
+  });
+});
+
 describe('WorkspaceJournal', () => {
   it('rolls back a newly created file by deleting it', async () => {
     const h = makeHarness();
@@ -346,7 +396,7 @@ describe('builtin tool registry', () => {
   it('ships every core tool exactly once', () => {
     const names = builtinTools.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names).toEqual(expect.arrayContaining(['fs.read', 'fs.write', 'fs.edit', 'fs.list', 'search.glob', 'search.grep', 'shell.exec', 'test.run']));
+    expect(names).toEqual(expect.arrayContaining(['fs.read', 'fs.write', 'fs.edit', 'fs.list', 'search.glob', 'search.grep', 'web_search', 'shell.exec', 'test.run', 'math.exec']));
   });
 
   it('has a stable id for a fresh journal entry key', () => {
@@ -379,7 +429,7 @@ describe('three-layer tool knowledge', () => {
     for (const tool of builtinTools) {
       expect(tool.schema.type).toBe('object');
       expect(tool.schema.additionalProperties).toBe(false);
-      expect(['read-only', 'write', 'privileged']).toContain(tool.risk);
+      expect(['read-only', 'write', 'destructive', 'network', 'privileged']).toContain(tool.risk);
     }
     expect(shellExecTool.risk).toBe('privileged');
     expect(testRunTool.risk).toBe('privileged');

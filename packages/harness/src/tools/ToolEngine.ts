@@ -81,9 +81,11 @@ export class ToolEngine {
 
   /** Schemas in the shape the LLM port expects. Optionally restricted to a subset. */
   schemas(allowed?: string[]): LLMToolSchema[] {
-    const tools = allowed
-      ? allowed.map((name) => this.tools.get(name)).filter((t): t is Tool<any, any> => Boolean(t))
-      : [...this.tools.values()];
+    // ['*'] means every registered tool (coder preset). Treat it as unrestricted.
+    const tools =
+      !allowed || allowed.includes('*')
+        ? [...this.tools.values()]
+        : allowed.map((name) => this.tools.get(name)).filter((t): t is Tool<any, any> => Boolean(t));
     return tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
