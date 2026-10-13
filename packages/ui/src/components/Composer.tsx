@@ -25,7 +25,8 @@
  *
  * ## What is deliberately *not* in this bar
  *
- * No attach, mic, or access-level picker. Camelia has no attachment or voice port.
+ * Clipboard image paste is supported (Ctrl+V). Mic / file-picker / access-level
+ * controls stay out of this bar — paste is the ChatGPT-style path.
  *
  * The model chip *is* here, and it switches the model in place. It used to be a read-only
  * label that opened Settings, which meant the one place a reader looks to change the model
@@ -49,7 +50,7 @@
  * @module
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type ReactNode } from 'react';
 
 import type { ChatPolicy } from '@camelia/core';
 
@@ -61,6 +62,32 @@ import { Icon } from './primitives.js';
 
 /** The permission postures a chat turn can run under — order is the picker's order. */
 const CHAT_POLICIES: readonly ChatPolicy[] = ['readonly-sandbox', 'ask', 'full'];
+
+/** One clipboard image waiting to ride with the next Work chat turn. */
+interface PendingImage {
+  id: string;
+  mimeType: string;
+  dataUrl: string;
+  /** Raw base64 without the data: prefix — what chat_message carries. */
+  dataBase64: string;
+}
+
+const MAX_PENDING_IMAGES = 4;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
+
+function normalizeMime(mime: string): string {
+  return mime === 'image/jpg' ? 'image/jpeg' : mime;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.readAsDataURL(file);
+  });
+}
 
 function policyLabelKey(policy: ChatPolicy): 'composer.policy.readonly' | 'composer.policy.ask' | 'composer.policy.full' {
   return policy === 'full'
@@ -76,7 +103,10 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [value, setValue] = useState('');
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [imageNotice, setImageNotice] = useState<string | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const imageIdPrefix = useId();
   const task = snapshot.task;
   const running = task !== undefined && task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled';
   const { mode } = useMode();
@@ -155,23 +185,87 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     };
   }, [pickerOpen]);
 
+  const addImageFiles = useCallback(
+    async (files: File[]): Promise<void> => {
+      if (files.length === 0) return;
+      const next: PendingImage[] = [];
+      let notice: string | null = null;
+      for (const file of files) {
+        const mime = normalizeMime(file.type || 'image/png');
+        if (!ALLOWED_MIME.has(mime)) continue;
+        if (file.size > MAX_IMAGE_BYTES) {
+          notice = 'composer.imageTooLarge';
+          continue;
+        }
+        if (pendingImages.length + next.length >= MAX_PENDING_IMAGES) {
+          notice = 'composer.imageLimit';
+          break;
+        }
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          const comma = dataUrl.indexOf(',');
+          const dataBase64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+          if (!dataBase64) continue;
+          next.push({
+            id: `${imageIdPrefix}-${Date.now()}-${next.length}`,
+            mimeType: mime,
+            dataUrl,
+            dataBase64,
+          });
+        } catch {
+          // Skip unreadable clipboard blobs.
+        }
+      }
+      if (next.length) setPendingImages((prev) => [...prev, ...next].slice(0, MAX_PENDING_IMAGES));
+      if (notice) setImageNotice(notice);
+      else if (next.length) setImageNotice(null);
+    },
+    [imageIdPrefix, pendingImages.length],
+  );
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>): void => {
+    const items = event.clipboardData?.items;
+    if (!items?.length) return;
+    const files: File[] = [];
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length === 0) return;
+    event.preventDefault();
+    void addImageFiles(files);
+  };
+
+  const removeImage = (id: string): void => {
+    setPendingImages((prev) => prev.filter((img) => img.id !== id));
+    setImageNotice(null);
+  };
+
   const submit = (): void => {
     const intent = value.trim();
-    if (!intent) return;
+    const images =
+      mode === 'work' && pendingImages.length > 0
+        ? pendingImages.map((img) => ({ mimeType: img.mimeType, dataBase64: img.dataBase64 }))
+        : undefined;
+    if (!intent && !(images && images.length)) return;
     if (mode === 'work') {
-      // 对话 mode: a direct chat turn — no task machinery; the picker decides the
-      // tool posture, and the engine refuses while a task run is active.
+      // 对话 mode: multimodal when images are pasted — OpenAI-compatible vision parts.
       dispatch(
         makeCommand('chat_message', {
           sessionId: activeSessionId ?? 'ses_new',
           text: intent,
           policy: chatPolicy,
           effort,
+          ...(images?.length ? { images } : {}),
         }),
       );
     } else if (running && task) {
+      if (!intent) return;
       dispatch(makeCommand('intervene_goal', { taskId: task.id, instruction: intent }));
     } else {
+      if (!intent) return;
       dispatch(
         makeCommand('submit_task', {
           sessionId: activeSessionId ?? 'ses_new',
@@ -182,6 +276,8 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       );
     }
     setValue('');
+    setPendingImages([]);
+    setImageNotice(mode !== 'work' && pendingImages.length > 0 ? 'composer.imagesWorkOnly' : null);
   };
 
   return (
@@ -200,11 +296,40 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
           data-composer
           className="flex flex-col gap-1.5 rounded-2xl border border-line/50 bg-panel/40 p-2.5 shadow-sm transition-colors focus-within:border-accent/40 focus-within:shadow-md"
         >
+          {pendingImages.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 px-0.5" data-composer-images>
+              {pendingImages.map((img) => (
+                <div key={img.id} className="relative" data-composer-image={img.id}>
+                  <img
+                    src={img.dataUrl}
+                    alt=""
+                    className="h-16 w-16 rounded-lg border border-line object-cover"
+                  />
+                  <button
+                    type="button"
+                    data-composer-image-remove={img.id}
+                    aria-label={tr('composer.removeImage')}
+                    title={tr('composer.removeImage')}
+                    onClick={() => removeImage(img.id)}
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-line bg-elevated text-[11px] text-ink shadow hover:bg-bad hover:text-white"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {imageNotice ? (
+            <p className="px-0.5 text-[10.5px] text-warn" data-composer-image-notice>
+              {tr(imageNotice as Parameters<typeof t>[1])}
+            </p>
+          ) : null}
           <textarea
             ref={areaRef}
             rows={2}
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            onPaste={onPaste}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -384,7 +509,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               <button
                 type="submit"
                 data-run
-                disabled={!value.trim()}
+                disabled={!value.trim() && !(mode === 'work' && pendingImages.length > 0)}
                 aria-label={tr('composer.run')}
                 title={tr('composer.run')}
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-base transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-2"

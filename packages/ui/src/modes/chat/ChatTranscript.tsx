@@ -103,7 +103,19 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
     return (
       <div className="flex items-end justify-end gap-2" data-chat-user data-message="user">
         <div className="wf-bubble-user max-w-[80%] px-3.5 py-2.5">
-          <p className="whitespace-pre-wrap text-[13.5px] leading-6">{turn.text}</p>
+          {turn.images?.length ? (
+            <div className="mb-2 flex flex-wrap gap-1.5" data-chat-images>
+              {turn.images.map((img, i) => (
+                <img
+                  key={i}
+                  src={`data:${img.mimeType};base64,${img.dataBase64}`}
+                  alt=""
+                  className="max-h-40 max-w-full rounded-lg border border-white/20 object-contain"
+                />
+              ))}
+            </div>
+          ) : null}
+          {turn.text ? <p className="whitespace-pre-wrap text-[13.5px] leading-6">{turn.text}</p> : null}
         </div>
         {showAvatars ? (
           <Avatar kind="user" size={32} title={tr('avatar.user')} src={userAvatarSrc(userAvatar, githubAccount)} />

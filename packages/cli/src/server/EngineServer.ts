@@ -479,17 +479,19 @@ export class EngineServer {
 
       // ---- chat (对话 mode): direct conversation, no task machinery --------
       case 'chat_message': {
-        const { sessionId, text, policy, effort: rawEffort } = command.payload;
+        const { sessionId, text, policy, effort: rawEffort, images: rawImages } = command.payload;
         if (this.activeRun) return { ok: false, error: '已有任务正在运行，聊天暂不可用' };
         if (this.activeChat) return { ok: false, error: '已有对话正在处理，请稍候' };
-        if (typeof text !== 'string' || !text.trim()) return { ok: false, error: '消息不能为空' };
+        const images = Array.isArray(rawImages) ? rawImages : undefined;
+        const hasImages = Boolean(images?.length);
+        if (typeof text !== 'string' || (!text.trim() && !hasImages)) return { ok: false, error: '消息不能为空' };
         if (!isChatPolicy(policy)) return { ok: false, error: `无效的聊天权限策略: ${String(policy)}` };
         const effort = parseEffort(rawEffort);
         if (effort === null) return { ok: false, error: `无效的力度: ${String(rawEffort)}` };
         const chatSessionId =
           typeof sessionId === 'string' && sessionId ? sessionId : this.options.runtime.session.id;
         this.activeChat = this.options.runtime
-          .chat(chatSessionId, text, policy, effort)
+          .chat(chatSessionId, text ?? '', policy, effort, images)
           .catch((error: unknown) => {
             this.options.logger?.error('chat turn failed', { error: String(error) });
           })

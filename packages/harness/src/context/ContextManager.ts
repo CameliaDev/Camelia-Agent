@@ -8,6 +8,7 @@
  */
 
 import type { DroppedMessage, LLMMessage, LoggerPort, MetricsPort, TokenBudget } from '@camelia/core';
+import { estimateContentTokens, llmContentText } from '@camelia/core';
 import { estimateTokens, withSafetyMargin } from '@camelia/core';
 
 import type { HarnessConfig } from '../config.js';
@@ -63,7 +64,7 @@ export type Summarizer = (messages: LLMMessage[]) => Promise<string>;
 export const structuralSummarizer: Summarizer = async (messages) => {
   const lines = messages.map((m) => {
     const label = m.role === 'tool' ? `tool:${m.name ?? '?'}` : m.role;
-    const body = m.content.replace(/\s+/g, ' ').trim().slice(0, 160);
+    const body = llmContentText(m.content).replace(/\s+/g, ' ').trim().slice(0, 160);
     return `- ${label}: ${body}`;
   });
   return `[compacted ${messages.length} earlier messages]\n${lines.join('\n')}`;
@@ -84,10 +85,11 @@ export function previewDropped(messages: LLMMessage[]): DroppedMessage[] {
   const kept =
     messages.length > MAX_DROPPED_PREVIEWS ? messages.slice(messages.length - MAX_DROPPED_PREVIEWS) : messages;
   return kept.map((m) => {
-    const truncated = m.content.length > MAX_PREVIEW_CHARS;
+    const text = llmContentText(m.content);
+    const truncated = text.length > MAX_PREVIEW_CHARS;
     const preview: DroppedMessage = {
       role: m.role,
-      content: truncated ? m.content.slice(0, MAX_PREVIEW_CHARS) : m.content,
+      content: truncated ? text.slice(0, MAX_PREVIEW_CHARS) : text,
       truncated,
     };
     if (m.name) preview.name = m.name;
@@ -115,7 +117,7 @@ export class ContextManager {
     this.entries.push({
       id,
       message,
-      tokens: estimateTokens(message.content) + estimateTokens(message.name ?? ''),
+      tokens: estimateContentTokens(message.content) + estimateTokens(message.name ?? ''),
       pinned: options.pinned ?? false,
       compacted: false,
     });
@@ -266,7 +268,7 @@ export class ContextManager {
       entries: this.entries.map((entry) => ({
         role: entry.message.role,
         ...(typeof entry.message.name === 'string' ? { name: entry.message.name } : {}),
-        content: entry.message.content,
+        content: llmContentText(entry.message.content),
         pinned: entry.pinned,
         compacted: entry.compacted,
         tokens: entry.tokens,

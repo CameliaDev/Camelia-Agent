@@ -63,6 +63,15 @@ export type ChatPolicy = 'readonly-sandbox' | 'ask' | 'full';
  */
 export type EffortLevel = 'max' | 'high' | 'low';
 
+/**
+ * A clipboard / attach image carried on `chat_message` and echoed on `chat.received`.
+ * `dataBase64` is raw base64 (no `data:` prefix). The UI / ChatLoop builds the data URL.
+ */
+export interface ChatImagePayload {
+  mimeType: string;
+  dataBase64: string;
+}
+
 /** Envelope shared by every event travelling through the bus. */
 export interface EventEnvelope<TType extends string, TPayload> {
   type: TType;
@@ -204,7 +213,7 @@ export interface DomainEventMap {
    * (clarify → plan → gate → verify) cannot leak into a plain conversation.
    * Every event carries `turnId`; the projection folds them into `snapshot.chat`.
    */
-  'chat.received': { turnId: Id; text: string };
+  'chat.received': { turnId: Id; text: string; images?: ChatImagePayload[] };
   'chat.delta': { turnId: Id; delta: string };
   'chat.message': { turnId: Id; role: 'user' | 'assistant'; text: string };
   /** Tool-call progress for a chat turn. Emitted at every status transition. */
@@ -314,7 +323,7 @@ export interface CommandMap {
 
   // ---- Chat (direct conversation path) -------------------------------------
   /** Send one chat turn. Rejected while a task run is active (see EngineServer). */
-  'chat_message': { sessionId: Id; text: string; policy: ChatPolicy; effort?: EffortLevel };
+  'chat_message': { sessionId: Id; text: string; policy: ChatPolicy; effort?: EffortLevel; images?: ChatImagePayload[] };
   /** Answer a pending `chat.ask_user` picker. */
   'chat_answer': { sessionId: Id; askId: Id; optionIdx: number };
   /** Abort the in-flight chat turn (and clear any pending ask). */

@@ -241,6 +241,11 @@ type StringKey =
   | 'composer.effort.max'
   | 'composer.effort.high'
   | 'composer.effort.low'
+  | 'composer.pasteImage'
+  | 'composer.removeImage'
+  | 'composer.imagesWorkOnly'
+  | 'composer.imageTooLarge'
+  | 'composer.imageLimit'
   | 'settings.presets.test'
   | 'settings.presets.testOk'
   | 'settings.presets.testFail'
@@ -637,6 +642,11 @@ const en: Record<StringKey, string> = {
   'composer.effort.max': 'Max',
   'composer.effort.high': 'High',
   'composer.effort.low': 'Low',
+  'composer.pasteImage': 'Paste an image (Ctrl+V)',
+  'composer.removeImage': 'Remove image',
+  'composer.imagesWorkOnly': 'Images send in Work chat — task/math modes ignore them',
+  'composer.imageTooLarge': 'Image too large (max 5 MB)',
+  'composer.imageLimit': 'At most 4 images per message',
   'settings.presets.test': 'Test connection',
   'settings.presets.testOk': 'Connected',
   'settings.presets.testFail': 'Connection failed',
@@ -1039,6 +1049,11 @@ const zh: Record<StringKey, string> = {
   'composer.effort.max': 'Max',
   'composer.effort.high': 'High',
   'composer.effort.low': 'Low',
+  'composer.pasteImage': '粘贴图片（Ctrl+V）',
+  'composer.removeImage': '移除图片',
+  'composer.imagesWorkOnly': '图片仅在 Work 对话发送；任务/数模模式会忽略',
+  'composer.imageTooLarge': '图片过大（最大 5 MB）',
+  'composer.imageLimit': '每条消息最多 4 张图',
   'settings.presets.test': '测试连通性',
   'settings.presets.testOk': '已连通',
   'settings.presets.testFail': '连通失败',

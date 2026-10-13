@@ -14,6 +14,7 @@
 
 import type {
   Artifact,
+  ChatImagePayload,
   ChatPolicy,
   DomainEvent,
   DroppedMessage,
@@ -146,6 +147,8 @@ export interface ChatTurnView {
   id: Id;
   role: 'user' | 'assistant';
   text: string;
+  /** Pasted images on this user turn (base64 payload from chat.received). */
+  images?: ChatImagePayload[];
   /** True while `chat.delta` chunks are still arriving (drives the caret). */
   streaming: boolean;
   toolCalls: ToolCallView[];
@@ -1330,6 +1333,7 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
           id: event.payload.turnId,
           role: 'user',
           text: event.payload.text,
+          images: event.payload.images,
           streaming: false,
           toolCalls: [],
           at: event.ts,

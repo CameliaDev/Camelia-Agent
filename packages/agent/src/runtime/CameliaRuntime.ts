@@ -23,6 +23,7 @@ import {
   phaseOf,
   systemClock,
   type AgentPreset,
+  type ChatImagePayload,
   type ChatPolicy,
   type EffortLevel,
   type ClarifiedIntent,
@@ -719,9 +720,9 @@ export class CameliaRuntime {
    * One chat turn. While a task run is active the chat is refused — one
    * workspace-mutation stream at a time keeps both paths honest.
    */
-  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel): Promise<void> {
+  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel, images?: ChatImagePayload[]): Promise<void> {
     if (this.activeLoop) throw new Error('a task run is active — chat is unavailable until it finishes');
-    await this.chatLoop.chat(sessionId, text, policy, effort);
+    await this.chatLoop.chat(sessionId, text, policy, effort, images);
   }
 
   /** Answer an open `ask_user` picker from the chat path. */

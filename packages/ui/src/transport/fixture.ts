@@ -294,7 +294,7 @@ export class FixtureTransport implements Transport {
         const turnId = `turn_${(this.sent.length * 6151 + 2749).toString(16)}`;
         const answer =
           '这是对话模式的直答回复（offline fixture）。真实引擎在这里流式输出模型回复，并按所选权限策略使用工具。';
-        this.push('chat.received', { turnId, text: command.payload.text });
+        this.push('chat.received', { turnId, text: command.payload.text, ...(command.payload.images?.length ? { images: command.payload.images } : {}) });
         this.push('chat.delta', { turnId, delta: answer.slice(0, 18) });
         this.push('chat.delta', { turnId, delta: answer.slice(18) });
         this.push('chat.message', { turnId, role: 'assistant', text: answer });

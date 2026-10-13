@@ -17,6 +17,7 @@
 
 import {
   newId,
+  type ChatImagePayload,
   type ChatPolicy,
   type ChatRequest,
   type EffortLevel,
@@ -24,6 +25,7 @@ import {
   type EventBus,
   type Id,
   type JsonValue,
+  type LLMContentPart,
   type LLMMessage,
   type LLMPort,
   type LLMToolCall,
@@ -153,7 +155,7 @@ export class ChatLoop {
    * never throws for model/tool failures (they surface as `chat.failed`).
    * Throws only when another turn is already running.
    */
-  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel): Promise<void> {
+  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel, images?: ChatImagePayload[]): Promise<void> {
     if (this.active.current) throw new Error('A chat turn is already in progress.');
     const controller = new AbortController();
     this.active.current = controller;
@@ -167,15 +169,16 @@ export class ChatLoop {
     let turnId = '';
 
     try {
-      this.opts.bus.emit('chat.received', { turnId: userTurnId, text }, meta);
+      const safeImages = sanitizeImages(images);
+      this.opts.bus.emit('chat.received', { turnId: userTurnId, text, ...(safeImages.length ? { images: safeImages } : {}) }, meta);
       if (policy !== this.lastPolicy) {
         this.lastPolicy = policy;
         this.opts.bus.emit('chat.policy_changed', { policy }, meta);
       }
-      await this.maybeTitle(sessionId, text);
+      await this.maybeTitle(sessionId, text.trim() || (safeImages.length ? `Image (${safeImages.length})` : text));
 
       const messages = this.historyFor(sessionId);
-      messages.push({ role: 'user', content: text });
+      messages.push({ role: 'user', content: buildUserContent(text, safeImages) });
       this.trimHistory(messages);
 
       const system: LLMMessage = { role: 'system', content: chatSystemPrompt(policy, this.opts.workspace, effort) };
@@ -504,6 +507,40 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       },
     );
   });
+}
+
+const MAX_CHAT_IMAGES = 4;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
+
+function sanitizeImages(images: ChatImagePayload[] | undefined): ChatImagePayload[] {
+  if (!images?.length) return [];
+  const out: ChatImagePayload[] = [];
+  for (const img of images) {
+    if (out.length >= MAX_CHAT_IMAGES) break;
+    if (!img || typeof img.mimeType !== 'string' || typeof img.dataBase64 !== 'string') continue;
+    const mime = img.mimeType === 'image/jpg' ? 'image/jpeg' : img.mimeType;
+    if (!ALLOWED_IMAGE_MIME.has(mime)) continue;
+    const raw = img.dataBase64.replace(/\s+/g, '');
+    if (!raw || raw.length > Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 8) continue;
+    out.push({ mimeType: mime, dataBase64: raw });
+  }
+  return out;
+}
+
+function buildUserContent(text: string, images: ChatImagePayload[]): string | LLMContentPart[] {
+  const trimmed = text.trim();
+  if (images.length === 0) return trimmed || text;
+  const parts: LLMContentPart[] = [];
+  if (trimmed) parts.push({ type: 'text', text: trimmed });
+  for (const img of images) {
+    parts.push({
+      type: 'image_url',
+      image_url: { url: `data:${img.mimeType};base64,${img.dataBase64}` },
+    });
+  }
+  if (parts.length === 0) parts.push({ type: 'text', text: '(image)' });
+  return parts;
 }
 
 /** Bounded JSON feedback, mirroring the executor. */

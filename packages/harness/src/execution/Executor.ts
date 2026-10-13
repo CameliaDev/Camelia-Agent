@@ -16,6 +16,7 @@ import type {
   StepResult,
   ToolCall,
 } from '@camelia/core';
+import { llmContentText } from '@camelia/core';
 import { newId } from '@camelia/core';
 
 import type { ApprovalGate } from '../approval/ApprovalGate.js';
@@ -131,7 +132,7 @@ export class Executor {
       }
 
       const built = this.deps.context.build(baseSystem);
-      const system = built.messages[0]?.content ?? baseSystem;
+      const system = llmContentText(built.messages[0]?.content ?? baseSystem);
       const conversation = built.messages.slice(1);
 
       let response;

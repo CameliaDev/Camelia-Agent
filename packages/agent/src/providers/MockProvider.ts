@@ -17,6 +17,7 @@ import type {
   ModelInfo,
   ProviderCapabilities,
 } from '@camelia/core';
+import { estimateContentTokens } from '@camelia/core';
 
 export interface ScriptedToolCall {
   name: string;
@@ -166,5 +167,5 @@ export class MockProvider implements LLMPort {
 }
 
 function estimateRequestTokens(request: ChatRequest): number {
-  return request.messages.reduce((sum, message) => sum + Math.ceil(message.content.length / 3.6), 0);
+  return request.messages.reduce((sum, message) => sum + estimateContentTokens(message.content), 0);
 }

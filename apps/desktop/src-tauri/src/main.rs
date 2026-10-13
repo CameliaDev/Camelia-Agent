@@ -6,14 +6,14 @@
  *
  * Deliberately thin: the shell owns the window and the *boot parameters*, not the
  * product. All task state is projected by `@camelia/ui` from the engine's event stream
- * (whitepaper §6.1), so the Rust side stays a window factory — there is no business
+ * (whitepaper 搂6.1), so the Rust side stays a window factory 鈥?there is no business
  * logic here to drift.
  *
  * Boot parameters are injected as `window.__CAMELIA_BOOT__` before the bundle runs, so
  * the shell can select what the app projects without relying on the asset protocol's
  * query strings. Two modes are carried on the same channel:
- *   • `--scene=<id>` / `CAMELIA_SCENE`         — project a scripted fixture state;
- *   • `--engine-url=<url>` / `CAMELIA_ENGINE_URL` — attach to a live `camelia serve`.
+ *   鈥?`--scene=<id>` / `CAMELIA_SCENE`         鈥?project a scripted fixture state;
+ *   鈥?`--engine-url=<url>` / `CAMELIA_ENGINE_URL` 鈥?attach to a live `camelia serve`.
  * The UI prefers the engine URL when both are present, so pointing the shell at an
  * engine cannot accidentally show a demo scene.
  *
@@ -32,14 +32,14 @@ use std::time::Duration;
 
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-/// `CREATE_NO_WINDOW` — Windows runs the child without allocating it a console.
+/// `CREATE_NO_WINDOW` 鈥?Windows runs the child without allocating it a console.
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// A `Command` that never puts a console window on screen.
 ///
 /// `node.exe` is a console-subsystem binary. When this GUI process spawns it, Windows
-/// allocates a fresh console for the child unless `CREATE_NO_WINDOW` is set — and
+/// allocates a fresh console for the child unless `CREATE_NO_WINDOW` is set 鈥?and
 /// because the engine lives as long as the window does, that black box stays on screen
 /// for the whole session. Piping stdout/stderr does **not** suppress it; only the
 /// creation flag does. The flag is a no-op on every other platform.
@@ -95,7 +95,7 @@ fn chrono_local_now() -> String {
     let hh = tod / 3600;
     let mm = (tod % 3600) / 60;
     let ss = tod % 60;
-    // Days since 1970-01-01 → year/month/day (rough, good enough for logs).
+    // Days since 1970-01-01 鈫?year/month/day (rough, good enough for logs).
     let mut y = 1970u64;
     let mut remaining = days;
     loop {
@@ -156,8 +156,7 @@ fn find_engine_path() -> Option<std::path::PathBuf> {
 }
 
 /// Strip a UTF-8 BOM if present. PowerShell `Set-Content -Encoding utf8` (Windows
-/// PowerShell 5.x) writes a BOM that makes `serde_json` reject the whole file —
-/// which used to look like "CLI bin.js not found" with a valid-looking desktop.json.
+/// PowerShell 5.x) writes a BOM that makes `serde_json` reject the whole file 鈥?/// which used to look like "CLI bin.js not found" with a valid-looking desktop.json.
 fn strip_utf8_bom(raw: &str) -> &str {
     raw.strip_prefix('\u{feff}').unwrap_or(raw)
 }
@@ -353,6 +352,10 @@ fn node_from_desktop_config() -> Option<String> {
 }
 
 /// Prefer an fnm-managed Node 22 (matches repo `.nvmrc`) when present.
+///
+/// Supports both layouts:
+/// - older: `node-versions/v22.x.y/installation/node.exe`
+/// - current Windows: `node-versions/22.x.y/node-v22.x.y-win-x64/node.exe`
 fn find_fnm_node22() -> Option<String> {
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
@@ -370,12 +373,33 @@ fn find_fnm_node22() -> Option<String> {
         for entry in entries.flatten() {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if !name.starts_with("v22") {
+            // Folder may be `v22.18.0` or bare `22.18.0`.
+            if !(name.starts_with("v22") || name.starts_with("22.")) {
                 continue;
             }
-            let exe = entry.path().join("installation").join("node.exe");
-            if exe.is_file() {
-                candidates.push(exe);
+            let base = entry.path();
+            let installation = base.join("installation").join("node.exe");
+            if installation.is_file() {
+                candidates.push(installation);
+                continue;
+            }
+            // Windows fnm extracts as `node-v22.x.y-win-x64/node.exe` under the version dir.
+            if let Ok(children) = std::fs::read_dir(&base) {
+                for child in children.flatten() {
+                    let child_name = child.file_name();
+                    let child_name = child_name.to_string_lossy();
+                    if !(child_name.starts_with("node-v22") || child_name.contains("win-")) {
+                        continue;
+                    }
+                    let exe = child.path().join("node.exe");
+                    if exe.is_file() {
+                        candidates.push(exe);
+                    }
+                }
+            }
+            let direct = base.join("node.exe");
+            if direct.is_file() {
+                candidates.push(direct);
             }
         }
     }
@@ -424,8 +448,7 @@ fn find_nvm_node22() -> Option<String> {
 
 /// Find node executable.
 ///
-/// Order: `CAMELIA_NODE` → `~/.camelia/desktop.json` `node` → fnm Node 22 →
-/// nvm-windows Node 22 → Program Files → PATH. Preferring Node 22 avoids ABI
+/// Order: `CAMELIA_NODE` 鈫?`~/.camelia/desktop.json` `node` 鈫?fnm Node 22 鈫?/// nvm-windows Node 22 鈫?Program Files 鈫?PATH. Preferring Node 22 avoids ABI
 /// mismatches when `better-sqlite3` was built against the repo `.nvmrc` toolchain.
 fn find_node() -> Option<String> {
     if let Ok(raw) = std::env::var("CAMELIA_NODE") {
@@ -499,7 +522,7 @@ fn probe_better_sqlite3(node: &str, project_root: &std::path::Path) -> Result<()
         return Err(abi_mismatch_hint(err.lines().next().unwrap_or(err)));
     }
     if err.is_empty() {
-        return Err("better-sqlite3 probe failed (no stderr) — check Node version vs .nvmrc".into());
+        return Err("better-sqlite3 probe failed (no stderr) 鈥?check Node version vs .nvmrc".into());
     }
     Err(format!("better-sqlite3 probe failed: {err}"))
 }
@@ -511,8 +534,8 @@ fn probe_better_sqlite3(node: &str, project_root: &std::path::Path) -> Result<()
 /// Desktop first-run defaults, written once into `~/.camelia/config.json`.
 ///
 /// The plan gate exists so a plan can be *reviewed*, not so every conversation waits. The
-/// engine's own fallback is `always`, which is right for headless `camelia` — nobody is
-/// watching a CLI to click approve — but wrong for a window where the plan is on screen
+/// engine's own fallback is `always`, which is right for headless `camelia` 鈥?nobody is
+/// watching a CLI to click approve 鈥?but wrong for a window where the plan is on screen
 /// the whole time. So the shell seeds `auto` instead, and never overwrites a value the
 /// Settings toggle (or a hand-edit) already put there.
 fn ensure_desktop_defaults() -> Result<(), String> {
@@ -646,7 +669,7 @@ fn spawn_engine() -> Result<(Child, String, String), String> {
         {
             abi_mismatch_hint("engine crashed while loading SQLite")
         } else {
-            "engine exited before ready JSON — see ~/.camelia/logs/engine.log (not a live connection; fixture offline is intentional until spawn succeeds)".to_string()
+            "engine exited before ready JSON 鈥?see ~/.camelia/logs/engine.log (not a live connection; fixture offline is intentional until spawn succeeds)".to_string()
         };
         dbg.push_str(&format!("{msg}\n"));
         let _ = std::fs::write(&dbg_path, &dbg);
@@ -757,7 +780,7 @@ fn read_model_settings() -> Result<serde_json::Value, String> {
 ///
 /// This is the durable half of the Settings toggle. The engine command
 /// (`set_plan_approval`) only mutates process memory, and the desktop shell spawns a
-/// fresh engine on every launch — without this write the choice reverted to `always`
+/// fresh engine on every launch 鈥?without this write the choice reverted to `always`
 /// on restart, which is why every conversation kept stopping at the plan gate.
 #[tauri::command]
 fn write_plan_approval(mode: String) -> Result<(), String> {
@@ -935,7 +958,7 @@ fn read_keys_object() -> Result<serde_json::Map<String, serde_json::Value>, Stri
 
 fn key_hint(value: &str) -> String {
     let tail: String = value.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
-    if tail.is_empty() { String::new() } else { format!("····{tail}") }
+    if tail.is_empty() { String::new() } else { format!("路路路路{tail}") }
 }
 
 #[tauri::command]
@@ -1028,8 +1051,8 @@ fn main() {
                 *engine_child.lock().unwrap() = Some(child);
             }
             Err(err) => {
-                eprintln!("[camelia] could not spawn engine — falling back to offline mode: {err}");
-                log_line("boot", &format!("could not spawn engine — offline mode: {err}"));
+                eprintln!("[camelia] could not spawn engine 鈥?falling back to offline mode: {err}");
+                log_line("boot", &format!("could not spawn engine 鈥?offline mode: {err}"));
                 engine_url = None;
                 session_id = None;
                 spawn_error = Some(err);

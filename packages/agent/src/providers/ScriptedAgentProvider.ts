@@ -14,6 +14,7 @@
  */
 
 import type { ChatRequest, JsonValue } from '@camelia/core';
+import { llmContentText } from '@camelia/core';
 
 import type { ScriptResolver, ScriptedTurn } from './MockProvider.js';
 
@@ -47,7 +48,7 @@ function stageOf(system: string): Stage {
 /** First user message content — the goal restatement the planner is given. */
 function firstUser(request: ChatRequest): string {
   const message = request.messages.find((m) => m.role === 'user');
-  return message?.content ?? '';
+  return message ? llmContentText(message.content) : '';
 }
 
 /** Pull a quoted `"path":"..."` acceptance parameter out of the executor prompt. */
@@ -73,7 +74,8 @@ export function scriptedTaskScript(spec: ScriptedTaskSpec): ScriptResolver {
   const note = spec.note ? ` ${spec.note}` : '';
 
   return (request: ChatRequest): ScriptedTurn => {
-    const system = request.messages.find((m) => m.role === 'system')?.content ?? '';
+    const systemMsg = request.messages.find((m) => m.role === 'system');
+    const system = systemMsg ? llmContentText(systemMsg.content) : '';
     const stage = stageOf(system);
 
     if (stage === 'clarify') {
