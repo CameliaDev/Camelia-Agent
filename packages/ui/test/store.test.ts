@@ -51,6 +51,67 @@ describe('createUiStore — bootstrap', () => {
   });
 });
 
+describe('createUiStore — session switch', () => {
+  it('drops the previous chat when bootstrap arrives after activeSessionId was already set', () => {
+    const { transport, handlers } = manualTransport();
+    const store = createUiStore(transport);
+    const oldSession = {
+      id: 'ses_old',
+      title: 'hello',
+      workspace: 'C:/ws',
+      provider: 'ollama',
+      model: 'qwen',
+    };
+    handlers().onBootstrap({ session: oldSession, sessions: [oldSession] });
+    handlers().onEvent({
+      type: 'chat.received',
+      payload: { turnId: 'turn_01', text: 'hello' },
+      traceId: 'trc',
+      ts: 1,
+    } as never);
+    expect(store.getState().snapshot.chat.turns).toHaveLength(1);
+
+    store.getState().setActiveSession('ses_blank_work');
+    const blank = {
+      id: 'ses_blank_work',
+      title: '新会话',
+      workspace: 'C:/ws',
+      provider: 'ollama',
+      model: 'qwen',
+      kind: 'work' as const,
+      blank: true,
+    };
+    handlers().onBootstrap({ session: blank, sessions: [blank, oldSession] });
+
+    const state = store.getState();
+    expect(state.activeSessionId).toBe('ses_blank_work');
+    expect(state.snapshot.session?.id).toBe('ses_blank_work');
+    expect(state.snapshot.session?.title).toBe('新会话');
+    expect(state.snapshot.chat.turns).toHaveLength(0);
+  });
+
+  it('keeps the transcript when bootstrap is a reconnect of the same session', () => {
+    const { transport, handlers } = manualTransport();
+    const store = createUiStore(transport);
+    const session = {
+      id: 'ses_old',
+      title: 'hello',
+      workspace: 'C:/ws',
+      provider: 'ollama',
+      model: 'qwen',
+    };
+    handlers().onBootstrap({ session, sessions: [session] });
+    handlers().onEvent({
+      type: 'chat.received',
+      payload: { turnId: 'turn_01', text: 'hello' },
+      traceId: 'trc',
+      ts: 1,
+    } as never);
+    handlers().onBootstrap({ session, sessions: [session] });
+    expect(store.getState().snapshot.chat.turns).toHaveLength(1);
+  });
+});
+
 describe('createUiStore — dispatch', () => {
   it('forwards the command to the transport and records it', () => {
     const transport = new FixtureTransport({ scene: 'running' });

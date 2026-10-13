@@ -34,12 +34,13 @@ import type { DroppedMessage } from '@camelia/core';
 import type { SubAgentView, TaskView, TimelineEntry } from '@camelia/agent/view';
 import { contextUsage } from '@camelia/agent/view';
 
-import { clock, count, ms, pct } from '../lib/format.js';
+import { bytes, clock, count, ms, pct } from '../lib/format.js';
 import { STEP_META, TONE_BG, TONE_TEXT, type Tone } from '../lib/status.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { localizePlanText } from '../i18n/plan-copy.js';
 import { t } from '../i18n/strings.js';
 import type { PanelId } from '../panels.js';
+import { MathArtifactBody } from '../modes/math/MathPanels.js';
 import { MemoryPanel } from './MemoryPanel.js';
 import { Chip, Icon, ProgressBar, SectionHeader, StatusDot } from './primitives.js';
 
@@ -640,25 +641,38 @@ export function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; 
  * until it is handled. That is the point of routing through one dispatcher: the icon row
  * and the deck read the same table, so an icon can never open a body that does not exist.
  */
-function ArtifactsSection({ task }: { task: TaskView }): ReactNode {
+function ArtifactsSection(): ReactNode {
   const language = useUiStore((s) => s.localPrefs.language);
+  const mode = useUiStore((s) => s.mode);
+  const task = useUiStore((s) => s.snapshot.task);
   const tr = (k: Parameters<typeof t>[1]) => t(language, k);
-  const artifacts = task.artifacts ?? [];
+  const artifacts = task?.artifacts ?? [];
   return (
     <div data-panel-artifacts className="space-y-2">
-      <p className="text-[11px] text-ink-3">{tr('panel.artifacts.hint')}</p>
+      {mode === 'math' ? <MathArtifactBody /> : null}
       {artifacts.length === 0 ? (
-        <p className="rounded-md border border-dashed border-line px-3 py-6 text-center text-[11.5px] text-ink-3">{tr('panels.needsTask')}</p>
+        mode === 'math' ? null : (
+          <p className="px-1 py-6 text-center text-[12px] text-ink-3">{tr('panel.artifacts.empty')}</p>
+        )
       ) : (
-        <ul className="space-y-1.5">
-          {artifacts.map((a) => (
-            <li key={a.path} className="flex items-center gap-2 rounded-md border border-line bg-base/40 px-2 py-1.5">
-              <Icon name={a.kind === 'diff' ? 'branch' : a.kind === 'stdout' ? 'terminal' : 'file'} size={13} className="shrink-0 text-accent" />
-              <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">{a.path}</span>
-              <span className="shrink-0 text-[10px] text-ink-3">{a.kind}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="px-1 text-[11px] text-ink-3">{tr('panel.artifacts.hint')}</p>
+          <ul className="mt-2 space-y-1">
+            {artifacts.map((a) => (
+              <li key={a.path} data-artifact={a.path} className="rounded-md px-2 py-1.5">
+                <div className="flex items-center gap-2">
+                  <Icon name={a.kind === 'diff' ? 'branch' : a.kind === 'stdout' ? 'terminal' : 'file'} size={13} className="shrink-0 text-ink-3" />
+                  <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink" title={a.path}>{a.path}</span>
+                </div>
+                <p className="mt-0.5 pl-5 font-mono text-[10.5px] text-ink-3" data-artifact-meta>
+                  {a.kind}
+                  {a.sizeBytes !== undefined ? ` · ${bytes(a.sizeBytes)}` : ''}
+                  {a.hash ? ` · ${a.hash}` : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
@@ -688,9 +702,7 @@ export function PanelBody({ id }: { id: PanelId }): ReactNode {
     case 'sub':
       return task ? <SubAgentsSection task={task} /> : null;
     case 'artifacts':
-      return task ? <ArtifactsSection task={task} /> : null;
-    case 'model':
-      return <ModelSection />;
+      return <ArtifactsSection />;
     default:
       return null;
   }

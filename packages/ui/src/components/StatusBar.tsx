@@ -15,11 +15,12 @@
  *
  * ## Why it is not a settings surface
  *
- * Every item here is a **readout of state that already exists**: the workspace the engine
- * was pointed at, how far the task has got, how much context it has spent. Nothing is a
- * toggle that pretends to do something. The bar was requested as "a strip like VS Code's,
- * in case we want to put things here later" — that is an invitation to *add* items, not
- * to ship empty placeholders now, so each slot is filled or absent, never blank.
+ * The workspace, step, context and elapsed cells are **readouts of state that already
+ * exists**. They are spans, not buttons. The one control is the connection status: it
+ * opens Settings → Engine, so Live is not a second panel fighting the layout toggles in
+ * the title bar. The bar was requested as "a strip like VS Code's, in case we want to put
+ * things here later" — that is an invitation to *add* items, not to ship empty
+ * placeholders now, so each slot is filled or absent, never blank.
  *
  * ## Height
  *
@@ -47,9 +48,10 @@
 import type { ReactNode } from 'react';
 
 import { basename, count } from '../lib/format.js';
+import { CONNECTION_META, TONE_TEXT } from '../lib/status.js';
 import { t } from '../i18n/strings.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
-import { Icon } from './primitives.js';
+import { Icon, StatusDot } from './primitives.js';
 
 /**
  * Strip height in px. Shared with `App`'s `--status-bar-h` so the grid padding and the
@@ -89,7 +91,7 @@ function Cell({
 }
 
 export function StatusBar(): ReactNode {
-  const { snapshot } = useUiState();
+  const { snapshot, status, setSettingsOpen } = useUiState();
   const language = useUiStore((s) => s.localPrefs.language);
   // Two shapes, because two callers: plain lookups take one argument, the two interpolated
   // tooltips below need their substitutions forwarded. Narrowing `tr` to one parameter is
@@ -99,6 +101,15 @@ export function StatusBar(): ReactNode {
   const task = snapshot.task;
   const workspace = snapshot.session?.workspace;
   const done = task ? task.steps.filter((s) => s.status === 'done').length : 0;
+  const connection = CONNECTION_META[status];
+  const connectionLabel =
+    status === 'live'
+      ? 'Live'
+      : status === 'connecting'
+        ? tr('provider.connecting')
+        : status === 'offline'
+          ? 'Offline'
+          : connection.label;
 
   return (
     <footer
@@ -158,6 +169,17 @@ export function StatusBar(): ReactNode {
           "how long has this been going". Sits at the far edge because it is the item
           whose position users expect to be fixed. */}
       <div className="ml-auto flex shrink-0 items-center">
+        <button
+          type="button"
+          data-status-item="connection"
+          data-connection-status={status}
+          title={tr('connection.panel')}
+          className={`${ITEM} ${TONE_TEXT[connection.tone]}`}
+          onClick={() => setSettingsOpen(true, 'engine')}
+        >
+          <StatusDot tone={connection.tone} pulse={status === 'live' || status === 'connecting'} />
+          <span>{connectionLabel}</span>
+        </button>
         {task ? (
           <Cell testId="elapsed" title={tr('statusBar.elapsedHint')}>
             <Icon name="clock" size={13} className="shrink-0 text-ink-3" />

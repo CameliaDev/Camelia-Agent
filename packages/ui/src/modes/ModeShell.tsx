@@ -51,7 +51,7 @@ export function ModeShell(): ReactNode {
 
   // Task surface is Work only — strip when Math hides it.
   const showStrip = running && !awaitingApproval && (mode === 'math' || mode === 'term');
-  const fresh = mode === 'work' && isFreshChatSession(snapshot) && !transportError;
+  const fresh = (mode === 'work' || mode === 'math') && isFreshChatSession(snapshot) && !transportError;
 
   return (
     <div

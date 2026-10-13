@@ -52,7 +52,6 @@ import { planStageOf } from '../progress/deriveProgress.js';
 import type { PlanStage, ProgressTone } from '../progress/types.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { Icon } from '../components/primitives.js';
-import { PanelDrawerToggle } from '../components/PanelIcons.js';
 
 /**
  * The fixed strip height, in px.
@@ -145,16 +144,6 @@ export function LifecycleStepper({ compact }: { compact?: boolean }): ReactNode 
  * title is the durable name, and drawing the run's own text beside it was the same fact
  * twice.
  */
-function SessionTitle(): ReactNode {
-  const title = useUiStore((s) => s.snapshot.session?.title);
-  if (!title) return null;
-  return (
-    <span data-session-title className="min-w-0 truncate text-[11.5px] font-medium text-ink">
-      {title}
-    </span>
-  );
-}
-
 /**
  * The shared strip.
  *
@@ -181,6 +170,7 @@ export function ModeHeader({
   leading?: ReactNode;
   trailing?: ReactNode;
 }): ReactNode {
+  if (!leading && !trailing) return null;
   return (
     <div
       data-mode-header
@@ -188,15 +178,7 @@ export function ModeHeader({
       className="flex shrink-0 items-center gap-2.5 overflow-hidden bg-base px-4"
     >
       {leading}
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-        <SessionTitle />
-      </div>
-      {/*
-        One drawer toggle. The sections (artifacts, memory, context, …) are tabs
-        inside the right rail, not a strip of icons in this row. Run controls —
-        pause/steer/stop — belong to the composer; they sit directly above it.
-      */}
-      <PanelDrawerToggle />
+      <div className="min-w-0 flex-1" />
       {trailing}
     </div>
   );

@@ -38,3 +38,11 @@ export function readBootConfig(): BootConfig {
   if (typeof window === 'undefined') return {};
   return window.__CAMELIA_BOOT__ ?? {};
 }
+
+/** Desktop product name (`tauri.conf.json` productName / window title). */
+export const PRODUCT_NAME = 'Camelia';
+
+/** Shell package version, or the repo default when the webview has no boot payload. */
+export function productVersion(): string {
+  return readBootConfig().version || '0.1.0';
+}

@@ -14,6 +14,7 @@ import { type ReactNode } from 'react';
 
 import { t } from '../../i18n/strings.js';
 import type { LanguagePref } from '../../state/local-prefs.js';
+import { useUiStore } from '../../state/UiProvider.js';
 import type { MathDemoAssumption } from './mathDemoFixture.js';
 import { SectionHeader } from '../../components/primitives.js';
 import { canIntervene, interveneUnavailableReason } from '../../window/capabilities.js';
@@ -296,5 +297,48 @@ export function ResultCards({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Model, solve, and validation outputs for the artifacts drawer.
+ *
+ * One list in one drawer — not a second workspace split into 建模 and 求解 rooms.
+ */
+export function MathArtifactBody(): ReactNode {
+  const language = useUiStore((s) => s.localPrefs.language);
+  const mathDemo = useUiStore((s) => s.mathDemo);
+  const task = useUiStore((s) => s.snapshot.task);
+  const tr = (k: Parameters<typeof t>[1]) => t(language, k);
+  const demoMode = mathDemo !== undefined;
+  const live = task?.assumptions ?? [];
+
+  if (!demoMode && live.length === 0) {
+    return (
+      <p className="px-1 py-2 text-[12px] text-ink-3" data-math-artifacts-empty>
+        {tr('panel.artifacts.empty')}
+      </p>
+    );
+  }
+
+  return (
+    <div data-math-artifacts className="space-y-1">
+      {demoMode ? (
+        <p className="px-3 pt-1 text-[10.5px] text-warn" data-math-demo-badge>
+          {tr('math.demo.badge')}
+        </p>
+      ) : null}
+      <AssumptionsPanel live={live} demo={mathDemo?.assumptions ?? []} demoMode={demoMode} language={language} />
+      <VariablesPanel variables={mathDemo?.variables ?? []} language={language} />
+      <EquationsPanel equations={mathDemo?.equations ?? []} language={language} />
+      <SolverStatus
+        status={mathDemo?.status ?? 'idle'}
+        log={mathDemo?.solverLog ?? []}
+        demoMode={demoMode}
+        language={language}
+      />
+      <ResultCards results={mathDemo?.results ?? []} demoMode={demoMode} language={language} />
+      {demoMode ? <p className="px-3 pb-2 text-[10.5px] leading-4 text-ink-3">{tr('math.demo.explain')}</p> : null}
+    </div>
   );
 }

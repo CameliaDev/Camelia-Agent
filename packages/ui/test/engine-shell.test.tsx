@@ -28,10 +28,14 @@ afterEach(() => {
 });
 
 describe('desktop shell connection chrome', () => {
-  it('opens a connection panel from the top bar', () => {
+  it('opens engine connection details from the status bar, not the top bar', () => {
     renderScene('empty');
-    fireEvent.click(screen.getByRole('button', { name: '连接' }));
-    expect(screen.getByRole('dialog', { name: '连接' })).toBeInTheDocument();
+    expect(document.querySelector('.camelia-topbar [data-connection-status]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Offline' }));
+    expect(document.querySelector('[data-settings-page]')).not.toBeNull();
+    expect(document.querySelector('[data-engine-section]')).not.toBeNull();
+    expect(document.querySelector('[data-engine-connection]')).toHaveAttribute('data-engine-connection', 'offline');
+    expect(document.querySelector('[data-engine-connection]')?.textContent).toBe('Offline');
     expect(screen.getByText(/演示模式/)).toBeInTheDocument();
   });
 

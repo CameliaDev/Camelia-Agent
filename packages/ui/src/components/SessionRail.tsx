@@ -17,7 +17,7 @@
  * @module
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { count, shortId } from '../lib/format.js';
 import { t } from '../i18n/strings.js';
@@ -39,7 +39,34 @@ import { useMode } from '../mode/useMode.js';
 import { MODE_HEADER_H } from '../modes/ModeHeader.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { ExtensionsPanel } from './ExtensionsPanel.js';
+import { LeftSidebarToggle } from './PanelIcons.js';
 import { Chip, Icon, SectionHeader } from './primitives.js';
+
+function SessionGroup({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}): ReactNode {
+  const [open, setOpen] = useState(true);
+  return (
+    <div data-session-group={id}>
+      <button
+        type="button"
+        className="flex w-full items-center gap-1 rounded px-1 py-1 text-left text-[11px] text-ink-3 hover:text-ink-2"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon name="chevron" size={10} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+        <span>{label}</span>
+      </button>
+      {open ? <div className="space-y-0.5">{children}</div> : null}
+    </div>
+  );
+}
 
 export function SessionRail(): ReactNode {
   const { snapshot, sessions, activeSessionId, status, dispatch, setActiveSession } = useUiState();
@@ -47,14 +74,18 @@ export function SessionRail(): ReactNode {
   const sidebarView = useUiStore((s) => s.sidebarView);
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
-  const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  /** Shared with the icon rail, so both entry points start a chat the same way. */
   const newSession = useNewSession();
   const { mode, setMode } = useMode();
   const [marks, setMarks] = useState<SessionMarks>(() => loadSessionMarks());
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus();
+  }, [searchOpen]);
   /**
    * The session the user just deleted while it was still the active one and
    * nothing else was listed. keepIds must not pin it, and the resume-unhide
@@ -247,19 +278,35 @@ export function SessionRail(): ReactNode {
       }`}
     >
       {sidebarView === 'extensions' ? (
-        <ExtensionsPanel onCollapse={() => setLocalPrefs({ leftCollapsed: true })} />
+        <ExtensionsPanel />
       ) : (
         <>
-      <div className="shrink-0 px-2.5 pt-2 pb-1.5">
+      <div className="shrink-0 px-2 pt-2 pb-1">
         <ModeTabs mode={mode} language={lang} onSelect={setMode} />
       </div>
       <div
         data-session-header
-        className="flex shrink-0 items-center justify-between border-b border-line/70 px-3"
+        className="flex shrink-0 items-center gap-1 px-2"
         style={{ height: MODE_HEADER_H }}
       >
-        <span className="text-[12.5px] font-medium text-ink-2">{tr('sessions.history')}</span>
-        <div className="flex items-center gap-0.5">
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink-2">{tr('sessions.history')}</span>
+        <div className="flex items-center" data-session-toolbar>
+          <button
+            type="button"
+            data-session-search-toggle
+            aria-pressed={searchOpen}
+            aria-label={tr('sessions.search')}
+            title={tr('sessions.search')}
+            className={`grid h-6 w-6 place-items-center rounded ${searchOpen ? 'text-ink' : 'text-ink-3 hover:bg-hover hover:text-ink'}`}
+            onClick={() => {
+              setSearchOpen((open) => {
+                if (open) setQuery('');
+                return !open;
+              });
+            }}
+          >
+            <Icon name="search" size={13} />
+          </button>
           <button
             type="button"
             data-new-session
@@ -270,31 +317,22 @@ export function SessionRail(): ReactNode {
           >
             <Icon name="plus" size={14} strokeWidth={1.6} />
           </button>
-          <button
-            type="button"
-            data-session-collapse
-            aria-label={tr('sessions.collapse')}
-            title={tr('sessions.collapse')}
-            className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
-            onClick={() => setLocalPrefs({ leftCollapsed: true })}
-          >
-            <Icon name="collapse" size={14} />
-          </button>
+          {collapsed ? null : <LeftSidebarToggle />}
         </div>
       </div>
-      <label className="shrink-0 px-2 pb-1.5">
-        <span className="sr-only">{tr('sessions.search')}</span>
-        <div className="flex items-center gap-1.5 rounded-md border border-line bg-elevated px-2 py-1.5">
-          <Icon name="search" size={12} className="shrink-0 text-ink-3" />
+      {searchOpen ? (
+        <label className="shrink-0 px-2.5 pb-1.5">
+          <span className="sr-only">{tr('sessions.search')}</span>
           <input
+            ref={searchRef}
             data-session-search
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={tr('sessions.search')}
-            className="w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-3"
+            className="w-full border-b border-line/70 bg-transparent py-1 text-[12px] text-ink outline-none placeholder:text-ink-3"
           />
-        </div>
-      </label>
+        </label>
+      ) : null}
       <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
         {listed.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-line px-3 py-6 text-center text-[11.5px] leading-5 text-ink-3">
@@ -305,18 +343,14 @@ export function SessionRail(): ReactNode {
         ) : (
           <>
             {pinnedRows.length > 0 ? (
-              <div>
-                <p className="px-1 pb-0.5 pt-1 text-[10px] tracking-wide text-ink-3">{tr('sessions.pin')}</p>
+              <SessionGroup id="pinned" label={tr('sessions.pin')}>
                 {pinnedRows.map(renderSession)}
-              </div>
+              </SessionGroup>
             ) : null}
             {recentRows.length > 0 ? (
-              <div>
-                {pinnedRows.length > 0 ? (
-                  <p className="px-1 pb-0.5 pt-2 text-[10px] tracking-wide text-ink-3">{tr('sessions.recent')}</p>
-                ) : null}
+              <SessionGroup id="recent" label={tr('sessions.recent')}>
                 {recentRows.map(renderSession)}
-              </div>
+              </SessionGroup>
             ) : null}
           </>
         )}

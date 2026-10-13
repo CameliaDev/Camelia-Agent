@@ -36,13 +36,14 @@ export const LOCAL_PREFS_VERSION = 9;
 export const RAIL_LEFT_DEFAULT = 260;
 export const RAIL_COLLAPSED = 48;
 /**
- * Width of the permanent left nav that sits outside the session column.
+ * Width of the permanent activity bar that sits outside the session column.
  *
- * Wide enough for an icon and a short label (聊天记录 / 插件 / 设置). The session
- * column still closes to 0 — this nav is what reopens it — so the old 48px icon
- * strip is not a second collapsed column.
+ * 48px, icon only — the same strip VS Code uses. Labels are tooltips and
+ * accessible names, not row text. The session list is the next column and
+ * still closes to 0; this bar is what reopens it, so it is not a second
+ * collapsed copy of that sidebar.
  */
-export const RAIL_ICON_WIDTH = 148;
+export const RAIL_ICON_WIDTH = 48;
 export const RAIL_LEFT_MIN = 200;
 export const RAIL_LEFT_MAX = 420;
 export const RAIL_RIGHT_DEFAULT = 320;

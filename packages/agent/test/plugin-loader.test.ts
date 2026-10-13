@@ -23,6 +23,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -331,6 +332,19 @@ describe('PluginLoader.load — provider, theme and preset plugins', () => {
     });
     const result = await new PluginLoader().load(root);
     expect(result.rejected[0]?.reason).toMatch(/createProvider/);
+  });
+
+  it('loads the repo quiet-activity-bar sample as a theme, not a shell', async () => {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../plugins');
+    const result = await new PluginLoader().load(root);
+    expect(result.rejected, result.rejected.map((item) => item.reason).join('; ')).toEqual([]);
+    const theme = result.themes.find((item) => item.theme.id === 'quiet-activity-bar');
+    expect(theme?.manifest.kind).toBe('theme');
+    expect(theme?.manifest.entry).toBe('theme.json');
+    expect(theme?.manifest.permissions).toEqual([]);
+    expect(theme?.theme.tokens['--color-line']).toBeTruthy();
+    expect(result.tools).toEqual([]);
+    expect(result.providers).toEqual([]);
   });
 
   it('loads a theme as data, never as code', async () => {

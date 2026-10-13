@@ -69,7 +69,7 @@ import { useMode } from './mode/useMode.js';
 import { t } from './i18n/strings.js';
 
 /** Height of the overlay bar in px — also the grid's top padding when it is visible. */
-export const TOP_BAR_H = 44;
+export const TOP_BAR_H = 36;
 
 export function App(): ReactNode {
   const prefs = useUiStore((s) => s.localPrefs);
@@ -168,7 +168,8 @@ export function App(): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const { mode } = useMode();
   // Transport failures must keep the error surface visible — not the centred empty hero.
-  const fresh = mode === 'work' && isFreshChatSession(snapshot) && !transportError;
+  const conversational = mode === 'work' || mode === 'math';
+  const fresh = conversational && isFreshChatSession(snapshot) && !transportError;
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
 
   return (
@@ -223,7 +224,9 @@ export function App(): ReactNode {
               <div className="mb-6 flex max-w-md flex-col items-center text-center" data-chat-empty-hero>
                 <Mascot size={88} />
                 <p className="mt-4 text-[18px] font-medium tracking-tight text-ink">{tr('welcome.title')}</p>
-                <p className="mt-1.5 text-[13px] leading-5 text-ink-3">{tr('chat.empty')}</p>
+                <p className="mt-1.5 text-[13px] leading-5 text-ink-3">
+                  {tr(mode === 'math' ? 'math.composer.placeholder' : 'chat.empty')}
+                </p>
               </div>
             ) : null}
             <div className={fresh ? 'w-full max-w-3xl' : undefined}>

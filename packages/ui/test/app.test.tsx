@@ -49,9 +49,18 @@ function openPanel(container: HTMLElement, id: string): HTMLElement {
     if (!toggle) throw new Error('drawer toggle not found');
     fireEvent.click(toggle);
   }
+  const deck = container.querySelector('[data-panel-deck]');
+  if (deck?.getAttribute('data-panel-deck') === id) return deck as HTMLElement;
+  if (id === 'artifacts') {
+    const home = container.querySelector('[data-panel-home]') as HTMLElement | null;
+    if (home) fireEvent.click(home);
+    return container.querySelector('[data-panel-deck]') as HTMLElement;
+  }
+  const more = container.querySelector('[data-panel-more]') as HTMLElement | null;
+  if (more && more.getAttribute('aria-expanded') !== 'true') fireEvent.click(more);
   const tab = container.querySelector(`[data-panel-tab="${id}"]`) as HTMLElement | null;
   if (!tab) throw new Error(`panel tab not found: ${id}`);
-  if (tab.getAttribute('aria-selected') !== 'true') fireEvent.click(tab);
+  fireEvent.click(tab);
   return container.querySelector('[data-panel-deck]') as HTMLElement;
 }
 
@@ -75,22 +84,57 @@ function panelTitle(container: HTMLElement): string {
 describe('App — layout contract', () => {
   // Behavior evolution (Iteration 23): rail widths are CSS variables, not static
   // Tailwind classes, so a drag can change them. Defaults stay 260px and 360px.
-  // Wireframe v3: the top bar grew to h-11 to hold mode tabs + the progress rail, and its
-  // height is published as `--top-bar-h` so the grid's padding and the overlay agree.
+  // The top bar is a short title strip. Its height is `--top-bar-h` so the grid
+  // padding and the overlay agree.
   it('renders the top bar and default rail widths from CSS variables', () => {
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('running');
-    expect(container.querySelector('.h-11')).not.toBeNull();
+    expect(container.querySelector('.camelia-topbar')?.className).toContain('h-9');
     const shell = container.querySelector('[data-shell]') as HTMLElement;
-    expect(shell.style.getPropertyValue('--top-bar-h')).toBe('44px');
+    expect(shell.style.getPropertyValue('--top-bar-h')).toBe('36px');
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
     // The permanent icon rail outside the left column. Its width is not draggable, so it
     // is asserted here as a constant rather than as a stored preference.
-    expect(shell.style.getPropertyValue('--rail-icon-w')).toBe('148px');
+    expect(shell.style.getPropertyValue('--rail-icon-w')).toBe('48px');
     expect(container.querySelector('[data-rail="icon"]')).not.toBeNull();
     expect(container.querySelector('[data-rail="left"]')).not.toBeNull();
     // one resizable column, so one divider
     expect(container.querySelectorAll('[role="separator"]')).toHaveLength(1);
+  });
+
+  it('draws a VS Code activity bar: icons and tooltips, session list in the next column', () => {
+    localStorage.removeItem('camelia.localPrefs');
+    const { container } = renderScene('empty');
+    const rail = container.querySelector('[data-rail="icon"]') as HTMLElement;
+    const column = container.querySelector('[data-rail="left"]') as HTMLElement;
+    expect(rail).not.toBeNull();
+    expect(column).not.toBeNull();
+
+    for (const selector of [
+      '[data-rail-view="sessions"]',
+      '[data-rail-view="extensions"]',
+      '[data-rail-settings]',
+      '[data-rail-account]',
+    ]) {
+      const button = rail.querySelector(selector) as HTMLElement;
+      expect(button, selector).not.toBeNull();
+      expect(button.querySelector('.truncate'), `${selector} has no row label`).toBeNull();
+      expect(button.getAttribute('aria-label'), selector).toBeTruthy();
+      expect(button.querySelector('[data-tip]'), `${selector} tooltip`).not.toBeNull();
+    }
+
+    const sessions = rail.querySelector('[data-rail-view="sessions"]') as HTMLElement;
+    expect(sessions.getAttribute('aria-label')).toBe('会话');
+    expect(sessions.querySelector('[data-tip]')?.textContent).toContain('聊天记录');
+    expect(sessions.querySelector('[data-rail-active]')).not.toBeNull();
+    expect(rail.querySelector('[data-rail-view="extensions"] [data-rail-active]')).toBeNull();
+
+    // The list is a sidebar, not a second set of labels on the activity bar.
+    expect(column.querySelector('[data-mode-tabs]')).not.toBeNull();
+    expect(column.querySelector('[data-session-toolbar]')).not.toBeNull();
+    expect(column.querySelector('[data-new-session]')).not.toBeNull();
+    expect(rail.querySelector('[data-rail-action]')).toBeNull();
+    expect(column.querySelector('[data-rail-view]')).toBeNull();
   });
 
   it('reserves the bottom strip as grid padding, never as a second row', () => {
@@ -120,8 +164,8 @@ describe('App — layout contract', () => {
 
   it('draws the status bar with real readouts, and no controls that do nothing', () => {
     // "In case we want to put things here later" is permission to add items, not to ship
-    // empty placeholders. Every cell is a readout of state that exists; a clickable
-    // element in here would be a promise the shell cannot keep.
+    // empty placeholders. Readout cells stay non-interactive. The one control is the
+    // connection status, which opens Settings → Engine.
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('running');
 
@@ -132,10 +176,11 @@ describe('App — layout contract', () => {
     for (const item of ['workspace', 'steps', 'context', 'elapsed']) {
       expect(container.querySelector(`[data-status-item="${item}"]`), item).not.toBeNull();
     }
-    // No button, no link, no role that implies an action.
-    expect(bar.querySelectorAll('button, a, [role="button"]')).toHaveLength(0);
+    const actions = bar.querySelectorAll('button, a, [role="button"]');
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toHaveAttribute('data-status-item', 'connection');
     // The workspace row is the folder and the name. The green status pip used to sit in front of them.
-    expect(bar.querySelector('.h-2')).toBeNull();
+    expect(bar.querySelector('[data-status-item="workspace"] .h-2')).toBeNull();
     // A ratio, not a percentage — the weighting behind `progress` is not re-explained here.
     // `count()` abbreviates (`9.7k`), so the separator is what matters, not the digits.
     expect(container.querySelector('[data-status-item="steps"]')!.textContent).toMatch(/\d+\/\d+/);
@@ -158,38 +203,22 @@ describe('App — layout contract', () => {
     }
   });
 
-  it('gives every mode the same fixed-height header, so switching modes cannot shift the content', () => {
-    // The three modes used to draw their own strip and measured ≈76 / ≈33 / ≈37px, so
-    // changing mode moved the whole transcript. One shared `ModeHeader` owns the height;
-    // these assertions are what stop a mode from drifting again.
+  it('keeps the session title in the top bar and does not repeat it in a chat subheader', () => {
     localStorage.removeItem('camelia.localPrefs');
-
-    for (const mode of ['Work', '数模'] as const) {
-      const { container, store } = renderScene('running');
-      act(() => {
-        store.getState().setMode(mode === 'Work' ? 'work' : 'math');
-      });
-      const header = container.querySelector('[data-mode-header]') as HTMLElement | null;
-      expect(header, `${mode} should render a mode header`).not.toBeNull();
-      expect(header!.style.height, `${mode} header height`).toBe('33px');
-      // The lifecycle stepper is reachable in every mode — it lives in the run dock,
-      // shared like the header strip it used to sit in.
-      expect(container.querySelector('[data-plan-lifecycle]'), `${mode} stepper`).not.toBeNull();
-    }
-
-    // The same must hold with *no task at all*. Chat and plan used to return their empty
-    // state before reaching the header, so an idle window had a strip in math and none in
-    // chat/plan — a 33px jump on the first mode switch a new user ever makes. The height
-    // is an invariant of the shell, not of having work to show.
-    for (const mode of ['Work', '数模'] as const) {
-      const { container, store } = renderScene('empty');
-      act(() => {
-        store.getState().setMode(mode === 'Work' ? 'work' : 'math');
-      });
-      const header = container.querySelector('[data-mode-header]') as HTMLElement | null;
-      expect(header, `${mode} should render a mode header even with no task`).not.toBeNull();
-      expect(header!.style.height, `${mode} header height with no task`).toBe('33px');
-    }
+    const { container } = renderScene('running');
+    const top = container.querySelector('.camelia-topbar') as HTMLElement;
+    expect(top.querySelector('[data-topbar-title]')?.textContent).toContain('Add --json output');
+    expect(top.querySelector('[data-brand-slot]')?.textContent).toContain('Camelia');
+    expect(container.querySelector('[data-chat-workspace] [data-mode-header]')).toBeNull();
+    expect(container.querySelector('[data-mode-header] [data-panel-drawer]')).toBeNull();
+    // Left collapse sits in the session header while that column is open.
+    // The right toggle stays in the top bar until the drawer is open.
+    expect(container.querySelector('[data-session-header] [data-layout-sidebar]')).not.toBeNull();
+    expect(top.querySelector('[data-layout-sidebar]')).toBeNull();
+    expect(top.querySelector('[data-panel-drawer]')).not.toBeNull();
+    expect(top.querySelector('[data-connection-status]')).toBeNull();
+    expect(container.querySelector('[data-status-bar] [data-connection-status]')).not.toBeNull();
+    expect(container.querySelector('[data-plan-lifecycle]')).not.toBeNull();
   });
 
   it('switches the model in place from the composer chip, without a trip to Settings', async () => {
@@ -218,53 +247,58 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-composer-models]')).toBeNull();
   });
 
-  it('starts with no panel open and opens Memory from the single drawer toggle', () => {
+  it('starts with no panel open and opens Artifacts from the single drawer toggle', () => {
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('empty');
-    // Nothing is open on boot: the drawer is opt-in, so it cannot eat the workspace.
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
-    const header = container.querySelector('[data-mode-header]') as HTMLElement;
-    const toggles = header.querySelectorAll('[data-panel-drawer]');
-    expect(toggles, 'one drawer glyph in the header').toHaveLength(1);
-    expect(header.querySelectorAll('[data-panel-icon]'), 'the icon strip is gone').toHaveLength(0);
-    fireEvent.click(toggles[0] as HTMLElement);
-    expect(panelTitle(container)).toBe('记忆');
-    // Clicking again closes it.
-    fireEvent.click(toggles[0] as HTMLElement);
+    expect(container.querySelectorAll('[data-panel-drawer]'), 'one drawer glyph').toHaveLength(1);
+    expect(container.querySelector('.camelia-topbar [data-panel-drawer]')).not.toBeNull();
+    fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
+    expect(panelTitle(container)).toBe('产物');
+    expect(container.querySelector('[data-panel-tabs]')).toBeNull();
+    expect(container.querySelector('[data-right-rail] [data-panel-drawer]')).not.toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-panel-drawer]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
   });
 
-  it('keeps every section as a tab inside the drawer, and restores the last one', () => {
+  it('keeps secondary sections behind a menu and returns to artifacts', () => {
     const { container } = renderScene('running');
     for (const mode of ['work', 'math'] as const) {
       fireEvent.click(container.querySelector(`[data-mode-tab="${mode}"]`) as HTMLElement);
-      const header = container.querySelector('[data-mode-header]') as HTMLElement;
-      expect(header.querySelectorAll('[data-panel-drawer]')).toHaveLength(1);
-      expect(header.querySelectorAll('[data-panel-icon], [data-panel-tab]')).toHaveLength(0);
+      expect(container.querySelectorAll('[data-panel-drawer]')).toHaveLength(1);
+      expect(container.querySelector('[data-mode-header] [data-panel-drawer]')).toBeNull();
       if (!container.querySelector('[data-panel-deck]')) {
-        fireEvent.click(header.querySelector('[data-panel-drawer]') as HTMLElement);
+        fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
       }
-      const tabs = [...container.querySelectorAll('[data-panel-tab]')].map((n) => n.getAttribute('data-panel-tab'));
-      expect(tabs).toEqual(
-        mode === 'math'
-          ? ['run', 'artifacts', 'memory', 'context', 'events', 'sub', 'model']
-          : ['run', 'artifacts', 'memory', 'context', 'events', 'sub'],
-      );
+      expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
     }
-    fireEvent.click(container.querySelector('[data-panel-tab="artifacts"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-mode-tab="work"]') as HTMLElement);
+    expect(container.querySelector('[data-panel-tab]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-panel-more]') as HTMLElement);
+    const tabs = [...container.querySelectorAll('[data-panel-tab]')].map((n) => n.getAttribute('data-panel-tab'));
+    expect(tabs).toEqual(['run', 'memory', 'context', 'events', 'sub']);
+    fireEvent.click(container.querySelector('[data-panel-tab="memory"]') as HTMLElement);
+    expect(container.querySelector('[data-panel-deck="memory"]')).not.toBeNull();
+    fireEvent.click(container.querySelector('[data-panel-home]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
-    fireEvent.click(container.querySelector('[data-mode-header] [data-panel-drawer]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
-    fireEvent.click(container.querySelector('[data-mode-header] [data-panel-drawer]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
+    const meta = container.querySelector('[data-artifact-meta]');
+    expect(meta?.textContent).toMatch(/diff|report|stdout/);
+    expect(meta?.textContent).toMatch(/\d/);
+    expect(container.querySelector('[data-artifact] button')).toBeNull();
   });
 
-  it('dims a task-bound tab instead of hiding it', () => {
+  it('dims a task-bound section in the more menu instead of hiding it', () => {
     const { container } = renderScene('empty');
     fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-panel-more]') as HTMLElement);
     const needsTask = container.querySelector('[data-panel-tab="run"]') as HTMLElement;
     const free = container.querySelector('[data-panel-tab="memory"]') as HTMLElement;
-    // No task here, so Run has nothing to show. Hiding it would reshuffle the tabs;
+    // No task here, so Run has nothing to show. Hiding it would reshuffle the menu;
     // dimming keeps the set stable.
     expect(needsTask.className).toContain('opacity-40');
     expect(free.className).not.toContain('opacity-40');
@@ -281,15 +315,16 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
   });
 
-  it('drops an open panel that the next mode cannot offer', () => {
-    const { container } = renderScene('running');
+  it('keeps artifacts open across modes and hides math outputs outside math', () => {
+    const { container } = renderScene('empty');
     fireEvent.click(container.querySelector('[data-mode-tab="math"]') as HTMLElement);
-    openPanel(container, 'model');
-    expect(container.querySelector('[data-panel-deck="model"]')).not.toBeNull();
-    // Back to chat: the model icon is gone, so a body left on screen would be something
-    // open with no control that closes it.
+    fireEvent.click(container.querySelector('[data-math-demo-load]') as HTMLElement);
+    expect(container.querySelector('[data-panel-deck="artifacts"] [data-math-panel="assumptions"]')).not.toBeNull();
+    expect(container.querySelector('[data-math-workspace] [data-math-panel]')).toBeNull();
+    expect(container.querySelector('[data-math-stages] button')).toBeNull();
     fireEvent.click(container.querySelector('[data-mode-tab="work"]') as HTMLElement);
-    expect(container.querySelector('[data-panel-deck]')).toBeNull();
+    expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
+    expect(container.querySelector('[data-math-panel]')).toBeNull();
   });
 
   it('opens panels in the right rail beside the main column (F3)', () => {
@@ -422,23 +457,26 @@ describe('App — left icon rail', () => {
     const shell = container.querySelector('[data-shell]') as HTMLElement;
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
 
+    expect(container.querySelector('[data-session-header] [data-layout-sidebar]')).not.toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-layout-sidebar]')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '收起会话' }));
     // Zero, not a 48px strip: the rail outside already is the strip, and keeping one here
     // as well would put two re-open controls side by side for a single panel.
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('0px');
     expect(railOf(container)).not.toBeNull();
+    // The same control moves to the top bar, matching the closed right drawer.
+    expect(container.querySelector('.camelia-topbar [data-layout-sidebar]')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: '会话' }));
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
   });
 
-  it('carries the controls the closed column takes away, and hides them from the tab order', () => {
+  it('does not put search or new chat on the activity bar', () => {
     writePrefs(true);
     const { container } = renderScene('running');
     const rail = railOf(container);
     expect(rail.querySelector('[data-rail-view="sessions"]')).not.toBeNull();
-    expect(rail.querySelector('[data-rail-action="search"]')).not.toBeNull();
-    expect(rail.querySelector('[data-rail-action="new"]')).not.toBeNull();
+    expect(rail.querySelector('[data-rail-action]')).toBeNull();
     expect(rail.querySelector('[data-rail-account]')).not.toBeNull();
 
     // The column still occupies its grid cell (dropping it would shuffle the columns), so
@@ -519,37 +557,38 @@ describe('App — left icon rail', () => {
     expect(container.querySelector('[data-account-section]')).not.toBeNull();
   });
 
-  it('re-opens the column and lands the caret in its search field', async () => {
-    writePrefs(true);
+  it('opens search from the session toolbar and focuses the field', async () => {
+    writePrefs(false);
     const { container } = renderScene('running');
-    expect(container.querySelector('[data-session-search]')).not.toBeNull();
-
-    fireEvent.click(container.querySelector('[data-rail-action="search"]') as HTMLElement);
-    const shell = container.querySelector('[data-shell]') as HTMLElement;
-    expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
-    // Focus is scheduled a macrotask later: the field only exists once the column commits.
+    expect(container.querySelector('[data-session-search]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-session-search-toggle]') as HTMLElement);
     await waitFor(() => {
       expect(document.activeElement).toBe(container.querySelector('[data-session-search]'));
     });
   });
 
-  it('starts a chat from the rail exactly as the column does', () => {
-    writePrefs(true);
-    const { container, transport } = renderScene('running');
-    fireEvent.click(container.querySelector('[data-rail-action="new"]') as HTMLElement);
+  it('starts a blank chat from the session toolbar and clears the previous transcript', async () => {
+    writePrefs(false);
+    const { container, transport } = renderScene('chat');
+    expect(container.querySelector('[data-chat-user]')).not.toBeNull();
+    fireEvent.click(container.querySelector('[data-new-session]') as HTMLElement);
+    await waitFor(() => {
+      expect(container.querySelector('[data-session="ses_blank_work"]')).not.toBeNull();
+    });
     expect(transport.sent.filter((c) => c.type === 'new_session')).toHaveLength(1);
+    expect(container.querySelector('[data-chat-user]')).toBeNull();
+    expect(container.querySelector('[data-composer-slot="centered"]')).not.toBeNull();
   });
 
   it('does not create another blank when the active session is already fresh', async () => {
-    writePrefs(true);
+    writePrefs(false);
     const { container, transport } = renderScene('running');
-    fireEvent.click(container.querySelector('[data-rail-action="new"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-new-session]') as HTMLElement);
     await waitFor(() => {
       expect(transport.sent.filter((c) => c.type === 'new_session')).toHaveLength(1);
     });
     const afterFirst = transport.sent.filter((c) => c.type === 'new_session').length;
-    // Fixture reset the projection to a fresh blank — second click must no-op.
-    fireEvent.click(container.querySelector('[data-rail-action="new"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-new-session]') as HTMLElement);
     expect(transport.sent.filter((c) => c.type === 'new_session')).toHaveLength(afterFirst);
     expect(container.querySelector('[data-composer-slot="centered"]')).not.toBeNull();
   });
@@ -613,7 +652,7 @@ describe('App — empty scene', () => {
     const { container } = renderScene('empty');
     const top = container.querySelector('.camelia-topbar') as HTMLElement;
     expect(top.querySelector('[data-mode-tabs]')).toBeNull();
-    expect(top.querySelector('[data-brand-slot]')?.textContent ?? '').not.toMatch(/Camelia/);
+    expect(top.querySelector('[data-brand-slot]')?.textContent).toMatch(/Camelia/);
     const column = container.querySelector('[data-rail="left"]') as HTMLElement;
     expect(column.querySelector('[data-mode-tabs]')).not.toBeNull();
     expect(column.querySelector('[data-mode-tab="work"]')).not.toBeNull();
@@ -693,6 +732,13 @@ describe('App — empty scene', () => {
     expect(screen.getByRole('button', { name: '语言与外观' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '引擎与日志' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '关于' })).toBeInTheDocument();
+    const brand = container.querySelector('[data-settings-product]');
+    expect(brand?.textContent).toMatch(/Camelia 0\.1\.0/);
+    expect(container.textContent).not.toMatch(/待定/);
+    fireEvent.click(screen.getByRole('button', { name: '反馈' }));
+    expect(container.querySelector('[data-feedback-form]')).not.toBeNull();
+    expect(container.querySelector('[data-feedback-submit]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '连接预设' }));
     fireEvent.click(screen.getByRole('button', { name: /添加预设/ }));
     expect(screen.getByLabelText('决策模型')).toBeInTheDocument();
     expect(screen.getByLabelText('API 密钥')).toBeInTheDocument();
@@ -706,7 +752,7 @@ describe('App — connecting scene', () => {
     const { container } = renderScene('connecting');
     // Work shell + header stay up; connecting has no task card yet.
     expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
-    expect(container.querySelector('[data-mode-header]')).not.toBeNull();
+    expect(container.querySelector('[data-chat-workspace] [data-mode-header]')).toBeNull();
   });
 });
 
@@ -728,8 +774,8 @@ describe('App — planning scene', () => {
     // own text. The phase is said by the lifecycle stepper, which lives in the run dock
     // above the composer; scoped there because the same stop text also appears in
     // plan-empty copy.
-    const header = container.querySelector('[data-mode-header]') as HTMLElement;
-    expect(within(header).getByText('Add --json output to the camelia CLI')).toBeInTheDocument();
+    const title = container.querySelector('[data-topbar-title]') as HTMLElement;
+    expect(title.textContent).toContain('Add --json output to the camelia CLI');
     const dock = container.querySelector('[data-run-dock]') as HTMLElement;
     expect(within(dock).getByText('起草中')).toBeInTheDocument();
   });

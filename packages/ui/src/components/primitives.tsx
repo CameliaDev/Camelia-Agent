@@ -131,6 +131,7 @@ export const PATHS: Record<string, string> = {
   // Right drawer. A window with a vertical split, the right pane marked — the same
   // glyph chat apps use for "open the side panel", drawn at the same 16px stroke as the rest.
   panelRight: '<rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.4"/><path d="M9.4 2.8v10.4"/>',
+  panelLeft: '<rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.4"/><path d="M6.6 2.8v10.4"/>',
   plus: '<path d="M8 3.6v8.8M3.6 8h8.8"/>',
   // VS Code's extensions mark: four tiles. The activity bar uses it for the plugin sidebar.
   extensions:

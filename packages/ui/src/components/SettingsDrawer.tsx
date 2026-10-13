@@ -25,7 +25,8 @@ import { MODE_REGISTRY } from '../mode/ModeRegistry.js';
 import type { AppModeId } from '../mode/types.js';
 import { openEngineLog, readEngineLog, readEngineTrust } from '../window/engine.js';
 import { isTauri } from '../window/shell.js';
-import { Avatar, Icon, userAvatarSrc } from './primitives.js';
+import { PRODUCT_NAME, productVersion, readBootConfig } from '../transport/boot.js';
+import { Avatar, Icon, Mascot, userAvatarSrc } from './primitives.js';
 import {
   GITHUB_CLASSIC_TOKEN_URL,
   GITHUB_OAUTH_APP_NEW_URL,
@@ -72,12 +73,11 @@ export function SettingsDrawer(): ReactNode {
       <button type="button" aria-label={tr('settings.close')} className="absolute inset-0 cursor-default" onClick={() => setSettingsOpen(false)} />
       <div className="relative flex h-full w-full max-w-[920px] overflow-hidden rounded-xl border border-line bg-elevated shadow-2xl">
         <nav className="flex w-[200px] shrink-0 flex-col border-r border-line bg-base/40" aria-label={tr('settings.title')}>
-          <div className="flex items-center gap-2 border-b border-line px-3 py-3">
-            <Avatar kind="agent" size={28} />
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-ink">{tr('settings.title')}</p>
-              <p className="truncate text-[10.5px] text-ink-3">{tr('brand.placeholder')}</p>
-            </div>
+          <div className="flex items-center gap-2.5 border-b border-line px-3 py-3" data-settings-brand>
+            <Mascot size={28} alt={PRODUCT_NAME} />
+            <p className="min-w-0 truncate text-[13px] font-semibold text-ink" data-settings-product>
+              {PRODUCT_NAME} {productVersion()}
+            </p>
           </div>
           <ul className="flex-1 space-y-0.5 p-2">
             {nav.map((item) => (
@@ -580,6 +580,7 @@ function AppearanceSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => strin
 }
 
 function EngineSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }): ReactNode {
+  const status = useUiStore((s) => s.status);
   const trust = readEngineTrust();
   const desktop = isTauri();
   const [note, setNote] = useState('');
@@ -600,14 +601,35 @@ function EngineSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string })
     };
   }, [desktop]);
 
+  const connectionLabel =
+    status === 'live' ? 'Live' : status === 'offline' ? 'Offline' : status === 'connecting' ? tr('provider.connecting') : status;
+
+  const copyUrl = async (): Promise<void> => {
+    if (!trust.engineUrl) return;
+    try {
+      await navigator.clipboard.writeText(trust.engineUrl);
+      setNote(tr('connection.copied'));
+    } catch {
+      setNote(trust.engineUrl);
+    }
+  };
+
   return (
-    <section className="space-y-3">
+    <section className="space-y-3" data-engine-section>
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.diagnostics')}</h3>
+      <p className="text-[12px] text-ink-2" data-engine-connection={status}>
+        {connectionLabel}
+      </p>
       {trust.expectsLiveEngine ? (
         <dl className="space-y-1.5 text-[12px] text-ink-2">
           <div>
             <dt className="text-[10.5px] uppercase tracking-[0.08em] text-ink-3">{tr('connection.engineUrl')}</dt>
-            <dd className="break-all font-mono text-[11px]">{trust.engineUrl}</dd>
+            <dd className="flex items-start gap-2 break-all font-mono text-[11px]">
+              <span className="min-w-0 flex-1">{trust.engineUrl}</span>
+              <button type="button" className="shrink-0 text-[11px] text-ink-3 hover:text-ink" onClick={() => void copyUrl()}>
+                {tr('connection.copy')}
+              </button>
+            </dd>
           </div>
           <div>
             <dt className="text-[10.5px] uppercase tracking-[0.08em] text-ink-3">{tr('connection.session')}</dt>
@@ -682,15 +704,14 @@ function EngineSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string })
 }
 
 function AboutSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }): ReactNode {
-  const boot = typeof window !== 'undefined' ? (window as unknown as { __CAMELIA_BOOT__?: { commit?: string; version?: string } }).__CAMELIA_BOOT__ : undefined;
-  const version = boot?.version || '0.1.0';
-  const commit = boot?.commit || 'f5592c3';
+  const boot = readBootConfig();
+  const version = productVersion();
+  const commit = boot.commit || 'f5592c3';
   return (
     <section className="space-y-2" data-about-version>
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.about')}</h3>
-      <p className="text-[12px] text-ink-2">Camelia {version}</p>
+      <p className="text-[12px] text-ink-2">{PRODUCT_NAME} {version}</p>
       <p className="font-mono text-[11px] text-ink-3">{tr('settings.about.commit')}: {commit}</p>
-      <p className="text-[12px] text-ink-3">{tr('brand.placeholder')}</p>
       <p className="font-mono text-[12px] text-ink-2">~/.camelia</p>
       <p className="text-[12px] text-ink-3">{tr('settings.about.preface')}</p>
       <p className="text-[12px] text-ink-3">{tr('settings.about.license')}</p>

@@ -1,0 +1,8 @@
+{
+  "name": "@camelia/plugin-quiet-activity-bar",
+  "kind": "theme",
+  "entry": "theme.json",
+  "permissions": [],
+  "version": "0.1.0",
+  "description": "Quieter ink tokens recorded for later refinement. The 48px icon activity bar ships in the app; this plugin does not draw or resize it."
+}

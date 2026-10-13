@@ -1,8 +1,8 @@
 /**
  * "Start a new chat" as one shared action.
  *
- * Two chrome surfaces offer it — the session column's header and the permanent icon rail —
- * and they have to do exactly the same thing. Blank sessions are reused: if the active
+ * The session column toolbar is the only chrome surface that offers it. Blank sessions
+ * are reused: if the active
  * projection is already fresh, we only focus the composer; otherwise the engine's
  * `new_session` reuses an unused blank of the same kind (or creates one), then we
  * `select_session` so the SSE stream follows and bootstrap refreshes the rail. The

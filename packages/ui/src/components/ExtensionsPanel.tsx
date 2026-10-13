@@ -13,10 +13,11 @@ import { useState, type ReactNode } from 'react';
 import { t } from '../i18n/strings.js';
 import { MODE_HEADER_H } from '../modes/ModeHeader.js';
 import { useUiStore } from '../state/UiProvider.js';
-import { Icon } from './primitives.js';
+import { LeftSidebarToggle } from './PanelIcons.js';
 
-export function ExtensionsPanel({ onCollapse }: { onCollapse: () => void }): ReactNode {
+export function ExtensionsPanel(): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
+  const collapsed = useUiStore((s) => s.localPrefs.leftCollapsed);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [installOpen, setInstallOpen] = useState(false);
 
@@ -24,19 +25,11 @@ export function ExtensionsPanel({ onCollapse }: { onCollapse: () => void }): Rea
     <div className="flex min-h-0 flex-1 flex-col" data-extensions-panel>
       <div
         data-extensions-header
-        className="flex shrink-0 items-center justify-between border-b border-line/70 px-3"
+        className="flex shrink-0 items-center px-3"
         style={{ height: MODE_HEADER_H }}
       >
-        <span className="text-[12.5px] font-medium text-ink-2">{tr('extensions.title')}</span>
-        <button
-          type="button"
-          aria-label={tr('sessions.collapse')}
-          title={tr('sessions.collapse')}
-          className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
-          onClick={onCollapse}
-        >
-          <Icon name="collapse" size={14} />
-        </button>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink-2">{tr('extensions.title')}</span>
+        {collapsed ? null : <LeftSidebarToggle />}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div

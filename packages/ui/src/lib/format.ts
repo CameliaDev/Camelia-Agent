@@ -13,6 +13,13 @@ export function ms(value: number | undefined): string {
   return `${(value / 1000).toFixed(2)}s`;
 }
 
+/** Byte size for an artifact row. Missing size stays blank at the call site. */
+export function bytes(value: number): string {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(value < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function count(value: number): string {
   if (value < 1000) return String(value);
   if (value < 1_000_000) return `${(value / 1000).toFixed(1)}k`;
