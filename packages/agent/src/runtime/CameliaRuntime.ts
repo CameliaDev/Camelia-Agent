@@ -1026,12 +1026,13 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
    * runtime keeps its own session for the in-flight task; the UI re-attaches
    * its SSE stream to the new id on the next submit.
    */
-  async newSession(): Promise<{ sessionId: string }> {
+  async newSession(kind: 'work' | 'math' = 'work'): Promise<{ sessionId: string }> {
     const created = await this.store.createSession({
       title: '新会话',
       workspace: this.session.workspace,
       provider: this.fallback.active.id,
       model: this.decision.model,
+      kind,
     });
     // Hot-switch the runtime's active session so subsequent events attribute correctly.
     this.session = created;

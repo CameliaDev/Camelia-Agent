@@ -33,6 +33,7 @@ export interface CreateSessionInput {
   workspace: string;
   provider: string;
   model: string;
+  kind?: 'work' | 'math';
 }
 
 export interface CreateTaskInput {

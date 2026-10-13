@@ -53,12 +53,16 @@ export type ToolCallStatus =
   | 'ok'
   | 'error';
 
+export type SessionKind = 'work' | 'math';
+
 export interface Session {
   id: Id;
   title: string;
   workspace: string;
   provider: string;
   model: string;
+  /** Work | Math list partition (F6). Absent rows backfill to work. */
+  kind: SessionKind;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

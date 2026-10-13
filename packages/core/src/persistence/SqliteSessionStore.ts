@@ -49,6 +49,7 @@ interface SessionRow {
   workspace: string;
   provider: string;
   model: string;
+  kind: string;
   created_at: number;
   updated_at: number;
 }
@@ -216,13 +217,14 @@ export class SqliteSessionStore implements SessionStore {
       workspace: input.workspace,
       provider: input.provider,
       model: input.model,
+      kind: input.kind === 'math' ? 'math' : 'work',
       createdAt: now,
       updatedAt: now,
     };
     this.db
       .prepare(
-        `INSERT INTO sessions (id, title, workspace, provider, model, created_at, updated_at)
-         VALUES (@id, @title, @workspace, @provider, @model, @createdAt, @updatedAt)`,
+        `INSERT INTO sessions (id, title, workspace, provider, model, kind, created_at, updated_at)
+         VALUES (@id, @title, @workspace, @provider, @model, @kind, @createdAt, @updatedAt)`,
       )
       .run(session);
     return session;
@@ -814,6 +816,7 @@ function mapSession(row: SessionRow): Session {
     workspace: row.workspace,
     provider: row.provider,
     model: row.model,
+    kind: row.kind === 'math' ? 'math' : 'work',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

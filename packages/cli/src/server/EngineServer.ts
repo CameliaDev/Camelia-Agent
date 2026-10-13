@@ -378,7 +378,8 @@ export class EngineServer {
           : { ok: false, error: `模型不在链中: ${String(command.payload.providerId)}` };
       }
       case 'new_session': {
-        const created = await this.options.runtime.newSession();
+        const kind = command.payload?.kind === 'math' ? 'math' : 'work';
+        const created = await this.options.runtime.newSession(kind);
         return { ok: true, data: created };
       }
       case 'select_session': {

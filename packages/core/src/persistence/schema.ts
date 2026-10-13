@@ -7,7 +7,7 @@
 
 import type BetterSqlite3 from 'better-sqlite3';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** V1 DDL — exported so tests can build a legacy database and exercise the V1→V2 migration. */
 export const V1_SCHEMA = `
@@ -197,6 +197,10 @@ CREATE TABLE IF NOT EXISTS failure_modes (
 CREATE INDEX IF NOT EXISTS idx_failure_modes_workspace ON failure_modes(workspace, kind);
 `;
 
+const V5 = `
+ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'work';
+`;
+
 /** Apply pending migrations. Idempotent and forward-only. */
 export function migrate(db: BetterSqlite3.Database): number {
   db.pragma('journal_mode = WAL');
@@ -218,6 +222,10 @@ export function migrate(db: BetterSqlite3.Database): number {
   if (current < 4) {
     db.exec(V4);
     db.pragma(`user_version = 4`);
+  }
+  if (current < 5) {
+    db.exec(V5);
+    db.pragma(`user_version = 5`);
   }
   return Number(db.pragma('user_version', { simple: true }) ?? SCHEMA_VERSION);
 }

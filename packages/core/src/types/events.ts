@@ -265,7 +265,7 @@ export interface CommandMap {
 
   // ---- Session switching (P0) ------------------------------------------
   /** Create a fresh session row. Response data: `{ sessionId: Id }`. */
-  'new_session': Record<string, never>;
+  'new_session': { kind?: 'work' | 'math' };
   /** Ask the UI to re-attach to a prior session's event stream. */
   'select_session': { sessionId: Id };
 
