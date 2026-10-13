@@ -63,7 +63,7 @@ export function ChatTranscript(): ReactNode {
     <div data-chat-transcript className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-4 py-4">
         {chat.turns.length === 0 && !chat.pendingAsk && !task ? (
-          <div className="flex flex-1 items-center justify-center px-6">
+          <div className="flex flex-1 items-center justify-center px-6" data-chat-empty>
             <p className="max-w-sm text-center text-[12.5px] leading-5 text-ink-3">{tr('chat.empty')}</p>
           </div>
         ) : null}

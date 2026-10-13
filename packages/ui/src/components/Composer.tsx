@@ -70,7 +70,7 @@ function policyLabelKey(policy: ChatPolicy): 'composer.policy.readonly' | 'compo
       : 'composer.policy.readonly';
 }
 
-export function Composer(): ReactNode {
+export function Composer({ centered = false }: { centered?: boolean } = {}): ReactNode {
   const { snapshot, activeSessionId, status, dispatch } = useUiState();
   const lang = useUiStore((s) => s.localPrefs.language);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
@@ -178,7 +178,10 @@ export function Composer(): ReactNode {
   };
 
   return (
-    <footer className="shrink-0 bg-base px-4 pb-2.5 pt-3">
+    <footer
+      data-composer-placement={centered ? 'centered' : 'docked'}
+      className={centered ? 'w-full shrink-0 bg-transparent px-0 pb-0 pt-0' : 'shrink-0 bg-base px-4 pb-2.5 pt-3'}
+    >
       <form
         className="mx-auto flex w-full max-w-3xl flex-col gap-1.5"
         onSubmit={(e) => {

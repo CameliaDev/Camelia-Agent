@@ -13,10 +13,13 @@ import { useUiStore } from '../state/UiProvider.js';
 import { useMode } from '../mode/useMode.js';
 import { ChatWorkspace } from './chat/ChatWorkspace.js';
 import { MathWorkspace } from './math/MathWorkspace.js';
+import { isFreshChatSession } from '../state/fresh-session.js';
 
 export function ModeShell(): ReactNode {
   const { mode, setMode } = useMode();
   const task = useUiStore((s) => s.snapshot.task);
+  const snapshot = useUiStore((s) => s.snapshot);
+  const transportError = useUiStore((s) => s.transportError);
   const language = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1], params?: Parameters<typeof t>[2]) => t(language, k, params);
 
@@ -47,9 +50,14 @@ export function ModeShell(): ReactNode {
 
   // Task surface is Work only — strip when Math hides it.
   const showStrip = running && !awaitingApproval && mode === 'math';
+  const fresh = mode === 'work' && isFreshChatSession(snapshot) && !transportError;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-mode-shell={mode}>
+    <div
+      className={fresh ? 'flex shrink-0 flex-col' : 'flex min-h-0 flex-1 flex-col'}
+      data-mode-shell={mode}
+      data-mode-fresh={fresh || undefined}
+    >
       {showStrip ? (
         <div
           data-cross-mode-strip

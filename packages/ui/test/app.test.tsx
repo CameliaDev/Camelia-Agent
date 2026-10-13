@@ -461,6 +461,20 @@ describe('App — left icon rail', () => {
     fireEvent.click(container.querySelector('[data-rail-action="new"]') as HTMLElement);
     expect(transport.sent.filter((c) => c.type === 'new_session')).toHaveLength(1);
   });
+
+  it('does not create another blank when the active session is already fresh', async () => {
+    writePrefs(true);
+    const { container, transport } = renderScene('running');
+    fireEvent.click(container.querySelector('[data-rail-action="new"]') as HTMLElement);
+    await waitFor(() => {
+      expect(transport.sent.filter((c) => c.type === 'new_session')).toHaveLength(1);
+    });
+    const afterFirst = transport.sent.filter((c) => c.type === 'new_session').length;
+    // Fixture reset the projection to a fresh blank — second click must no-op.
+    fireEvent.click(container.querySelector('[data-rail-action="new"]') as HTMLElement);
+    expect(transport.sent.filter((c) => c.type === 'new_session')).toHaveLength(afterFirst);
+    expect(container.querySelector('[data-composer-slot="centered"]')).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -487,14 +501,25 @@ describe('App — wireframe v2 chrome', () => {
 describe('App — empty scene', () => {
   it('shows the empty state, not a spinner', () => {
     const { container } = renderScene('empty');
-    expect(container.querySelector('[data-chat-transcript]')).not.toBeNull();
+    expect(container.querySelector('[data-chat-empty-hero]')).not.toBeNull();
     expect(container.querySelector('.camelia-pulse')).toBeNull();
   });
+
+  it('centres the composer in the main pane on a fresh session', () => {
+    const { container } = renderScene('empty');
+    expect(container.querySelector('[data-composer-slot="centered"]')).not.toBeNull();
+    expect(container.querySelector('[data-composer-placement="centered"]')).not.toBeNull();
+    expect(container.querySelector('[data-chat-empty-hero]')).not.toBeNull();
+    // Transcript body is omitted while fresh — composer owns the centre.
+    expect(container.querySelector('[data-chat-workspace][data-chat-fresh]')).not.toBeNull();
+  });
+
+
 
   it('tells the user where sessions and restore points will appear', () => {
     renderScene('empty');
     expect(screen.getByText(/此工作区还没有会话/)).toBeInTheDocument();
-    expect(screen.getByText(/从下方描述一个任务开始/)).toBeInTheDocument();
+    expect(screen.getByText(/在输入框里描述任务即可开始/)).toBeInTheDocument();
   });
 
   it('sends chat_message from Work composer instead of submit_task', () => {

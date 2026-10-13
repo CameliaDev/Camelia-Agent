@@ -1022,11 +1022,24 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
   }
 
   /**
-   * Create a fresh session row in the store and return its id. The running
-   * runtime keeps its own session for the in-flight task; the UI re-attaches
-   * its SSE stream to the new id on the next submit.
+   * Open a blank session of `kind` — reusing an unused blank when one already
+   * exists so 「新建」 cannot pile empty rows in the session rail.
+   *
+   * Blank means: same kind, zero tasks, zero events. A session that once had
+   * chat or a task is never reused here; the user asked for a clean slate, and
+   * that only applies to rows that never held work.
    */
   async newSession(kind: 'work' | 'math' = 'work'): Promise<{ sessionId: string }> {
+    const recent = await this.store.listSessions();
+    for (const candidate of recent) {
+      if ((candidate.kind ?? 'work') !== kind) continue;
+      const tasks = await this.store.listTasks(candidate.id);
+      if (tasks.length > 0) continue;
+      const events = await this.store.listEvents({ sessionId: candidate.id, limit: 1 });
+      if (events.length > 0) continue;
+      this.session = candidate;
+      return { sessionId: candidate.id };
+    }
     const created = await this.store.createSession({
       title: '新会话',
       workspace: this.session.workspace,

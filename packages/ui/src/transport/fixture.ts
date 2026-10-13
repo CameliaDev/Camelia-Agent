@@ -251,6 +251,34 @@ export class FixtureTransport implements Transport {
         this.push('recovery.rollback_done', { checkpointId: command.payload.checkpointId, restored });
         return;
       }
+      case 'new_session': {
+        // One blank at a time: reuse a stable id per kind so tests and the rail
+        // do not accumulate empty rows when 「新建」 is clicked repeatedly.
+        const kind = command.payload?.kind === 'math' ? 'math' : 'work';
+        const sessionId = kind === 'math' ? 'ses_blank_math' : 'ses_blank_work';
+        const blank = {
+          id: sessionId,
+          title: '新会话',
+          workspace: PRIMARY_SESSION.workspace,
+          provider: PRIMARY_SESSION.provider,
+          model: PRIMARY_SESSION.model,
+          kind,
+          blank: true,
+        };
+        // Drop the previous task/chat so the shell shows the centred empty state.
+        this.snapshot = initialSnapshot();
+        this.handlers?.onBootstrap({
+          session: blank,
+          sessions: [blank, ...SESSION_LIST.filter((s) => s.id !== sessionId)],
+          provider: BOOTSTRAP_PROVIDER,
+          providerStatus: BOOTSTRAP_PROVIDER_STATUS,
+        });
+        this.answer(command.commandId, { sessionId });
+        return;
+      }
+      case 'select_session':
+        this.answer(command.commandId, { ok: true });
+        return;
       case 'select_provider':
         this.push('provider.selected', {
           providerId: command.payload.providerId,

@@ -275,6 +275,8 @@ export class EngineServer {
         const tasks = await runtime.store.listTasks(session.id);
         const intent = tasks.at(-1)?.intentRaw.trim().split('\n')[0];
         if (intent) view.title = intent.slice(0, 72);
+        const events = await runtime.store.listEvents({ sessionId: session.id, limit: 1 });
+        view.blank = tasks.length === 0 && events.length === 0;
         return view;
       }),
     );

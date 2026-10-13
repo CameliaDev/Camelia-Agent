@@ -90,6 +90,7 @@ export function toSessionView(session: Session): SessionView {
     workspace: session.workspace,
     provider: session.provider,
     model: session.model,
+    kind: session.kind ?? 'work',
   };
 }
 

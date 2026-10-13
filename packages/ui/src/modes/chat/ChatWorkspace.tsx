@@ -1,37 +1,32 @@
 /**
- * Conversation mode.
+ * Conversation mode (Work).
  *
- * The default surface and the original product path: the running record of the task, with
- * the activity bar above it. This module is a thin wrapper — the conversation body is
- * `modes/chat/ChatTranscript.tsx`, the direct conversation path.
- *
- * It exists because chat and plan now diverge at the *workspace* level (plan mode gets the
- * plan review as its primary surface, chat gets the transcript), while both still draw the
- * same 33px `ModeHeader` — one mode, one strip, at zero turns included. Keeping the
- * wrapper explicit is what lets `ModeShell` stay a one-line dispatch.
+ * Thin wrapper: ModeHeader + ChatTranscript. When the session is fresh the
+ * workspace shrinks to the header only — App centres the composer in the
+ * remaining pane (ChatGPT-style empty state).
  * @module
  */
 
 import { type ReactNode } from 'react';
 
 import { ModeHeader } from '../ModeHeader.js';
+import { useUiStore } from '../../state/UiProvider.js';
+import { isFreshChatSession } from '../../state/fresh-session.js';
 
 import { ChatTranscript } from './ChatTranscript.js';
 
-/**
- * 对话 mode renders the direct conversation path (`snapshot.chat`).
- *
- * It used to render `Conversation` — the task transcript — which is why typing
- * "hello" went through goal restatement, drift warnings and UNKNOWN-manual
- * acceptance: the surface was a task surface, so the engine was asked to run one.
- * Plan mode keeps `Conversation`; the two modes now visibly differ at the
- * workspace level, which is what `ModeShell`'s one-line dispatch was waiting for.
- */
 export function ChatWorkspace(): ReactNode {
+  const snapshot = useUiStore((s) => s.snapshot);
+  const transportError = useUiStore((s) => s.transportError);
+  const fresh = isFreshChatSession(snapshot) && !transportError;
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-chat-workspace>
+    <div
+      className={fresh ? 'flex shrink-0 flex-col' : 'flex min-h-0 flex-1 flex-col'}
+      data-chat-workspace
+      data-chat-fresh={fresh || undefined}
+    >
       <ModeHeader />
-      <ChatTranscript />
+      {fresh ? null : <ChatTranscript />}
     </div>
   );
 }

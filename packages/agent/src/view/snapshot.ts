@@ -275,6 +275,13 @@ export interface SessionView {
   workspace: string;
   provider: string;
   model: string;
+  /** Work | Math list partition. Absent rows backfill to work. */
+  kind?: 'work' | 'math';
+  /**
+   * True when the session has never held a task or event — the row 「新建」
+   * should reuse rather than stack another blank.
+   */
+  blank?: boolean;
 }
 
 /**

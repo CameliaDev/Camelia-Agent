@@ -382,14 +382,22 @@ export function createUiStore(transport: Transport): UiStore {
         // The local theme is authoritative (applied at boot above). The server
         // sends its built-in theme for non-UI clients; we do not override the
         // user's chosen default on every fresh start.
-        store.setState((state) => ({
-          sessions: payload.sessions,
-          activeSessionId: payload.session?.id ?? payload.sessions[0]?.id,
-          snapshot: withProviderStatus(
-            payload.session ? withSession(state.snapshot, payload.session) : state.snapshot,
-            payload.providerStatus,
-          ),
-        }));
+        store.setState((state) => {
+          const nextId = payload.session?.id ?? payload.sessions[0]?.id;
+          // Switching sessions must drop the previous projection — otherwise a
+          // blank 「新建」 row keeps showing the last task and the centred empty
+          // state never appears.
+          const switched = nextId !== undefined && nextId !== state.activeSessionId;
+          const base = switched ? initialSnapshot() : state.snapshot;
+          return {
+            sessions: payload.sessions,
+            activeSessionId: nextId,
+            snapshot: withProviderStatus(
+              payload.session ? withSession(base, payload.session) : base,
+              payload.providerStatus,
+            ),
+          };
+        });
       },
       onEvent: applyEvent,
       onError: (message) => store.setState({ transportError: message }),

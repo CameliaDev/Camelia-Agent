@@ -619,3 +619,35 @@ describe('CameliaRuntime — boot hygiene', () => {
     expect(after?.resumeTarget).toBe('executing');
   });
 });
+
+
+describe('CameliaRuntime — newSession blank reuse', () => {
+  it('reuses an unused blank of the same kind instead of stacking rows', async () => {
+    const { runtime } = await harness({
+      create: { 'a.ts': 'export const a = 1;\n' },
+    });
+    const first = await runtime.newSession('work');
+    const second = await runtime.newSession('work');
+    expect(second.sessionId).toBe(first.sessionId);
+    const sessions = await runtime.store.listSessions();
+    const blanks = [];
+    for (const s of sessions) {
+      if ((s.kind ?? 'work') !== 'work') continue;
+      const tasks = await runtime.store.listTasks(s.id);
+      const events = await runtime.store.listEvents({ sessionId: s.id, limit: 1 });
+      if (tasks.length === 0 && events.length === 0) blanks.push(s.id);
+    }
+    // At most one unused work blank (plus whatever the harness opened for the workspace).
+    expect(blanks.filter((id) => id === first.sessionId)).toHaveLength(1);
+    expect(new Set(blanks).size).toBe(blanks.length);
+  });
+
+  it('creates a distinct blank for math vs work', async () => {
+    const { runtime } = await harness({
+      create: { 'a.ts': 'export const a = 1;\n' },
+    });
+    const work = await runtime.newSession('work');
+    const math = await runtime.newSession('math');
+    expect(math.sessionId).not.toBe(work.sessionId);
+  });
+});

@@ -65,6 +65,9 @@ import { RAIL_ICON_WIDTH, railWidth } from './state/local-prefs.js';
 import { useUiStore } from './state/UiProvider.js';
 import { ModeShell } from './modes/ModeShell.js';
 import { readModelSettings } from './window/model-settings.js';
+import { isFreshChatSession } from './state/fresh-session.js';
+import { useMode } from './mode/useMode.js';
+import { t } from './i18n/strings.js';
 
 /** Height of the overlay bar in px — also the grid's top padding when it is visible. */
 export const TOP_BAR_H = 44;
@@ -151,6 +154,13 @@ export function App(): ReactNode {
   const panelId = useUiStore((s) => s.panelId);
   const right = panelId ? prefs.rightWidth : 0;
   const topVisible = prefs.topBar === 'hidden' ? false : prefs.topBar === 'pinned' || revealed;
+  const snapshot = useUiStore((s) => s.snapshot);
+  const transportError = useUiStore((s) => s.transportError);
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const { mode } = useMode();
+  // Transport failures must keep the error surface visible — not the centred empty hero.
+  const fresh = mode === 'work' && isFreshChatSession(snapshot) && !transportError;
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
 
   return (
     <div
@@ -185,23 +195,31 @@ export function App(): ReactNode {
         <main className="flex min-h-0 min-w-0 flex-col">
           <EngineBanner />
           <ModeShell />
+          {!fresh ? <SteeringForm /> : null}
+          {!fresh ? <CommandErrorNotice /> : null}
+          {!fresh ? <RunDock /> : null}
           {/*
-            Feedback about the controls, drawn once for all three modes. Both used to live
-            where only chat could see them — the steering form inside the transcript, the
-            failed-command box beside it — so a pause the engine rejected showed nothing at
-            all in plan and math. They sit with the composer because that is where the
-            reader's attention is when a control they just used did not take.
+            Fresh Work session: ChatGPT-style — greeting + composer centred in the pane.
+            Once turns or a task exist, the composer docks under the transcript again.
           */}
-          {/* The open run panel, 横着放 across the work area — see `PanelDeck`. */}
-          <SteeringForm />
-          <CommandErrorNotice />
-          {/*
-            The run dock — lifecycle stepper centred, pause/steer/stop right — drawn once
-            here for all three modes, anchored to the composer where a run is read and
-            intervened. The mode header keeps the session title and the panel icons.
-          */}
-          <RunDock />
-          <Composer />
+          <div
+            data-composer-slot={fresh ? 'centered' : 'docked'}
+            className={
+              fresh
+                ? 'flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-10'
+                : 'shrink-0'
+            }
+          >
+            {fresh ? (
+              <div className="mb-5 max-w-md text-center" data-chat-empty-hero>
+                <p className="text-[15px] font-medium text-ink">{tr('welcome.title')}</p>
+                <p className="mt-1.5 text-[12.5px] leading-5 text-ink-3">{tr('chat.empty')}</p>
+              </div>
+            ) : null}
+            <div className={fresh ? 'w-full max-w-3xl' : undefined}>
+              <Composer centered={fresh} />
+            </div>
+          </div>
         </main>
         <RightRail />
       </div>
