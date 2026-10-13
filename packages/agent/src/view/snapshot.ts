@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Task-state projection: the contract between the engine's event stream and the UI.
  *
  * The UI never invents business state (whitepaper §6.1) — it renders a snapshot that
@@ -276,7 +276,7 @@ export interface SessionView {
   provider: string;
   model: string;
   /** Work | Math list partition. Absent rows backfill to work. */
-  kind?: 'work' | 'math';
+  kind?: 'work' | 'math' | 'term';
   /**
    * True when the session has never held a task or event — the row 「新建」
    * should reuse rather than stack another blank.

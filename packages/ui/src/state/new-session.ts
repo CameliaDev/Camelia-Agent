@@ -24,7 +24,7 @@ export function useNewSession(): () => void {
   const { query: queryEngine, setActiveSession, dispatch, snapshot, activeSessionId } = useUiState();
   const { mode } = useMode();
   return useCallback(() => {
-    const kind = mode === 'math' ? 'math' : 'work';
+    const kind = mode === 'math' ? 'math' : mode === 'term' ? 'term' : 'work';
     // Already on an unused blank — do not pile another row in the rail.
     if (activeSessionId && isFreshChatSession(snapshot)) {
       focusComposer();

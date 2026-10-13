@@ -228,7 +228,7 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
   });
 
-  it('hangs all five non-math panels off the header of every mode', () => {
+  it('hangs non-math panels (incl. artifacts) off the header of every mode', () => {
     const { container } = renderScene('running');
     // The panels were a right rail, so they only existed in one place. A mode that cannot
     // reach them is a mode missing a capability the other two have — the same defect the
@@ -242,8 +242,8 @@ describe('App — layout contract', () => {
       // Five everywhere, plus the model icon only in math.
       expect(icons).toEqual(
         mode === 'math'
-          ? ['memory', 'events', 'run', 'context', 'sub', 'model']
-          : ['memory', 'events', 'run', 'context', 'sub'],
+          ? ['run', 'artifacts', 'memory', 'context', 'events', 'sub', 'model']
+          : ['run', 'artifacts', 'memory', 'context', 'events', 'sub'],
       );
     }
   });

@@ -191,14 +191,39 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
           <SkeletonRows rows={3} />
         </div>
       ) : (
-        task.steps.map((step) => (
+        task.steps.map((step) => {
+          const current =
+            step.status === 'running' ||
+            step.status === 'verifying' ||
+            (task.currentStepIdx === step.idx &&
+              step.status !== 'done' &&
+              step.status !== 'failed' &&
+              step.status !== 'skipped');
+          const statusKey = (`step.status.${step.status}` as Parameters<typeof t>[1]);
+          const statusTone =
+            step.status === 'done'
+              ? 'text-ok'
+              : step.status === 'failed'
+                ? 'text-bad'
+                : current
+                  ? 'text-info font-medium'
+                  : 'text-ink-3';
+          return (
           <CollapsibleBlock
             key={step.id}
             data-collapsible="step"
+            preferOpen={current}
+            summaryClassName={
+              current
+                ? 'border-info/40 bg-info/10 text-ink'
+                : step.status === 'done'
+                  ? 'border-ok/25 bg-ok/5 text-ink-2'
+                  : 'border-line/80 bg-base/50 text-ink-2'
+            }
             summary={
               <span className="inline-flex items-center gap-1.5">
-                <span className="font-medium text-ink">{step.title}</span>
-                <span className="text-ink-3">{step.status}</span>
+                <span className={`font-medium ${current ? 'text-ink' : 'text-ink'}`}>{step.title}</span>
+                <span className={statusTone}>{tr(statusKey)}</span>
               </span>
             }
           >
@@ -211,7 +236,8 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
               }
             />
           </CollapsibleBlock>
-        ))
+          );
+        })
       )}
 
       {task.summary ? <DeliveryCard task={task} /> : null}
@@ -222,7 +248,6 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
 export function TaskRunCard(): ReactNode {
   const { snapshot, transportError, dispatch } = useUiState();
   const lang = useUiStore((s) => s.localPrefs.language);
-  const setPanelId = useUiStore((s) => s.setPanelId);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const rollbackOk = canIntervene('rollback_step');
   const degradeOk = canIntervene('select_provider');
@@ -252,16 +277,6 @@ export function TaskRunCard(): ReactNode {
       <ActivityBar task={task} />
       <div data-conversation className="min-h-0 px-0 py-1">
         <div className="w-full space-y-3">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              data-open-run-panel
-              className="text-[11px] text-ink-3 hover:text-accent"
-              onClick={() => setPanelId('run')}
-            >
-              {tr('panels.label')} →
-            </button>
-          </div>
           {visibleNotices.length ? (
             <div className="space-y-2">
               {visibleNotices.map((notice, i) => (

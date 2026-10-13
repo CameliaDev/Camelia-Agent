@@ -67,14 +67,14 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
       '--color-hover': '#f0f0f0',
       '--color-line': '#e0e0e0',
       '--color-ink': '#1a1a1a',
-      '--color-ink-2': '#666666',
-      '--color-ink-3': '#999999',
-      '--color-accent': '#333333',
-      '--color-accent-2': '#1a1a1a',
-      '--color-accent-dim': '#888888',
+      '--color-ink-2': '#555555',
+      '--color-ink-3': '#6b6b6b',
+      '--color-accent': '#c45c48',
+      '--color-accent-2': '#a84838',
+      '--color-accent-dim': '#e8a99e',
       '--color-ok': '#2e7d32',
       '--color-bad': '#c62828',
-      '--color-warn': '#f57f17',
+      '--color-warn': '#b45309',
       // Deeper than the original #4a90d9, which only reached 3.34:1 against white
       // — under AA for the composer's 12.5px "Steer" pill, and only 3.16:1 as
       // `text-info` on the #fafafa paper. This value clears AA in both directions:

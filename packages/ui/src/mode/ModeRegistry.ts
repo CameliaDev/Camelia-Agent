@@ -1,5 +1,5 @@
 /**
- * Mode registry — Work | Math only (F6).
+ * Mode registry — Work | Math | Term (F6 + Term MVP).
  * @module
  */
 
@@ -18,6 +18,13 @@ export const MODE_REGISTRY: readonly ModeDefinition[] = [
     labelKey: 'mode.math',
     descriptionKey: 'mode.math.desc',
     icon: 'sigma',
+    available: true,
+  },
+  {
+    id: 'term',
+    labelKey: 'mode.term',
+    descriptionKey: 'mode.term.desc',
+    icon: 'bot',
     available: true,
   },
 ];

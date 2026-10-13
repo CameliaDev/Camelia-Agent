@@ -108,6 +108,11 @@ export function AccountMenu({ onClose }: AccountMenuProps): ReactNode {
     setSettingsOpen(true, 'account');
   }
 
+  function openFeedback(): void {
+    onClose();
+    setSettingsOpen(true, 'feedback');
+  }
+
   return (
     <div
       ref={panelRef}
@@ -215,6 +220,15 @@ export function AccountMenu({ onClose }: AccountMenuProps): ReactNode {
           </button>
         )}
 
+        <button
+          type="button"
+          role="menuitem"
+          data-account-menu-feedback
+          className="mt-0.5 flex w-full items-center rounded-md px-2.5 py-2 text-left text-[12.5px] text-ink-2 hover:bg-hover hover:text-ink"
+          onClick={openFeedback}
+        >
+          {tr('account.menu.feedback')}
+        </button>
         <button
           type="button"
           role="menuitem"

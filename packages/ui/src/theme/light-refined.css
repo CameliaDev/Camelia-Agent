@@ -45,13 +45,13 @@ html[data-theme='light'] [data-step-card] [data-step-goal] {
   font-weight: 400 !important;
 }
 html[data-theme='light'] [data-step-card] [data-meta] {
-  color: #999999 !important;
+  color: #6b6b6b !important;
   font-size: 0.85em !important;
 }
 
 /* Pending stays neutral. Running keeps the blue and breathes. Done uses the soft green token. */
 html[data-theme='light'] [data-step-status='pending'] {
-  color: #999999 !important;
+  color: #6b6b6b !important;
 }
 html[data-theme='light'] [data-step-status='running'],
 html[data-theme='light'] [data-step-status='verifying'] {
@@ -143,4 +143,17 @@ html[data-theme='light'] .wf-avatar-user {
   background: #2b6cb0 !important;
   color: #ffffff !important;
   border-color: #2b6cb0 !important;
+}
+
+
+/* Soften composer chrome — avoid a heavy black rim on paper. */
+html[data-theme='light'] [data-composer] {
+  border-color: #e8e4e0 !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Empty-state hero: no heavy dark blocks */
+html[data-theme='light'] [data-chat-empty-hero] {
+  color: #1a1a1a;
 }

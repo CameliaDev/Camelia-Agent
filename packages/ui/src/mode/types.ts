@@ -1,19 +1,21 @@
 /**
  * Mode vocabulary — top-level workbench selector (chrome, not domain state).
  *
- * v2026-10-13: converged to Work | Math (F6). Legacy `chat` / `plan` ids normalize to `work`.
+ * v2026-10-13: Work | Math | Term (团队模式 MVP stub).
+ * Legacy `chat` / `plan` ids normalize to `work`.
  * @module
  */
 
-export type AppModeId = 'work' | 'math';
+export type AppModeId = 'work' | 'math' | 'term';
 
-export const APP_MODE_IDS: readonly AppModeId[] = ['work', 'math'];
+export const APP_MODE_IDS: readonly AppModeId[] = ['work', 'math', 'term'];
 
 export const DEFAULT_MODE: AppModeId = 'work';
 
-/** Map legacy and current ids onto the two-mode surface. */
+/** Map legacy and current ids onto the three-mode surface. */
 export function normalizeModeId(value: unknown): AppModeId {
   if (value === 'math') return 'math';
+  if (value === 'term') return 'term';
   if (value === 'work' || value === 'chat' || value === 'plan') return 'work';
   return DEFAULT_MODE;
 }

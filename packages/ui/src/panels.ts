@@ -1,12 +1,12 @@
 /**
- * The run-panel registry — six panels opened into the right rail (F3).
+ * The run-panel registry — panels opened into the right rail (F3).
  * @module
  */
 
 import type { t } from './i18n/strings.js';
 import type { AppModeId } from './mode/types.js';
 
-export const PANEL_IDS = ['memory', 'events', 'run', 'context', 'sub', 'model'] as const;
+export const PANEL_IDS = ['run', 'artifacts', 'memory', 'context', 'events', 'sub', 'model'] as const;
 
 export type PanelId = (typeof PANEL_IDS)[number];
 
@@ -19,10 +19,11 @@ export interface PanelSpec {
 }
 
 export const PANELS: readonly PanelSpec[] = [
-  { id: 'memory', icon: 'star', labelKey: 'panel.memory', needsTask: false, mathOnly: false },
-  { id: 'events', icon: 'terminal', labelKey: 'panel.events', needsTask: false, mathOnly: false },
   { id: 'run', icon: 'layers', labelKey: 'panel.run', needsTask: true, mathOnly: false },
+  { id: 'artifacts', icon: 'file', labelKey: 'panel.artifacts', needsTask: true, mathOnly: false },
+  { id: 'memory', icon: 'star', labelKey: 'panel.memory', needsTask: false, mathOnly: false },
   { id: 'context', icon: 'gauge', labelKey: 'panel.context', needsTask: true, mathOnly: false },
+  { id: 'events', icon: 'terminal', labelKey: 'panel.events', needsTask: false, mathOnly: false },
   { id: 'sub', icon: 'bot', labelKey: 'panel.sub', needsTask: true, mathOnly: false },
   { id: 'model', icon: 'sigma', labelKey: 'panel.model', needsTask: false, mathOnly: true },
 ];

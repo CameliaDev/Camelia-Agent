@@ -112,22 +112,6 @@ export function planStageOf(task: TaskView | undefined): PlanStage {
   }
 }
 
-/** Where each lifecycle stage sits on the rail (four equal stops). */
-const PLAN_STOP: Record<PlanStage, number> = {
-  draft: 0.15,
-  awaiting_approval: 0.4,
-  executing: 0.7,
-  done: 1,
-  rejected: 1,
-};
-
-const PLAN_TONE: Record<PlanStage, ProgressTone> = {
-  draft: 'muted',
-  awaiting_approval: 'warn',
-  executing: 'accent',
-  done: 'ok',
-  rejected: 'bad',
-};
 
 /**
  * Math progress.
@@ -196,16 +180,6 @@ export interface DeriveProgressInput {
 }
 
 export function deriveProgress({ task, mode, language, mathDemo }: DeriveProgressInput): ProgressResult {
-  if (mode === 'plan') {
-    const stage = planStageOf(task);
-    return {
-      mode,
-      demo: false,
-      source: task ? 'engine' : 'none',
-      progress: { kind: 'plan', stage, ratio: PLAN_STOP[stage], tone: PLAN_TONE[stage] },
-    };
-  }
-
   if (mode === 'math') {
     const m = mathProgress(task, mathDemo);
     return {

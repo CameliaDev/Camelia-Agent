@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Domain entities. Mirrors the SQLite schema in `persistence/schema.ts`
  * and chapter 7 of the whitepaper.
  * @module
@@ -53,7 +53,7 @@ export type ToolCallStatus =
   | 'ok'
   | 'error';
 
-export type SessionKind = 'work' | 'math';
+export type SessionKind = 'work' | 'math' | 'term';
 
 export interface Session {
   id: Id;

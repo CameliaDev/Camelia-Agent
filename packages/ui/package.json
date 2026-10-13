@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "test": "tsc -p tsconfig.json --noEmit && vitest run",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src"
   },

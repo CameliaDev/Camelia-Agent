@@ -73,6 +73,8 @@ describe('localPrefs', () => {
       version: LOCAL_PREFS_VERSION,
       leftWidth: 300,
       leftCollapsed: true,
+      rightWidth: 320,
+      rightCollapsed: true,
       themeId: 'light',
       language: 'zh',
       topBar: 'pinned',
@@ -82,8 +84,10 @@ describe('localPrefs', () => {
       preferredMode: 'work',
       showAvatars: false,
       userAvatar: 'letter',
+      githubAccount: null,
       displayName: '阿离',
       chatPolicy: 'ask',
+      effort: 'high',
     });
     const store = createUiStore(new FixtureTransport({ scene: 'empty' }));
     expect(store.getState().localPrefs.leftWidth).toBe(300);

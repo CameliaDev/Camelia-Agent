@@ -103,7 +103,7 @@ describe('deriveProgress — conversation mode', () => {
   });
 });
 
-describe('deriveProgress — plan mode', () => {
+describe('planStageOf — plan lifecycle', () => {
   it('maps task status onto the plan lifecycle without inventing a state', () => {
     expect(planStageOf(task({ status: 'planning' }))).toBe('draft');
     expect(planStageOf(task({ status: 'awaiting-approval' }))).toBe('awaiting_approval');
@@ -115,14 +115,8 @@ describe('deriveProgress — plan mode', () => {
   });
 
   it('never claims execution before approval', () => {
-    const result = deriveProgress({
-      task: task({ status: 'awaiting-approval' }),
-      mode: 'plan',
-      language: 'zh',
-    });
-    if (result.progress.kind !== 'plan') throw new Error('unreachable');
-    expect(result.progress.stage).toBe('awaiting_approval');
-    expect(result.progress.tone).toBe('warn');
+    expect(planStageOf(task({ status: 'awaiting-approval' }))).toBe('awaiting_approval');
+    expect(planStageOf(task({ status: 'executing' }))).toBe('executing');
   });
 });
 

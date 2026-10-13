@@ -81,6 +81,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const running = task !== undefined && task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled';
   const { mode } = useMode();
   const chatPolicy = useUiStore((s) => s.localPrefs.chatPolicy);
+  const effort = useUiStore((s) => s.localPrefs.effort);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const [policyOpen, setPolicyOpen] = useState(false);
   const policyRef = useRef<HTMLDivElement>(null);
@@ -191,7 +192,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       >
         <div
           data-composer
-          className="flex flex-col gap-1.5 rounded-2xl border border-line bg-panel/40 p-2.5 transition-colors focus-within:border-accent/50"
+          className="flex flex-col gap-1.5 rounded-2xl border border-line/50 bg-panel/40 p-2.5 shadow-sm transition-colors focus-within:border-accent/40 focus-within:shadow-md"
         >
           <textarea
             ref={areaRef}
@@ -279,6 +280,25 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 ) : null}
               </div>
             ) : null}
+            {mode === 'work' ? (
+              <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-line/70 bg-base/40 p-[2px]" data-composer-effort role="group" aria-label={tr('composer.effort')}>
+                {(['max', 'high', 'low'] as const).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    data-effort-option={level}
+                    aria-pressed={effort === level}
+                    title={tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
+                    onClick={() => setLocalPrefs({ effort: level })}
+                    className={`rounded-full px-2 py-[3px] text-[10.5px] font-medium ${
+                      effort === level ? 'bg-info/15 text-info' : 'text-ink-3 hover:text-ink'
+                    }`}
+                  >
+                    {tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             <span className="h-4 w-px shrink-0 bg-line" />
 
@@ -344,7 +364,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
 
             <span className="flex-1" />
 
-            {running && mode !== 'chat' ? (
+            {running && mode !== 'work' ? (
               <button
                 type="submit"
                 data-run

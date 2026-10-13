@@ -642,6 +642,30 @@ export function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; 
  * until it is handled. That is the point of routing through one dispatcher: the icon row
  * and the deck read the same table, so an icon can never open a body that does not exist.
  */
+function ArtifactsSection({ task }: { task: TaskView }): ReactNode {
+  const language = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(language, k);
+  const artifacts = task.artifacts ?? [];
+  return (
+    <div data-panel-artifacts className="space-y-2">
+      <p className="text-[11px] text-ink-3">{tr('panel.artifacts.hint')}</p>
+      {artifacts.length === 0 ? (
+        <p className="rounded-md border border-dashed border-line px-3 py-6 text-center text-[11.5px] text-ink-3">{tr('panels.needsTask')}</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {artifacts.map((a) => (
+            <li key={a.path} className="flex items-center gap-2 rounded-md border border-line bg-base/40 px-2 py-1.5">
+              <Icon name={a.kind === 'diff' ? 'branch' : a.kind === 'stdout' ? 'terminal' : 'file'} size={13} className="shrink-0 text-accent" />
+              <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">{a.path}</span>
+              <span className="shrink-0 text-[10px] text-ink-3">{a.kind}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function PanelBody({ id }: { id: PanelId }): ReactNode {
   const task = useUiStore((s) => s.snapshot.task);
   const timeline = useUiStore((s) => s.snapshot.timeline);
@@ -665,6 +689,8 @@ export function PanelBody({ id }: { id: PanelId }): ReactNode {
       return task ? <ContextSection task={task} /> : null;
     case 'sub':
       return task ? <SubAgentsSection task={task} /> : null;
+    case 'artifacts':
+      return task ? <ArtifactsSection task={task} /> : null;
     case 'model':
       return <ModelSection />;
     default:

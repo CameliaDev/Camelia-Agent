@@ -180,7 +180,7 @@ export interface UiState {
 export type UiStore = UseBoundStore<StoreApi<UiState>>;
 
 /** The pages the settings drawer can show. Defined here so the shell can name one. */
-export type SettingsSection = 'account' | 'connections' | 'appearance' | 'engine' | 'about';
+export type SettingsSection = 'account' | 'connections' | 'appearance' | 'engine' | 'about' | 'feedback';
 
 /** Build a well-formed command envelope. The transport owns delivery; this owns shape. */
 export function makeCommand<T extends CommandType>(

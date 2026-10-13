@@ -13,6 +13,7 @@ import { useUiStore } from '../state/UiProvider.js';
 import { useMode } from '../mode/useMode.js';
 import { ChatWorkspace } from './chat/ChatWorkspace.js';
 import { MathWorkspace } from './math/MathWorkspace.js';
+import { TermWorkspace } from './term/TermWorkspace.js';
 import { isFreshChatSession } from '../state/fresh-session.js';
 
 export function ModeShell(): ReactNode {
@@ -49,7 +50,7 @@ export function ModeShell(): ReactNode {
   }, [mode, awaitingApproval, taskId]);
 
   // Task surface is Work only — strip when Math hides it.
-  const showStrip = running && !awaitingApproval && mode === 'math';
+  const showStrip = running && !awaitingApproval && (mode === 'math' || mode === 'term');
   const fresh = mode === 'work' && isFreshChatSession(snapshot) && !transportError;
 
   return (
@@ -79,6 +80,7 @@ export function ModeShell(): ReactNode {
 
       {mode === 'work' ? <ChatWorkspace /> : null}
       {mode === 'math' ? <MathWorkspace /> : null}
+      {mode === 'term' ? <TermWorkspace /> : null}
     </div>
   );
 }

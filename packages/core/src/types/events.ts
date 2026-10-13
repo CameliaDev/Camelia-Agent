@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Event and command contracts — the only sanctioned way to communicate across layers.
  *
  * Rationale (whitepaper §2.3): making every cross-layer interaction an event gives us
@@ -265,7 +265,7 @@ export interface CommandMap {
 
   // ---- Session switching (P0) ------------------------------------------
   /** Create a fresh session row. Response data: `{ sessionId: Id }`. */
-  'new_session': { kind?: 'work' | 'math' };
+  'new_session': { kind?: 'work' | 'math' | 'term' };
   /** Ask the UI to re-attach to a prior session's event stream. */
   'select_session': { sessionId: Id };
 

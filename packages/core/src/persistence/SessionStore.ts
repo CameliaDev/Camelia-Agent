@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Session store port — persistence boundary.
  *
  * Async on purpose: the local implementation is synchronous (better-sqlite3),
@@ -33,7 +33,7 @@ export interface CreateSessionInput {
   workspace: string;
   provider: string;
   model: string;
-  kind?: 'work' | 'math';
+  kind?: 'work' | 'math' | 'term';
 }
 
 export interface CreateTaskInput {

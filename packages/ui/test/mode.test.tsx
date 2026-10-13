@@ -51,7 +51,7 @@ describe('mode types', () => {
   });
 
   it('registers every mode with an i18n label, and marks math unavailable', () => {
-    expect(MODE_REGISTRY.map((m) => m.id)).toEqual(['work', 'math']);
+    expect(MODE_REGISTRY.map((m) => m.id)).toEqual(['work', 'math', 'term']);
     for (const def of MODE_REGISTRY) {
       expect(def.labelKey).toMatch(/^mode\./);
       expect(def.descriptionKey).toMatch(/^mode\./);

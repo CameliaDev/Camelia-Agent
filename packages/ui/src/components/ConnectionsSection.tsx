@@ -12,6 +12,7 @@ import {
   readKeyStatus,
   readModelSettings,
   relaunchDesktop,
+  testOpenAiCompatible,
   upsertProviderPreset,
   writeProviderKey,
   type KeyStatus,
@@ -47,6 +48,8 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [needsRestart, setNeedsRestart] = useState(false);
+  const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [testing, setTesting] = useState(false);
 
   async function reload(): Promise<void> {
     const settings = await readModelSettings();
@@ -127,6 +130,29 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
     }
   }
 
+  async function testConnection(): Promise<void> {
+    setTesting(true);
+    setNote('');
+    try {
+      const result = await testOpenAiCompatible({
+        baseUrl: baseUrl.trim() || (localProvider ? 'http://127.0.0.1:11434/v1' : ''),
+        apiKey: apiKey.trim() || undefined,
+      });
+      if (!result.ok) {
+        setDiscoveredModels([]);
+        setNote(tr('settings.presets.testFail') + ': ' + result.error + ' — ' + tr('settings.presets.manualModels'));
+        return;
+      }
+      setDiscoveredModels(result.models);
+      if (result.models.length > 0 && !model.trim()) {
+        setModel(result.models[0]!);
+      }
+      setNote(tr('settings.presets.testOk') + ' · ' + result.models.length + ' ' + tr('settings.presets.modelsFound'));
+    } finally {
+      setTesting(false);
+    }
+  }
+
   async function persist(activate: boolean): Promise<void> {
     setBusy(true);
     setNote('');
@@ -156,7 +182,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         }
       }
       const models = Array.from(
-        new Set([model.trim(), ...template.models.filter((m) => m && m !== model.trim())]),
+        new Set([model.trim(), ...discoveredModels, ...template.models.filter((m) => m && m !== model.trim())]),
       );
       const error = await upsertProviderPreset({
         id,
@@ -391,7 +417,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
             {tr('settings.modelName')}
             <input
               aria-label={tr('settings.modelName')}
-              list="camelia-model-suggestions"
+              list={discoveredModels.length ? "camelia-discovered-models" : "camelia-model-suggestions"}
               className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
               value={model}
               onChange={(event) => setModel(event.target.value)}
@@ -413,7 +439,23 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
             />
           </label>
           <p className="text-[10.5px] leading-5 text-ink-3">{tr('settings.modelHint.live')}</p>
+          {discoveredModels.length ? (
+            <datalist id="camelia-discovered-models">
+              {discoveredModels.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          ) : null}
           <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              disabled={busy || testing || !baseUrl.trim() && !localProvider}
+              data-preset-test
+              className="rounded-md border border-info/40 px-2.5 py-1.5 text-[12px] text-info hover:bg-info/10 disabled:opacity-40"
+              onClick={() => { void testConnection(); }}
+            >
+              {tr('settings.presets.test')}
+            </button>
             <button
               type="button"
               disabled={busy}

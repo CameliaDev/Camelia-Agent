@@ -225,6 +225,30 @@ type StringKey =
 | 'account.github.error.generic'
   | 'avatar.user'
   | 'avatar.agent'
+  | 'account.menu.feedback'
+  | 'feedback.title'
+  | 'feedback.type'
+  | 'feedback.type.bug'
+  | 'feedback.type.idea'
+  | 'feedback.body'
+  | 'feedback.repro'
+  | 'feedback.submit'
+  | 'feedback.needLogin'
+  | 'feedback.success'
+  | 'feedback.error'
+  | 'feedback.repo'
+  | 'composer.effort'
+  | 'composer.effort.max'
+  | 'composer.effort.high'
+  | 'composer.effort.low'
+  | 'settings.presets.test'
+  | 'settings.presets.testOk'
+  | 'settings.presets.testFail'
+  | 'settings.presets.modelsFound'
+  | 'settings.presets.manualModels'
+  | 'connection.reconnect'
+  | 'connection.liveHint'
+  | 'connection.offlineHonest'
   // The bottom strip. Every key is a tooltip or an accessible name for a *readout* —
   // there are no actions here, so none of these strings is a verb the user can press.
   // The run panels that moved out of the removed right rail into the mode header.
@@ -299,6 +323,7 @@ type StringKey =
 | 'mode.chat'
   | 'mode.plan'
   | 'mode.math'
+  | 'mode.term'
   | 'mode.eval'
   | 'mode.teach'
   | 'mode.more'
@@ -307,6 +332,8 @@ type StringKey =
 | 'mode.chat.desc'
   | 'mode.plan.desc'
   | 'mode.math.desc'
+  | 'mode.term.desc'
+  | 'mode.term.stub'
   | 'mode.math.unavailable'
   | 'mode.switch.busy'
   | 'mode.elsewhere'
@@ -385,11 +412,13 @@ type StringKey =
   | 'brand.placeholder.hint'
   // ---- Right rail tabs (labelled via i18n rather than hard-coded zh) ---------
   | 'panel.memory'
+  | 'panel.artifacts'
   | 'panel.events'
   | 'panel.run'
   | 'panel.context'
   | 'panel.sub'
   | 'panel.model'
+  | 'panel.artifacts.hint'
   | 'panel.model.hint'
   | 'activity.running';
 
@@ -591,6 +620,31 @@ const en: Record<StringKey, string> = {
   'account.menu.openSettings': 'Account settings…',
   'account.menu.cancel': 'Cancel',
   'avatar.user': 'You',
+  'avatar.agent': 'Camelia',
+  'account.menu.feedback': 'Send feedback…',
+  'feedback.title': 'Feedback',
+  'feedback.type': 'Type',
+  'feedback.type.bug': 'Bug',
+  'feedback.type.idea': 'Idea',
+  'feedback.body': 'What happened / what you want',
+  'feedback.repro': 'Steps to reproduce (optional)',
+  'feedback.submit': 'Submit to GitHub',
+  'feedback.needLogin': 'Sign in with GitHub to send feedback',
+  'feedback.success': 'Opened issue',
+  'feedback.error': 'Could not create issue',
+  'feedback.repo': 'Feedback goes to',
+  'composer.effort': 'Effort',
+  'composer.effort.max': 'Max',
+  'composer.effort.high': 'High',
+  'composer.effort.low': 'Low',
+  'settings.presets.test': 'Test connection',
+  'settings.presets.testOk': 'Connected',
+  'settings.presets.testFail': 'Connection failed',
+  'settings.presets.modelsFound': 'models found',
+  'settings.presets.manualModels': 'Could not list models — enter model IDs manually',
+  'connection.reconnect': 'Reconnect',
+  'connection.liveHint': 'Engine stream is live',
+  'connection.offlineHonest': 'Offline — not pretending to be live',
   'panels.label': 'Run panels',
   'panels.close': 'Close panel',
   'panels.needsTask': 'no task yet',
@@ -675,6 +729,7 @@ const en: Record<StringKey, string> = {
   'mode.chat': 'Chat',
   'mode.plan': 'Plan',
   'mode.math': 'Math',
+  'mode.term': 'Term',
   'mode.eval': 'Eval',
   'mode.teach': 'Teach',
   'mode.more': 'More modes',
@@ -683,6 +738,8 @@ const en: Record<StringKey, string> = {
   'mode.chat.desc': 'Describe a task — the agent plans, runs and verifies it.',
   'mode.plan.desc': 'Review and edit the plan before any step runs.',
   'mode.math.desc': 'Mathematical modeling: assumptions, variables, equations, solver.',
+  'mode.term.desc': 'Team mode — multi-agent collaboration (UI MVP).',
+  'mode.term.stub': 'Term (team mode) is a UI stub. Sessions are filtered and created; orchestration lands later.',
   'mode.math.unavailable': 'The engine exposes no math commands yet — this workspace runs on a labelled demo.',
   'mode.switch.busy': 'A task is still running. Switching modes keeps it visible.',
   'mode.elsewhere': 'A task is running in {mode} mode.',
@@ -756,11 +813,13 @@ const en: Record<StringKey, string> = {
   'brand.transition': 'Camelia',
   'brand.placeholder.hint': 'Final name and mascot pending product decision.',
   'panel.memory': 'Memory',
+  'panel.artifacts': 'Artifacts',
   'panel.events': 'Events',
   'panel.run': 'Run',
   'panel.context': 'Context',
   'panel.sub': 'Sub-agents',
   'panel.model': 'Model',
+  'panel.artifacts.hint': 'Deliverables from the current run — files, diffs, stdout.',
   'panel.model.hint': 'Read-only model view. Editing lives in the math workspace.',
   'activity.running': 'Running',
 };
@@ -963,6 +1022,31 @@ const zh: Record<StringKey, string> = {
   'account.menu.openSettings': '账户设置…',
   'account.menu.cancel': '取消',
   'avatar.user': '你',
+  'avatar.agent': '山茶',
+  'account.menu.feedback': '反馈…',
+  'feedback.title': '反馈',
+  'feedback.type': '类型',
+  'feedback.type.bug': '缺陷',
+  'feedback.type.idea': '建议',
+  'feedback.body': '发生了什么 / 你想改什么',
+  'feedback.repro': '复现步骤（可选）',
+  'feedback.submit': '提交到 GitHub',
+  'feedback.needLogin': '请先用 GitHub 登录再反馈',
+  'feedback.success': '已创建 Issue',
+  'feedback.error': '无法创建 Issue',
+  'feedback.repo': '反馈仓库',
+  'composer.effort': '力度',
+  'composer.effort.max': 'Max',
+  'composer.effort.high': 'High',
+  'composer.effort.low': 'Low',
+  'settings.presets.test': '测试连通性',
+  'settings.presets.testOk': '已连通',
+  'settings.presets.testFail': '连通失败',
+  'settings.presets.modelsFound': '个模型',
+  'settings.presets.manualModels': '无法拉取模型列表 — 请手动填写模型 ID',
+  'connection.reconnect': '重新连接',
+  'connection.liveHint': '引擎事件流在线',
+  'connection.offlineHonest': '离线 — 不会假装在线',
   'panels.label': '运行面板',
   'panels.close': '关闭面板',
   'panels.needsTask': '还没有任务',
@@ -1046,7 +1130,8 @@ const zh: Record<StringKey, string> = {
   'mode.work': 'Work',
   'mode.chat': '对话',
   'mode.plan': '计划模式',
-  'mode.math': '数模',
+  'mode.math': 'Math',
+  'mode.term': 'Term',
   'mode.eval': '评测',
   'mode.teach': '教学',
   'mode.more': '更多模式',
@@ -1055,6 +1140,8 @@ const zh: Record<StringKey, string> = {
   'mode.chat.desc': '描述一个任务，代理会规划、执行并校验。',
   'mode.plan.desc': '在任何步骤执行前审阅并编辑计划。',
   'mode.math.desc': '数学建模：假设、变量、方程与求解。',
+  'mode.term.desc': '团队模式 — 多智能体协作（界面 MVP）。',
+  'mode.term.stub': 'Term（团队模式）目前是界面占位：可切换、可建会话；编排后端稍后接入。',
   'mode.math.unavailable': '引擎尚未提供数模命令——此工作区运行在明确标注的演示数据上。',
   'mode.switch.busy': '仍有任务在运行。切换模式不会让它消失。',
   'mode.elsewhere': '{mode}模式有一个任务正在运行。',
@@ -1128,11 +1215,13 @@ const zh: Record<StringKey, string> = {
   'brand.transition': 'Camelia',
   'brand.placeholder.hint': '最终名称与吉祥物待产品决策。',
   'panel.memory': '记忆',
+  'panel.artifacts': '产物',
   'panel.events': '事件',
   'panel.run': '运行',
   'panel.context': '上下文',
   'panel.sub': '子代理',
   'panel.model': '模型',
+  'panel.artifacts.hint': '当前运行的产物 — 文件、diff、stdout。',
   'panel.model.hint': '模型只读视图。编辑在主工作区进行。',
   'activity.running': '运行中',
 };

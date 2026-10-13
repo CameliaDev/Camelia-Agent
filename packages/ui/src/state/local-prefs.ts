@@ -53,6 +53,7 @@ export const RAIL_RIGHT_MAX = 480;
 export type TopBarMode = 'auto' | 'pinned' | 'hidden';
 export type MotionPref = 'system' | 'reduce';
 export type LanguagePref = 'en' | 'zh';
+export type EffortPref = 'max' | 'high' | 'low';
 
 /**
  * Which mark the user's own messages and the rail's profile row carry.
@@ -129,6 +130,8 @@ export interface LocalPrefs {
    * access is an explicit user decision, made once, next to the thing it changes.
    */
   chatPolicy: ChatPolicy;
+  /** Work-mode generation effort (composer chips). */
+  effort: EffortPref;
   window?: WindowGeometry;
 }
 
@@ -150,6 +153,7 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   githubAccount: null,
   displayName: '',
   chatPolicy: 'readonly-sandbox',
+  effort: 'high',
 };
 
 const THEME_IDS: readonly ThemeId[] = ['warm-dark', 'cool-dark', 'light', 'high-contrast'];
@@ -158,6 +162,7 @@ const TOP_BAR_MODES: readonly TopBarMode[] = ['auto', 'pinned', 'hidden'];
 const MOTION_PREFS: readonly MotionPref[] = ['system', 'reduce'];
 const USER_AVATAR_MODES: readonly UserAvatarMode[] = ['mascot', 'letter'];
 const CHAT_POLICIES: readonly ChatPolicy[] = ['readonly-sandbox', 'ask', 'full'];
+const EFFORTS: readonly EffortPref[] = ['max', 'high', 'low'];
 
 /**
  * Clamp a session-column width to the resizable range.
@@ -236,6 +241,9 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     chatPolicy: CHAT_POLICIES.includes(raw?.chatPolicy as ChatPolicy)
       ? (raw?.chatPolicy as ChatPolicy)
       : DEFAULT_LOCAL_PREFS.chatPolicy,
+    effort: EFFORTS.includes(raw?.effort as EffortPref)
+      ? (raw?.effort as EffortPref)
+      : DEFAULT_LOCAL_PREFS.effort,
     ...(window ? { window } : {}),
   };
 }

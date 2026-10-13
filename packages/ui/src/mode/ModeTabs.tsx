@@ -29,7 +29,7 @@ export function ModeTabs({
       role="tablist"
       aria-label={tr('mode.work')}
       data-mode-tabs
-      data-mode-segment="work-math"
+      data-mode-segment="work-math-term"
     >
       {MODE_REGISTRY.map((def) => {
         const active = def.id === mode;

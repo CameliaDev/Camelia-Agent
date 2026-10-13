@@ -52,6 +52,14 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
   const connection = CONNECTION_META[status];
   const desktop = isTauri();
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
+  const connectionStatusLabel =
+    status === 'live'
+      ? 'Live'
+      : status === 'connecting'
+        ? tr('provider.connecting')
+        : status === 'offline'
+          ? 'Offline'
+          : connection.label;
   const [panelOpen, setPanelOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -117,11 +125,12 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
           onClick={() => setPanelOpen((open) => !open)}
         >
           <StatusDot tone={connection.tone} pulse={status === 'live' || status === 'connecting'} />
-          <span>{connection.label}</span>
+          <span data-connection-status={status}>{connectionStatusLabel}</span>
         </button>
         {panelOpen ? (
           <ConnectionPanel
-            statusLabel={connection.label}
+            status={status}
+            statusLabel={connectionStatusLabel}
             tr={tr}
             onOpenSettings={() => {
               setPanelOpen(false);
@@ -150,11 +159,13 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
 }
 
 function ConnectionPanel({
+  status,
   statusLabel,
   tr,
   onOpenSettings,
   onClose,
 }: {
+  status: 'connecting' | 'live' | 'finished' | 'offline';
   statusLabel: string;
   tr: (key: Parameters<typeof t>[1]) => string;
   onOpenSettings: () => void;
@@ -181,8 +192,14 @@ function ConnectionPanel({
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('connection.panel')}</span>
-        <span className="text-[11px] text-ink-2">{statusLabel}</span>
+        <span className="text-[11px] text-ink-2" data-live-status={status}>{statusLabel}</span>
       </div>
+      {status === 'live' ? (
+        <p className="mb-2 text-[11.5px] text-ok">{tr('connection.liveHint')}</p>
+      ) : null}
+      {status === 'offline' ? (
+        <p className="mb-2 text-[11.5px] text-ink-3">{tr('connection.offlineHonest')}</p>
+      ) : null}
 
       {trust.expectsLiveEngine ? (
         <dl className="space-y-2 text-[12px]">
@@ -239,7 +256,7 @@ function ConnectionPanel({
                 });
               }}
             >
-              {tr('connection.restart')}
+              {status === 'offline' ? tr('connection.reconnect') : tr('connection.restart')}
             </button>
           </>
         ) : null}

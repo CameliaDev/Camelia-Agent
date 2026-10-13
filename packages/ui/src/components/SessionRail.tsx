@@ -56,12 +56,14 @@ export function SessionRail(): ReactNode {
   const needle = query.trim().toLowerCase();
   const kindFiltered = sessions.filter((session) => {
     const kind = (session as { kind?: string }).kind ?? 'work';
-    return mode === 'math' ? kind === 'math' : kind !== 'math';
+    if (mode === 'math') return kind === 'math';
+    if (mode === 'term') return kind === 'term';
+    return kind === 'work' || kind === 'chat' || !session.kind;
   });
   const listed = orderSessions(
     needle
-      ? sessions.filter((session) => `${session.title} ${session.provider} ${session.model}`.toLowerCase().includes(needle))
-      : sessions,
+      ? kindFiltered.filter((session) => `${session.title} ${session.provider} ${session.model}`.toLowerCase().includes(needle))
+      : kindFiltered,
     marks,
   );
   const pinnedRows = listed.filter((session) => marks.pinned.includes(session.id));

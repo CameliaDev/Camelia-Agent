@@ -254,8 +254,11 @@ export class FixtureTransport implements Transport {
       case 'new_session': {
         // One blank at a time: reuse a stable id per kind so tests and the rail
         // do not accumulate empty rows when 「新建」 is clicked repeatedly.
-        const kind = command.payload?.kind === 'math' ? 'math' : 'work';
-        const sessionId = kind === 'math' ? 'ses_blank_math' : 'ses_blank_work';
+        const rawKind = command.payload?.kind;
+        const kind: 'work' | 'math' | 'term' =
+          rawKind === 'math' ? 'math' : rawKind === 'term' ? 'term' : 'work';
+        const sessionId =
+          kind === 'math' ? 'ses_blank_math' : kind === 'term' ? 'ses_blank_term' : 'ses_blank_work';
         const blank = {
           id: sessionId,
           title: '新会话',

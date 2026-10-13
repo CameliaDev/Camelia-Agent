@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Camelia runtime — the composition root.
  *
  * This is the only place where a concrete implementation is chosen for every port:
@@ -1029,7 +1029,7 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
    * chat or a task is never reused here; the user asked for a clean slate, and
    * that only applies to rows that never held work.
    */
-  async newSession(kind: 'work' | 'math' = 'work'): Promise<{ sessionId: string }> {
+  async newSession(kind: 'work' | 'math' | 'term' = 'work'): Promise<{ sessionId: string }> {
     const recent = await this.store.listSessions();
     for (const candidate of recent) {
       if ((candidate.kind ?? 'work') !== kind) continue;

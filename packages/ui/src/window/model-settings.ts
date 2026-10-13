@@ -196,3 +196,47 @@ export async function relaunchDesktop(): Promise<string | null> {
     return error instanceof Error ? error.message : String(error);
   }
 }
+
+/**
+ * Probe an OpenAI-compatible endpoint: GET {base}/models (or /v1/models) with Bearer.
+ * Returns discovered model ids, or an error so the UI can fall back to manual entry.
+ */
+export async function testOpenAiCompatible(input: {
+  baseUrl: string;
+  apiKey?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<{ ok: true; models: string[] } | { ok: false; error: string }> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const raw = input.baseUrl.trim().replace(/\/$/, '');
+  if (!raw) return { ok: false, error: 'empty-url' };
+  const candidates = raw.endsWith('/v1')
+    ? [`${raw}/models`]
+    : [`${raw}/v1/models`, `${raw}/models`];
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const key = input.apiKey?.trim();
+  if (key) headers.Authorization = `Bearer ${key}`;
+  let lastError = 'unreachable';
+  for (const url of candidates) {
+    try {
+      const res = await fetchImpl(url, { headers });
+      if (!res.ok) {
+        lastError = `http-${res.status}`;
+        continue;
+      }
+      const body = (await res.json()) as { data?: unknown };
+      const models: string[] = [];
+      if (Array.isArray(body.data)) {
+        for (const row of body.data) {
+          if (row && typeof row === 'object' && typeof (row as { id?: unknown }).id === 'string') {
+            const id = (row as { id: string }).id.trim();
+            if (id) models.push(id);
+          }
+        }
+      }
+      return { ok: true, models };
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+  }
+  return { ok: false, error: lastError };
+}

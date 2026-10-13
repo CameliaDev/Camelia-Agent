@@ -29,9 +29,9 @@
  * same lifecycle in all three modes (`deriveProgress` maps chat's weighted progress and
  * plan's `task.status` onto this one axis). Chat used to draw the same information a
  * second way, as numbered circles per step; two renderings of one axis is how a UI starts
- * telling two stories. `deriveProgress({ mode: 'plan' })` is used for the stops even in
- * chat and math, because the *question* the stepper answers ("where is this task in its
- * lifecycle?") does not change when the workspace does.
+ * telling two stories. The stepper uses `planStageOf` for the axis in every mode, because
+ * the *question* it answers ("where is this task in its lifecycle?") does not change when
+ * the workspace does.
  *
  * The stop set is only drawn when there is a task. With no task there is no lifecycle, and
  * four empty pills would claim otherwise — so the slot is left blank and the header shows
@@ -48,8 +48,8 @@ import type { ReactNode } from 'react';
 
 import { TONE_TEXT } from '../lib/status.js';
 import { t } from '../i18n/strings.js';
-import { deriveProgress, planStageOf } from '../progress/deriveProgress.js';
-import type { PlanStage } from '../progress/types.js';
+import { planStageOf } from '../progress/deriveProgress.js';
+import type { PlanStage, ProgressTone } from '../progress/types.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { Icon } from '../components/primitives.js';
 import { PanelIcons } from '../components/PanelIcons.js';
@@ -89,8 +89,14 @@ export function LifecycleStepper({ compact }: { compact?: boolean }): ReactNode 
   const stage = planStageOf(task);
   const rejected = stage === 'rejected';
   const activeIdx = STOPS.findIndex((s) => s.stage === stage);
-  const projected = deriveProgress({ task, mode: 'plan', language }).progress;
-  const tone = projected.kind === 'plan' ? projected.tone : 'muted';
+  const PLAN_TONE: Record<PlanStage, ProgressTone> = {
+    draft: 'muted',
+    awaiting_approval: 'warn',
+    executing: 'info',
+    done: 'ok',
+    rejected: 'bad',
+  };
+  const tone = PLAN_TONE[stage];
 
   return (
     <ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" data-plan-lifecycle>

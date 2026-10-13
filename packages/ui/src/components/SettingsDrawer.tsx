@@ -19,6 +19,7 @@ import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
 import { relaunchDesktop, writePlanApproval } from '../window/model-settings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
+import { FeedbackForm } from './FeedbackForm.js';
 import { MODE_REGISTRY } from '../mode/ModeRegistry.js';
 import type { AppModeId } from '../mode/types.js';
 import { openEngineLog, readEngineLog, readEngineTrust } from '../window/engine.js';
@@ -56,6 +57,7 @@ export function SettingsDrawer(): ReactNode {
     { id: 'connections', label: tr('settings.section.connections'), icon: 'layers' },
     { id: 'appearance', label: tr('settings.section.appearance'), icon: 'theme' },
     { id: 'engine', label: tr('settings.section.engine'), icon: 'terminal' },
+    { id: 'feedback', label: tr('feedback.title'), icon: 'chat' },
     { id: 'about', label: tr('settings.section.about'), icon: 'info' },
   ];
 
@@ -119,7 +121,14 @@ export function SettingsDrawer(): ReactNode {
             {section === 'connections' ? <ConnectionsSection tr={tr} /> : null}
             {section === 'appearance' ? <AppearanceSection tr={tr} /> : null}
             {section === 'engine' ? <EngineSection tr={tr} /> : null}
-            {section === 'about' ? <AboutSection tr={tr} /> : null}
+            {section === 'feedback' ? (
+        <FeedbackForm
+          onNeedLogin={() => {
+            setSettingsSection('account');
+          }}
+        />
+      ) : null}
+      {section === 'about' ? <AboutSection tr={tr} /> : null}
           </div>
         </div>
       </div>
