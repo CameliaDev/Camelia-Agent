@@ -743,6 +743,77 @@ fn open_external_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn github_device_code(client_id: String, scope: String) -> Result<serde_json::Value, String> {
+    let client_id = client_id.trim();
+    if client_id.is_empty() {
+        return Err("missing-client-id".into());
+    }
+    let scope = if scope.trim().is_empty() {
+        "read:user public_repo".to_string()
+    } else {
+        scope.trim().to_string()
+    };
+    let body = format!("client_id={}&scope={}", urlencoding_form(client_id), urlencoding_form(&scope));
+    let raw = curl_github_form("https://github.com/login/device/code", &body)?;
+    Ok(raw)
+}
+
+#[tauri::command]
+fn github_device_poll(client_id: String, device_code: String) -> Result<serde_json::Value, String> {
+    let client_id = client_id.trim();
+    let device_code = device_code.trim();
+    if client_id.is_empty() {
+        return Err("missing-client-id".into());
+    }
+    if device_code.is_empty() {
+        return Err("missing-device-code".into());
+    }
+    let body = format!(
+        "client_id={}&device_code={}&grant_type={}",
+        urlencoding_form(client_id),
+        urlencoding_form(device_code),
+        urlencoding_form("urn:ietf:params:oauth:grant-type:device_code")
+    );
+    let raw = curl_github_form("https://github.com/login/oauth/access_token", &body)?;
+    Ok(raw)
+}
+
+fn urlencoding_form(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for b in value.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b' ' => out.push('+'),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+fn curl_github_form(url: &str, body: &str) -> Result<serde_json::Value, String> {
+    let output = hidden_command("curl")
+        .args([
+            "-sS",
+            "-X",
+            "POST",
+            url,
+            "-H",
+            "Accept: application/json",
+            "-H",
+            "Content-Type: application/x-www-form-urlencoded",
+            "--data",
+            body,
+        ])
+        .output()
+        .map_err(|err| format!("curl failed to start: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("curl exit {}: {stderr}", output.status));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    serde_json::from_str(text.trim()).map_err(|err| format!("github response was not JSON: {err}; body={text}"))
+}
+#[tauri::command]
 fn open_engine_log() -> Result<String, String> {
     let path = engine_log_path();
     // Open the log file in the default text editor.
@@ -1107,6 +1178,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             open_external_url,
+            github_device_code,
+            github_device_poll,
             open_engine_log,
             read_engine_log,
             read_model_settings,

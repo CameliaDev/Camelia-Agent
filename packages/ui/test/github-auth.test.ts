@@ -1,5 +1,5 @@
 /**
- * GitHub account helpers — profile fetch + token storage (UI-local).
+ * GitHub account helpers — profile fetch, token storage, device flow (UI-local).
  * @module
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,9 +8,14 @@ import {
   GITHUB_TOKEN_KEY,
   clearGithubToken,
   fetchGithubProfile,
+  loginWithGithubDeviceFlow,
   loginWithGithubToken,
   logoutGithub,
+  pollGithubDeviceFlow,
+  readGithubOAuthClientId,
   readGithubToken,
+  startGithubDeviceFlow,
+  writeGithubOAuthClientId,
   writeGithubToken,
 } from '../src/window/github-auth.js';
 
@@ -99,5 +104,78 @@ describe('loginWithGithubToken', () => {
 
     logoutGithub(storage);
     expect(readGithubToken(storage)).toBe('');
+  });
+});
+
+describe('github device flow', () => {
+  it('refuses to start without a client id', async () => {
+    const storage = memoryStorage();
+    const started = await startGithubDeviceFlow({ storage, clientId: '' });
+    expect(started).toEqual({ ok: false, error: 'missing-client-id' });
+  });
+
+  it('stores a client id override and completes a mocked device login', async () => {
+    const storage = memoryStorage();
+    writeGithubOAuthClientId('Ov23testclient', storage);
+    expect(readGithubOAuthClientId(storage)).toBe('Ov23testclient');
+
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/login/device/code')) {
+        return new Response(
+          JSON.stringify({
+            device_code: 'dc_1',
+            user_code: 'ABCD-1234',
+            verification_uri: 'https://github.com/login/device',
+            expires_in: 900,
+            interval: 0,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url.includes('/login/oauth/access_token')) {
+        return new Response(JSON.stringify({ access_token: 'gho_device' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('api.github.com/user')) {
+        return new Response(JSON.stringify({ login: 'dev', name: 'Dev', avatar_url: 'https://x/d.png' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('nope', { status: 404 });
+    });
+
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    const seen: string[] = [];
+    vi.useFakeTimers();
+    const pending = loginWithGithubDeviceFlow({
+      storage,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      onUserCode: (d) => seen.push(d.userCode),
+    });
+    await vi.runAllTimersAsync();
+    const result = await pending;
+    vi.useRealTimers();
+    expect(seen).toEqual(['ABCD-1234']);
+    expect(result).toEqual({
+      ok: true,
+      profile: { login: 'dev', name: 'Dev', avatarUrl: 'https://x/d.png' },
+    });
+    expect(readGithubToken(storage)).toBe('gho_device');
+    expect(openSpy).toHaveBeenCalled();
+    openSpy.mockRestore();
+
+    const pollPending = await pollGithubDeviceFlow('dc_1', {
+      storage,
+      fetchImpl: (async () =>
+        new Response(JSON.stringify({ error: 'authorization_pending' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })) as unknown as typeof fetch,
+    });
+    expect(pollPending).toEqual({ status: 'pending' });
   });
 });

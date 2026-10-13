@@ -10,7 +10,7 @@
  * @module
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { makeCommand, type SettingsSection } from '../state/store.js';
 import { useUiStore } from '../state/UiProvider.js';
@@ -27,9 +27,14 @@ import { isTauri } from '../window/shell.js';
 import { Avatar, Icon, userAvatarSrc } from './primitives.js';
 import {
   GITHUB_CLASSIC_TOKEN_URL,
+  GITHUB_OAUTH_APP_NEW_URL,
+  loginWithGithubDeviceFlow,
   loginWithGithubToken,
   logoutGithub,
   openExternalUrl,
+  readGithubOAuthClientId,
+  writeGithubOAuthClientId,
+  type GithubDeviceCode,
 } from '../window/github-auth.js';
 
 const MONO_OPTIONS: Array<{ value: string; label: string }> = [
@@ -141,23 +146,66 @@ function AccountSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }
   const prefs = useUiStore((s) => s.localPrefs);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const [token, setToken] = useState('');
+  const [clientIdDraft, setClientIdDraft] = useState(() => readGithubOAuthClientId());
+  const [device, setDevice] = useState<GithubDeviceCode | null>(null);
+  const [showPat, setShowPat] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
   const github = prefs.githubAccount;
 
-  async function signIn(): Promise<void> {
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  function mapError(error: string): Parameters<typeof t>[1] {
+    const map: Record<string, Parameters<typeof t>[1]> = {
+      'empty-token': 'account.github.error.empty',
+      unauthorized: 'account.github.error.unauthorized',
+      offline: 'account.github.error.offline',
+      malformed: 'account.github.error.malformed',
+      'missing-client-id': 'account.github.error.missingClientId',
+      expired: 'account.github.error.expired',
+      denied: 'account.github.error.denied',
+      cancelled: 'account.github.error.cancelled',
+    };
+    return map[error] ?? 'account.github.error.generic';
+  }
+
+  async function signInDevice(): Promise<void> {
+    if (clientIdDraft.trim()) writeGithubOAuthClientId(clientIdDraft.trim());
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setBusy(true);
+    setNote('');
+    setDevice(null);
+    setShowPat(false);
+    try {
+      const result = await loginWithGithubDeviceFlow({
+        signal: ac.signal,
+        onUserCode: (d) => setDevice(d),
+      });
+      if (!result.ok) {
+        setNote(tr(mapError(result.error)));
+        return;
+      }
+      setLocalPrefs({
+        githubAccount: result.profile,
+        displayName: prefs.displayName.trim() ? prefs.displayName : result.profile.name,
+      });
+      setDevice(null);
+      setNote(tr('account.github.signedIn'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signInPat(): Promise<void> {
     setBusy(true);
     setNote('');
     try {
       const result = await loginWithGithubToken(token);
       if (!result.ok) {
-        const map: Record<string, Parameters<typeof t>[1]> = {
-          'empty-token': 'account.github.error.empty',
-          unauthorized: 'account.github.error.unauthorized',
-          offline: 'account.github.error.offline',
-          malformed: 'account.github.error.malformed',
-        };
-        setNote(tr(map[result.error] ?? 'account.github.error.generic'));
+        setNote(tr(mapError(result.error)));
         return;
       }
       setLocalPrefs({
@@ -165,6 +213,7 @@ function AccountSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }
         displayName: prefs.displayName.trim() ? prefs.displayName : result.profile.name,
       });
       setToken('');
+      setShowPat(false);
       setNote(tr('account.github.signedIn'));
     } finally {
       setBusy(false);
@@ -172,9 +221,11 @@ function AccountSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }
   }
 
   function signOut(): void {
+    abortRef.current?.abort();
     logoutGithub();
     setLocalPrefs({ githubAccount: null });
     setNote(tr('account.github.signedOut'));
+    setDevice(null);
   }
 
   return (
@@ -187,7 +238,7 @@ function AccountSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }
             <Avatar kind="user" size={40} src={userAvatarSrc(prefs.userAvatar, github)} title={github.login} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-medium text-ink">{github.name}</p>
-              <p className="truncate font-mono text-[11px] text-ink-3">@{github.login}</p>
+              <p className="truncate font-mono text-[11px] text-ink-3">{`@${github.login}`}</p>
             </div>
             <button
               type="button"
@@ -200,45 +251,120 @@ function AccountSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }
           </div>
         ) : (
           <div className="space-y-2 rounded-lg border border-line bg-base/50 p-3" data-github-login>
-            <div className="flex flex-wrap gap-1.5">
+            {!readGithubOAuthClientId() && !clientIdDraft.trim() ? (
+              <div className="space-y-1.5" data-github-client-id>
+                <p className="text-[11px] leading-4 text-ink-3">{tr('account.github.clientIdHint')}</p>
+                <button
+                  type="button"
+                  data-github-open-oauth-app
+                  className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
+                  onClick={() => {
+                    void openExternalUrl(GITHUB_OAUTH_APP_NEW_URL).then((err) => {
+                      if (err) setNote(err);
+                    });
+                  }}
+                >
+                  {tr('account.github.openOauthAppPage')}
+                </button>
+                <label className="block text-[12px] text-ink-2">
+                  {tr('account.github.clientId')}
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    data-github-client-id-input
+                    className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
+                    value={clientIdDraft}
+                    placeholder="Ov23…"
+                    onChange={(event) => setClientIdDraft(event.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
+            {device ? (
+              <div className="space-y-1.5 text-center" data-github-device>
+                <p className="text-[11px] text-ink-3">{tr('account.github.deviceCodeHint')}</p>
+                <p data-github-user-code className="select-all font-mono text-[22px] font-semibold tracking-[0.12em] text-ink">
+                  {device.userCode}
+                </p>
+                <button
+                  type="button"
+                  data-github-open-verify
+                  className="rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[12px] text-accent hover:bg-accent/15"
+                  onClick={() => {
+                    void openExternalUrl(device.verificationUri);
+                  }}
+                >
+                  {tr('account.github.openBrowser')}
+                </button>
+                <p className="text-[11px] text-ink-3">{busy ? tr('account.github.waiting') : null}</p>
+              </div>
+            ) : (
               <button
                 type="button"
-                data-github-open-token
-                className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
+                data-github-login
+                disabled={busy || (!readGithubOAuthClientId() && !clientIdDraft.trim())}
+                className="rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[12px] text-accent hover:bg-accent/15 disabled:opacity-40"
                 onClick={() => {
-                  void openExternalUrl(GITHUB_CLASSIC_TOKEN_URL).then((err) => {
-                    if (err) setNote(err);
-                  });
+                  void signInDevice();
                 }}
               >
-                {tr('account.github.openTokenPage')}
+                {tr('account.github.login')}
               </button>
-            </div>
-            <label className="block text-[12px] text-ink-2">
-              {tr('account.github.token')}
-              <input
-                type="password"
-                autoComplete="off"
-                aria-label={tr('account.github.token')}
-                data-github-token
-                className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
-                value={token}
-                placeholder="ghp_…"
-                onChange={(event) => setToken(event.target.value)}
-              />
-            </label>
-            <p className="text-[10.5px] leading-4 text-ink-3">{tr('account.github.tokenHint')}</p>
+            )}
             <button
               type="button"
-              data-github-login
-              disabled={busy || !token.trim()}
-              className="rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[12px] text-accent hover:bg-accent/15 disabled:opacity-40"
+              data-github-use-pat
+              className="text-left text-[11px] text-ink-3 hover:text-accent"
               onClick={() => {
-                void signIn();
+                abortRef.current?.abort();
+                setShowPat((v) => !v);
+                setDevice(null);
+                setBusy(false);
               }}
             >
-              {tr('account.github.login')}
+              {tr('account.github.usePat')}
             </button>
+            {showPat ? (
+              <div className="space-y-2 border-t border-line pt-2" data-github-pat>
+                <button
+                  type="button"
+                  data-github-open-token
+                  className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
+                  onClick={() => {
+                    void openExternalUrl(GITHUB_CLASSIC_TOKEN_URL).then((err) => {
+                      if (err) setNote(err);
+                    });
+                  }}
+                >
+                  {tr('account.github.openTokenPage')}
+                </button>
+                <label className="block text-[12px] text-ink-2">
+                  {tr('account.github.token')}
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    aria-label={tr('account.github.token')}
+                    data-github-token
+                    className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
+                    value={token}
+                    placeholder="ghp_…"
+                    onChange={(event) => setToken(event.target.value)}
+                  />
+                </label>
+                <p className="text-[10.5px] leading-4 text-ink-3">{tr('account.github.tokenHint')}</p>
+                <button
+                  type="button"
+                  data-github-login-pat
+                  disabled={busy || !token.trim()}
+                  className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent disabled:opacity-40"
+                  onClick={() => {
+                    void signInPat();
+                  }}
+                >
+                  {tr('account.github.login')}
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
         {note ? <p className="text-[12px] text-ink-2" data-github-note>{note}</p> : null}

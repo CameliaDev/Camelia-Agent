@@ -226,6 +226,18 @@ type StringKey =
 | 'account.github.error.offline'
 | 'account.github.error.malformed'
 | 'account.github.error.generic'
+| 'account.github.usePat'
+| 'account.github.useDeviceFlow'
+| 'account.github.deviceCodeHint'
+| 'account.github.openBrowser'
+| 'account.github.waiting'
+| 'account.github.clientId'
+| 'account.github.clientIdHint'
+| 'account.github.openOauthAppPage'
+| 'account.github.error.missingClientId'
+| 'account.github.error.expired'
+| 'account.github.error.denied'
+| 'account.github.error.cancelled'
   | 'avatar.user'
   | 'avatar.agent'
   | 'account.menu.feedback'
@@ -672,7 +684,7 @@ const en: Record<StringKey, string> = {
   'statusBar.elapsedHint': 'Time since this task started',
   'settings.section.account': 'Account',
   'account.github.title': 'GitHub',
-  'account.github.hint': 'Sign in so your messages use your GitHub avatar. The token stays on this device and never reaches the engine.',
+  'account.github.hint': 'Sign in with GitHub (browser code, like VS Code). Your avatar is used in chat; the token stays on this device and never reaches the engine.',
   'account.github.login': 'Sign in with GitHub',
   'account.github.logout': 'Sign out',
   'account.github.openTokenPage': 'Open GitHub token page',
@@ -685,6 +697,18 @@ const en: Record<StringKey, string> = {
   'account.github.error.offline': 'Could not reach api.github.com — check the network.',
   'account.github.error.malformed': 'GitHub returned an unexpected profile payload.',
   'account.github.error.generic': 'GitHub sign-in failed.',
+  'account.github.usePat': 'Use a personal access token instead',
+  'account.github.useDeviceFlow': 'Sign in with browser code instead',
+  'account.github.deviceCodeHint': 'Enter this code on GitHub when asked.',
+  'account.github.openBrowser': 'Open GitHub in browser',
+  'account.github.waiting': 'Waiting for authorization…',
+  'account.github.clientId': 'OAuth App client ID',
+  'account.github.clientIdHint': 'One-time setup: create a GitHub OAuth App (device flow needs a public client ID; no secret). Callback URL can be http://127.0.0.1.',
+  'account.github.openOauthAppPage': 'Open GitHub OAuth App page',
+  'account.github.error.missingClientId': 'GitHub OAuth client ID is not configured yet.',
+  'account.github.error.expired': 'The device code expired — try again.',
+  'account.github.error.denied': 'GitHub authorization was denied.',
+  'account.github.error.cancelled': 'Sign-in cancelled.',
   'settings.section.connections': 'Connection presets',
   'settings.section.appearance': 'Language & appearance',
   'settings.section.engine': 'Engine & logs',
@@ -1082,7 +1106,7 @@ const zh: Record<StringKey, string> = {
   'statusBar.elapsedHint': '本任务开始至今',
   'settings.section.account': '账户',
   'account.github.title': 'GitHub',
-  'account.github.hint': '登录后，你的消息会使用 GitHub 头像。令牌只留在本机，不会发给引擎。',
+  'account.github.hint': '用 GitHub 登录（浏览器验证码，类似 VS Code）。消息会使用你的头像；令牌只留在本机，不会发给引擎。',
   'account.github.login': '用 GitHub 登录',
   'account.github.logout': '退出登录',
   'account.github.openTokenPage': '打开 GitHub 令牌页',
@@ -1095,6 +1119,18 @@ const zh: Record<StringKey, string> = {
   'account.github.error.offline': '无法连接 api.github.com，请检查网络。',
   'account.github.error.malformed': 'GitHub 返回了异常的资料数据。',
   'account.github.error.generic': 'GitHub 登录失败。',
+  'account.github.usePat': '改用个人访问令牌',
+  'account.github.useDeviceFlow': '改用浏览器验证码登录',
+  'account.github.deviceCodeHint': '在 GitHub 提示时输入此验证码。',
+  'account.github.openBrowser': '在浏览器中打开 GitHub',
+  'account.github.waiting': '等待授权…',
+  'account.github.clientId': 'OAuth App Client ID',
+  'account.github.clientIdHint': '首次需要配置：在 GitHub 创建一个 OAuth App（设备码流程只需公开的 Client ID，不需要 Secret）。Callback URL 可填 http://127.0.0.1。',
+  'account.github.openOauthAppPage': '打开 GitHub OAuth App 创建页',
+  'account.github.error.missingClientId': '尚未配置 GitHub OAuth Client ID。',
+  'account.github.error.expired': '验证码已过期，请重试。',
+  'account.github.error.denied': '已拒绝 GitHub 授权。',
+  'account.github.error.cancelled': '已取消登录。',
   'settings.section.connections': '连接预设',
   'settings.section.appearance': '语言与外观',
   'settings.section.engine': '引擎与日志',
