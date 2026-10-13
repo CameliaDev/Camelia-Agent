@@ -696,6 +696,30 @@ fn boot_script(
 }
 
 #[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+        return Err("only http(s) URLs are allowed".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", trimmed])
+            .spawn()
+            .map_err(|err| format!("failed to open URL: {err}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+        std::process::Command::new(opener)
+            .arg(trimmed)
+            .spawn()
+            .map_err(|err| format!("failed to open URL: {err}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn open_engine_log() -> Result<String, String> {
     let path = engine_log_path();
     // Open the log file in the default text editor.
@@ -1053,6 +1077,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            open_external_url,
             open_engine_log,
             read_engine_log,
             read_model_settings,

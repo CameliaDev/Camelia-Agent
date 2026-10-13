@@ -131,3 +131,16 @@ html[data-motion='reduce'] [data-step-status='running'],
 html[data-motion='reduce'] [data-step-status='verifying'] {
   animation: none;
 }
+
+/* Soft user bubbles — Ink Light accent is near-black; WeChat-style soft tint instead. */
+html[data-theme='light'] .wf-bubble-user {
+  background: #e8f1fb !important;
+  color: #1a1a1a !important;
+  border: 1px solid #c9ddf2 !important;
+  box-shadow: 0 1px 2px rgba(43, 108, 176, 0.06);
+}
+html[data-theme='light'] .wf-avatar-user {
+  background: #2b6cb0 !important;
+  color: #ffffff !important;
+  border-color: #2b6cb0 !important;
+}

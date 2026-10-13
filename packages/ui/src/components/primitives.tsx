@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 
 import mascotUrl from '../assets/mascot.png';
 
-import type { UserAvatarMode } from '../state/local-prefs.js';
+import type { GithubAccountPrefs, UserAvatarMode } from '../state/local-prefs.js';
 
 import { TONE_BG, TONE_DOT, TONE_TEXT, type Tone } from '../lib/status.js';
 
@@ -309,13 +309,16 @@ export function Avatar({
 }
 
 /**
- * Resolve the user's avatar image from the preference.
+ * Resolve the user's avatar image.
  *
- * `undefined` means "draw the letter disc" — the documented behaviour of
- * `UserAvatarMode`. Keeping the mapping here means a future upload-backed mode only
- * has to change this function, not the four call sites that render a user avatar.
+ * GitHub profile wins when signed in (user bubbles use the GitHub avatar).
+ * Otherwise `mascot` → product mark, `letter` → undefined (letter disc).
  */
-export function userAvatarSrc(mode: UserAvatarMode): string | undefined {
+export function userAvatarSrc(
+  mode: UserAvatarMode,
+  github?: GithubAccountPrefs | null,
+): string | undefined {
+  if (github?.avatarUrl) return github.avatarUrl;
   return mode === 'letter' ? undefined : mascotUrl;
 }
 

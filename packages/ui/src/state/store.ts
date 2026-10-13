@@ -116,7 +116,7 @@ export interface UiState {
    * Which settings page is showing. Ephemeral, like the drawer itself.
    *
    * It lives on the store rather than inside the drawer because the shell has two entries
-   * that open *different* pages — the rail's account mark lands on appearance, the gear on
+   * that open *different* pages — the rail's account mark lands on account, the gear on
    * the first page — and a drawer-local `useState` cannot be told where to start.
    */
   settingsSection: SettingsSection;
@@ -180,7 +180,7 @@ export interface UiState {
 export type UiStore = UseBoundStore<StoreApi<UiState>>;
 
 /** The pages the settings drawer can show. Defined here so the shell can name one. */
-export type SettingsSection = 'connections' | 'appearance' | 'engine' | 'about';
+export type SettingsSection = 'account' | 'connections' | 'appearance' | 'engine' | 'about';
 
 /** Build a well-formed command envelope. The transport owns delivery; this owns shape. */
 export function makeCommand<T extends CommandType>(

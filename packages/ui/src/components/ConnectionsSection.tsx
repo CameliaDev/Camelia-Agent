@@ -25,6 +25,7 @@ import {
   uniqueProviderId,
   type ConnectionPresetCard,
 } from '../window/provider-presets.js';
+import { providerAvatarSrc } from '../lib/provider-avatars.js';
 
 type Tr = (key: Parameters<typeof t>[1]) => string;
 
@@ -242,6 +243,13 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
             className={`rounded-lg border px-3 py-2.5 ${card.active ? 'border-accent/40 bg-accent/[0.06]' : 'border-line bg-base/40'}`}
           >
             <div className="flex items-start gap-2">
+              <img
+                src={providerAvatarSrc(card.id)}
+                alt=""
+                data-preset-avatar={card.id}
+                className="mt-0.5 h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line"
+                draggable={false}
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <p className="text-[13px] font-medium text-ink">{card.name}</p>

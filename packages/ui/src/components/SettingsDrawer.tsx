@@ -23,7 +23,13 @@ import { MODE_REGISTRY } from '../mode/ModeRegistry.js';
 import type { AppModeId } from '../mode/types.js';
 import { openEngineLog, readEngineLog, readEngineTrust } from '../window/engine.js';
 import { isTauri } from '../window/shell.js';
-import { Avatar, Icon } from './primitives.js';
+import { Avatar, Icon, userAvatarSrc } from './primitives.js';
+import {
+  GITHUB_CLASSIC_TOKEN_URL,
+  loginWithGithubToken,
+  logoutGithub,
+  openExternalUrl,
+} from '../window/github-auth.js';
 
 const MONO_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '', label: 'JetBrains Mono' },
@@ -46,6 +52,7 @@ export function SettingsDrawer(): ReactNode {
   if (!open) return null;
 
   const nav: Array<{ id: SettingsSection; label: string; icon: string }> = [
+    { id: 'account', label: tr('settings.section.account'), icon: 'user' },
     { id: 'connections', label: tr('settings.section.connections'), icon: 'layers' },
     { id: 'appearance', label: tr('settings.section.appearance'), icon: 'theme' },
     { id: 'engine', label: tr('settings.section.engine'), icon: 'terminal' },
@@ -108,6 +115,7 @@ export function SettingsDrawer(): ReactNode {
                 </ul>
               </div>
             ) : null}
+            {section === 'account' ? <AccountSection tr={tr} /> : null}
             {section === 'connections' ? <ConnectionsSection tr={tr} /> : null}
             {section === 'appearance' ? <AppearanceSection tr={tr} /> : null}
             {section === 'engine' ? <EngineSection tr={tr} /> : null}
@@ -115,6 +123,130 @@ export function SettingsDrawer(): ReactNode {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function AccountSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }): ReactNode {
+  const prefs = useUiStore((s) => s.localPrefs);
+  const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+  const github = prefs.githubAccount;
+
+  async function signIn(): Promise<void> {
+    setBusy(true);
+    setNote('');
+    try {
+      const result = await loginWithGithubToken(token);
+      if (!result.ok) {
+        const map: Record<string, Parameters<typeof t>[1]> = {
+          'empty-token': 'account.github.error.empty',
+          unauthorized: 'account.github.error.unauthorized',
+          offline: 'account.github.error.offline',
+          malformed: 'account.github.error.malformed',
+        };
+        setNote(tr(map[result.error] ?? 'account.github.error.generic'));
+        return;
+      }
+      setLocalPrefs({
+        githubAccount: result.profile,
+        displayName: prefs.displayName.trim() ? prefs.displayName : result.profile.name,
+      });
+      setToken('');
+      setNote(tr('account.github.signedIn'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function signOut(): void {
+    logoutGithub();
+    setLocalPrefs({ githubAccount: null });
+    setNote(tr('account.github.signedOut'));
+  }
+
+  return (
+    <div className="space-y-5" data-account-section>
+      <section className="space-y-3">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('account.github.title')}</h3>
+        <p className="text-[12px] leading-5 text-ink-2">{tr('account.github.hint')}</p>
+        {github ? (
+          <div className="flex items-center gap-3 rounded-lg border border-line bg-base/50 px-3 py-2.5" data-github-profile>
+            <Avatar kind="user" size={40} src={userAvatarSrc(prefs.userAvatar, github)} title={github.login} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-ink">{github.name}</p>
+              <p className="truncate font-mono text-[11px] text-ink-3">@{github.login}</p>
+            </div>
+            <button
+              type="button"
+              data-github-logout
+              className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-bad/40 hover:text-bad"
+              onClick={() => signOut()}
+            >
+              {tr('account.github.logout')}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-lg border border-line bg-base/50 p-3" data-github-login>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                data-github-open-token
+                className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:border-accent/40 hover:text-accent"
+                onClick={() => {
+                  void openExternalUrl(GITHUB_CLASSIC_TOKEN_URL).then((err) => {
+                    if (err) setNote(err);
+                  });
+                }}
+              >
+                {tr('account.github.openTokenPage')}
+              </button>
+            </div>
+            <label className="block text-[12px] text-ink-2">
+              {tr('account.github.token')}
+              <input
+                type="password"
+                autoComplete="off"
+                aria-label={tr('account.github.token')}
+                data-github-token
+                className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 font-mono text-[12px] text-ink"
+                value={token}
+                placeholder="ghp_…"
+                onChange={(event) => setToken(event.target.value)}
+              />
+            </label>
+            <p className="text-[10.5px] leading-4 text-ink-3">{tr('account.github.tokenHint')}</p>
+            <button
+              type="button"
+              data-github-login
+              disabled={busy || !token.trim()}
+              className="rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-[12px] text-accent hover:bg-accent/15 disabled:opacity-40"
+              onClick={() => {
+                void signIn();
+              }}
+            >
+              {tr('account.github.login')}
+            </button>
+          </div>
+        )}
+        {note ? <p className="text-[12px] text-ink-2" data-github-note>{note}</p> : null}
+      </section>
+      <section className="space-y-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{tr('settings.appearance.displayName')}</h3>
+        <input
+          type="text"
+          maxLength={48}
+          aria-label={tr('settings.appearance.displayName')}
+          placeholder={github?.name || tr('account.defaultUser')}
+          className="w-full rounded-md border border-line bg-base px-2 py-1.5 text-[12px] text-ink placeholder:text-ink-3"
+          value={prefs.displayName}
+          onChange={(event) => setLocalPrefs({ displayName: event.target.value })}
+        />
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.appearance.displayName.hint')}</p>
+      </section>
     </div>
   );
 }

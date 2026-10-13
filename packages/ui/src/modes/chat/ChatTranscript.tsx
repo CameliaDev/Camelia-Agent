@@ -18,7 +18,8 @@ import type { ChatTurnView, ToolCallView } from '@camelia/agent/view';
 import { t } from '../../i18n/strings.js';
 import { makeCommand } from '../../state/store.js';
 import { useUiState, useUiStore } from '../../state/UiProvider.js';
-import { Icon } from '../../components/primitives.js';
+import { Avatar, Icon, userAvatarSrc } from '../../components/primitives.js';
+import { providerAvatarSrc } from '../../lib/provider-avatars.js';
 import { TaskRunCard } from '../../components/TaskRunCard.js';
 import { CollapsibleBlock } from '../../components/CollapsibleBlock.js';
 import { ms } from '../../lib/format.js';
@@ -91,17 +92,35 @@ export function ChatTranscript(): ReactNode {
 }
 
 function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
+  const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
+  const userAvatar = useUiStore((s) => s.localPrefs.userAvatar);
+  const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const activeProvider = useUiStore((s) => s.snapshot.provider.activeProvider);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+
   if (turn.role === 'user') {
     return (
-      <div className="flex justify-end" data-chat-user>
+      <div className="flex items-end justify-end gap-2" data-chat-user data-message="user">
         <div className="wf-bubble-user max-w-[80%] px-3.5 py-2.5">
           <p className="whitespace-pre-wrap text-[13.5px] leading-6">{turn.text}</p>
         </div>
+        {showAvatars ? (
+          <Avatar kind="user" size={32} title={tr('avatar.user')} src={userAvatarSrc(userAvatar, githubAccount)} />
+        ) : null}
       </div>
     );
   }
   return (
-    <div className="flex justify-start" data-chat-assistant>
+    <div className="flex items-end justify-start gap-2" data-chat-assistant data-message="assistant">
+      {showAvatars ? (
+        <Avatar
+          kind="agent"
+          size={32}
+          title={tr('avatar.agent')}
+          src={providerAvatarSrc(activeProvider)}
+        />
+      ) : null}
       <div className="wf-bubble-agent max-w-[85%] px-3.5 py-2.5">
         {turn.toolCalls.map((call) => (
           <ChatToolRow key={call.id} call={call} />

@@ -29,8 +29,9 @@ export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
  *      Stored `rightWidth` / `rightCollapsed` are dropped, not migrated.
  * v7 — `chatPolicy` added.
  * v8 — Work|Math modes; right rail prefs restored (F3); preferredMode chat/plan → work.
+ * v9 — githubAccount (public profile; token in separate localStorage key).
  */
-export const LOCAL_PREFS_VERSION = 8;
+export const LOCAL_PREFS_VERSION = 9;
 
 export const RAIL_LEFT_DEFAULT = 260;
 export const RAIL_COLLAPSED = 48;
@@ -61,6 +62,13 @@ export type LanguagePref = 'en' | 'zh';
  * anyone who finds a photographic mark beside their own words odd.
  */
 export type UserAvatarMode = 'mascot' | 'letter';
+
+/** Public GitHub profile for the account mark and user message avatars. */
+export interface GithubAccountPrefs {
+  login: string;
+  name: string;
+  avatarUrl: string;
+}
 
 export interface WindowGeometry {
   x: number;
@@ -108,6 +116,8 @@ export interface LocalPrefs {
    * — it never reaches `snapshot`. See `UserAvatarMode`.
    */
   userAvatar: UserAvatarMode;
+  /** When set, user bubbles / rail prefer avatarUrl over userAvatar. */
+  githubAccount: GithubAccountPrefs | null;
   /**
    * Name shown in the rail's bottom profile row. Empty means "use the built-in label"
    * (`UserAvatarMode`'s sibling decision: nothing to configure, nothing invented).
@@ -137,6 +147,7 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   preferredMode: DEFAULT_MODE,
   showAvatars: true,
   userAvatar: 'mascot',
+  githubAccount: null,
   displayName: '',
   chatPolicy: 'readonly-sandbox',
 };
@@ -220,12 +231,23 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     userAvatar: USER_AVATAR_MODES.includes(raw?.userAvatar as UserAvatarMode)
       ? (raw?.userAvatar as UserAvatarMode)
       : DEFAULT_LOCAL_PREFS.userAvatar,
+    githubAccount: sanitizeGithubAccount(raw?.githubAccount),
     displayName: typeof raw?.displayName === 'string' ? raw.displayName.slice(0, 48) : '',
     chatPolicy: CHAT_POLICIES.includes(raw?.chatPolicy as ChatPolicy)
       ? (raw?.chatPolicy as ChatPolicy)
       : DEFAULT_LOCAL_PREFS.chatPolicy,
     ...(window ? { window } : {}),
   };
+}
+
+function sanitizeGithubAccount(value: GithubAccountPrefs | null | undefined): GithubAccountPrefs | null {
+  if (!value || typeof value !== 'object') return null;
+  const login = typeof value.login === 'string' ? value.login.trim().slice(0, 64) : '';
+  const avatarUrl = typeof value.avatarUrl === 'string' ? value.avatarUrl.trim().slice(0, 512) : '';
+  if (!login || !avatarUrl) return null;
+  const name =
+    typeof value.name === 'string' && value.name.trim() ? value.name.trim().slice(0, 80) : login;
+  return { login, name, avatarUrl };
 }
 
 function sanitizeWindow(value: WindowGeometry | undefined): WindowGeometry | undefined {

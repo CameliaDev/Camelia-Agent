@@ -23,6 +23,7 @@ import { StepCard } from './StepCard.js';
 import { PlanReview } from './PlanReview.js';
 import { CollapsibleBlock } from './CollapsibleBlock.js';
 import { Avatar, Chip, ErrorState, Icon, SkeletonRows, userAvatarSrc } from './primitives.js';
+import { providerAvatarSrc } from '../lib/provider-avatars.js';
 
 function ArtifactRow({ artifact }: { artifact: Artifact }): ReactNode {
   const icon = artifact.kind === 'diff' ? 'branch' : artifact.kind === 'stdout' ? 'terminal' : 'file';
@@ -48,6 +49,7 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
   const userAvatar = useUiStore((s) => s.localPrefs.userAvatar);
+  const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [showAssumptions, setShowAssumptions] = useState(false);
   return (
@@ -101,7 +103,7 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
           </div>
         ) : null}
       </div>
-      {showAvatars ? <Avatar kind="user" size={32} title={tr('avatar.user')} src={userAvatarSrc(userAvatar)} /> : null}
+      {showAvatars ? <Avatar kind="user" size={32} title={tr('avatar.user')} src={userAvatarSrc(userAvatar, githubAccount)} /> : null}
     </div>
   );
 }
@@ -109,10 +111,11 @@ function IntentCard({ task }: { task: TaskView }): ReactNode {
 function DeliveryCard({ task }: { task: TaskView }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
+  const activeProvider = useUiStore((s) => s.snapshot.provider.activeProvider);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   return (
     <div className="flex items-start gap-2.5" data-message="agent">
-      {showAvatars ? <Avatar kind="agent" size={32} title={tr('avatar.agent')} /> : null}
+      {showAvatars ? <Avatar kind="agent" size={32} title={tr('avatar.agent')} src={providerAvatarSrc(activeProvider)} /> : null}
       <div className="min-w-0 flex-1 rounded-lg border border-ok/35 bg-ok/10 p-3">
       <div className="flex items-center gap-2">
         <Icon name="check" size={15} className="text-ok" />
@@ -139,6 +142,7 @@ function DeliveryCard({ task }: { task: TaskView }): ReactNode {
 function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx: number, stepId: Id) => void }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
+  const activeProvider = useUiStore((s) => s.snapshot.provider.activeProvider);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const toolsByStep = new Map<Id, ToolCallView[]>();
   for (const call of Object.values(task.toolCalls)) {
@@ -164,7 +168,7 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
 
       {introNarration.length ? (
         <div className="flex items-start gap-2.5" data-message="agent">
-          {showAvatars ? <Avatar kind="agent" size={32} title={tr('avatar.agent')} /> : null}
+          {showAvatars ? <Avatar kind="agent" size={32} title={tr('avatar.agent')} src={providerAvatarSrc(activeProvider)} /> : null}
           <div className="max-w-[75%]">
             <div className="wf-bubble-agent px-3.5 py-2.5">
               {introNarration.map((n) => (

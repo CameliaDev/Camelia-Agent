@@ -94,6 +94,7 @@ export function IconRail(): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const leftCollapsed = useUiStore((s) => s.localPrefs.leftCollapsed);
   const userAvatar = useUiStore((s) => s.localPrefs.userAvatar);
+  const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
   const displayNamePref = useUiStore((s) => s.localPrefs.displayName);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
@@ -108,7 +109,7 @@ export function IconRail(): ReactNode {
    * the built-in label) would otherwise be a control with no effect anywhere — the text row
    * it used to feed at the foot of the session column is gone.
    */
-  const displayName = displayNamePref.trim();
+  const displayName = (githubAccount?.name || githubAccount?.login || displayNamePref).trim();
 
   return (
     <aside
@@ -185,9 +186,9 @@ export function IconRail(): ReactNode {
         data-rail-account
         aria-label={tr('account.profile')}
         className={`${ITEM} ${ITEM_IDLE}`}
-        onClick={() => setSettingsOpen(true, 'appearance')}
+        onClick={() => setSettingsOpen(true, 'account')}
       >
-        <Avatar kind="user" size={22} src={userAvatarSrc(userAvatar)} />
+        <Avatar kind="user" size={22} src={userAvatarSrc(userAvatar, githubAccount)} />
         <Tip>
           {displayName ? (
             <>

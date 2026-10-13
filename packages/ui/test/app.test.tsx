@@ -420,7 +420,7 @@ describe('App — left icon rail', () => {
   it('splits the account mark from the settings gear, and each opens its own page', () => {
     // One button used to do both jobs, labelled "account & settings". Two entries with one
     // shared destination would be that same button wearing two icons, so this asserts the
-    // destinations are genuinely distinct: the mark lands on appearance (it owns the avatar
+    // destinations are genuinely distinct: the mark lands on account (it owns the avatar
     // and the display name), the gear on the drawer's first page.
     writePrefs(false);
     const { container } = renderScene('running');
@@ -437,7 +437,8 @@ describe('App — left icon rail', () => {
     expect(container.querySelector('[data-settings-page]')).toBeNull();
 
     fireEvent.click(account);
-    expect(within(container).getByRole('heading', { name: '语言与外观' })).toBeInTheDocument();
+    expect(within(container).getByRole('heading', { name: '账户' })).toBeInTheDocument();
+    expect(container.querySelector('[data-account-section]')).not.toBeNull();
   });
 
   it('re-opens the column and lands the caret in its search field', async () => {

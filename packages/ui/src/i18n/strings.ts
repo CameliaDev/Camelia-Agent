@@ -205,6 +205,20 @@ type StringKey =
   | 'brand.placeholder'
   | 'account.defaultUser'
   | 'account.profile'
+| 'account.github.title'
+| 'account.github.hint'
+| 'account.github.login'
+| 'account.github.logout'
+| 'account.github.openTokenPage'
+| 'account.github.token'
+| 'account.github.tokenHint'
+| 'account.github.signedIn'
+| 'account.github.signedOut'
+| 'account.github.error.empty'
+| 'account.github.error.unauthorized'
+| 'account.github.error.offline'
+| 'account.github.error.malformed'
+| 'account.github.error.generic'
   | 'avatar.user'
   | 'avatar.agent'
   // The bottom strip. Every key is a tooltip or an accessible name for a *readout* —
@@ -219,7 +233,8 @@ type StringKey =
   | 'statusBar.stepsHint'
   | 'statusBar.contextHint'
   | 'statusBar.elapsedHint'
-  | 'settings.section.connections'
+  | 'settings.section.account'
+| 'settings.section.connections'
   | 'settings.section.appearance'
   | 'settings.section.engine'
   | 'settings.section.about'
@@ -578,6 +593,21 @@ const en: Record<StringKey, string> = {
   'statusBar.stepsHint': '{done} of {total} steps done',
   'statusBar.contextHint': 'Context: {used} of {window} tokens used',
   'statusBar.elapsedHint': 'Time since this task started',
+  'settings.section.account': 'Account',
+  'account.github.title': 'GitHub',
+  'account.github.hint': 'Sign in so your messages use your GitHub avatar. The token stays on this device and never reaches the engine.',
+  'account.github.login': 'Sign in with GitHub',
+  'account.github.logout': 'Sign out',
+  'account.github.openTokenPage': 'Open GitHub token page',
+  'account.github.token': 'Personal access token',
+  'account.github.tokenHint': 'Create a classic token with read:user, paste it here. Offline or revoked tokens show an honest error.',
+  'account.github.signedIn': 'Signed in.',
+  'account.github.signedOut': 'Signed out.',
+  'account.github.error.empty': 'Paste a token first.',
+  'account.github.error.unauthorized': 'GitHub rejected the token (401/403).',
+  'account.github.error.offline': 'Could not reach api.github.com — check the network.',
+  'account.github.error.malformed': 'GitHub returned an unexpected profile payload.',
+  'account.github.error.generic': 'GitHub sign-in failed.',
   'settings.section.connections': 'Connection presets',
   'settings.section.appearance': 'Language & appearance',
   'settings.section.engine': 'Engine & logs',
@@ -932,6 +962,21 @@ const zh: Record<StringKey, string> = {
   'statusBar.stepsHint': '{total} 步中已完成 {done} 步',
   'statusBar.contextHint': '上下文：已用 {used} / {window} tokens',
   'statusBar.elapsedHint': '本任务开始至今',
+  'settings.section.account': '账户',
+  'account.github.title': 'GitHub',
+  'account.github.hint': '登录后，你的消息会使用 GitHub 头像。令牌只留在本机，不会发给引擎。',
+  'account.github.login': '用 GitHub 登录',
+  'account.github.logout': '退出登录',
+  'account.github.openTokenPage': '打开 GitHub 令牌页',
+  'account.github.token': 'Personal Access Token',
+  'account.github.tokenHint': '创建带 read:user 权限的经典令牌并粘贴。网络不通或令牌无效会如实报错。',
+  'account.github.signedIn': '已登录。',
+  'account.github.signedOut': '已退出。',
+  'account.github.error.empty': '请先粘贴令牌。',
+  'account.github.error.unauthorized': 'GitHub 拒绝了该令牌（401/403）。',
+  'account.github.error.offline': '无法连接 api.github.com，请检查网络。',
+  'account.github.error.malformed': 'GitHub 返回了异常的资料数据。',
+  'account.github.error.generic': 'GitHub 登录失败。',
   'settings.section.connections': '连接预设',
   'settings.section.appearance': '语言与外观',
   'settings.section.engine': '引擎与日志',
