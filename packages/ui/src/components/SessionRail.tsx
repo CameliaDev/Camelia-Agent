@@ -201,11 +201,11 @@ export function SessionRail(): ReactNode {
             data-new-session
             aria-label={tr('rail.new')}
             title={tr('rail.new')}
-            className="grid h-5 w-5 place-items-center rounded-md bg-accent text-[15px] font-medium leading-none text-base hover:bg-accent-2"
+            className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
             onClick={newSession}
-          >
-            <span aria-hidden>+</span>
-          </button>
+            >
+              <Icon name="plus" size={13} strokeWidth={1.6} />
+            </button>
           <button
             type="button"
             aria-label={tr('sessions.collapse')}
