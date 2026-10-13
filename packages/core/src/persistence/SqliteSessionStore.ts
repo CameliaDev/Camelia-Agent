@@ -217,7 +217,7 @@ export class SqliteSessionStore implements SessionStore {
       workspace: input.workspace,
       provider: input.provider,
       model: input.model,
-      kind: input.kind === 'math' ? 'math' : 'work',
+      kind: input.kind === 'math' ? 'math' : input.kind === 'term' ? 'term' : 'work',
       createdAt: now,
       updatedAt: now,
     };
@@ -816,7 +816,7 @@ function mapSession(row: SessionRow): Session {
     workspace: row.workspace,
     provider: row.provider,
     model: row.model,
-    kind: row.kind === 'math' ? 'math' : 'work',
+    kind: row.kind === 'math' ? 'math' : row.kind === 'term' ? 'term' : 'work',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

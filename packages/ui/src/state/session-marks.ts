@@ -4,6 +4,10 @@
  * These are window chrome, like rail width: they are not domain events.
  * A hidden id stays out of the list after a reload. The engine row is left
  * in place so a mark never rewrites the task journal.
+ *
+ * The **active** session is never filtered out (see `orderSessions` `keepIds`):
+ * "删除" only hides a row from history, but the engine may still resume that
+ * session on the next launch — showing an empty rail while chat continues.
  * @module
  */
 
@@ -59,14 +63,27 @@ export function hideSession(marks: SessionMarks, id: string): SessionMarks {
   };
 }
 
-export function orderSessions<T extends { id: string }>(sessions: T[], marks: SessionMarks): T[] {
+/** Undo a hide mark — used when the user (or the engine) brings a session back on screen. */
+export function unhideSession(marks: SessionMarks, id: string): SessionMarks {
+  if (!marks.hidden.includes(id)) return marks;
+  return { ...marks, hidden: marks.hidden.filter((item) => item !== id) };
+}
+
+export function orderSessions<T extends { id: string }>(
+  sessions: T[],
+  marks: SessionMarks,
+  options?: { keepIds?: Array<string | undefined | null> },
+): T[] {
   const hidden = new Set(marks.hidden);
   const pinned = new Set(marks.pinned);
   const favorite = new Set(marks.favorite);
+  const keep = new Set(
+    (options?.keepIds ?? []).filter((id): id is string => typeof id === 'string' && id.length > 0),
+  );
   const rank = (id: string): number => (pinned.has(id) ? 0 : favorite.has(id) ? 1 : 2);
   return sessions
     .map((session, index) => ({ session, index }))
-    .filter(({ session }) => !hidden.has(session.id))
+    .filter(({ session }) => keep.has(session.id) || !hidden.has(session.id))
     .sort((a, b) => rank(a.session.id) - rank(b.session.id) || a.index - b.index)
     .map(({ session }) => session);
 }

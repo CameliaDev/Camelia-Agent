@@ -368,8 +368,34 @@ export function createUiStore(transport: Transport): UiStore {
   };
   store.setState({ memoryActions });
 
-  const applyEvent = (event: DomainEvent): void => {
-    store.setState((state) => ({ snapshot: reduceEvents(state.snapshot, [event]) }));
+    const applyEvent = (event: DomainEvent): void => {
+    store.setState((state) => {
+      let snapshot = reduceEvents(state.snapshot, [event]);
+      let sessions = state.sessions;
+      // Mirror ChatLoop.maybeTitle: the first user turn names the session in the rail
+      // and ModeHeader without waiting for the next SSE bootstrap.
+      if (event.type === 'chat.received') {
+        const sessionId = event.sessionId;
+        const text = typeof event.payload?.text === 'string' ? event.payload.text : '';
+        const title = text.trim().split('\n')[0]?.slice(0, 72);
+        const userTurns = (snapshot.chat?.turns ?? []).filter((turn) => turn.role === 'user');
+        if (sessionId && title && userTurns.length === 1) {
+          if (snapshot.session?.id === sessionId) {
+            snapshot = withSession(snapshot, { ...snapshot.session, title });
+          }
+          let found = false;
+          sessions = sessions.map((row) => {
+            if (row.id !== sessionId) return row;
+            found = true;
+            return { ...row, title };
+          });
+          if (!found && snapshot.session?.id === sessionId) {
+            sessions = [snapshot.session, ...sessions];
+          }
+        }
+      }
+      return { snapshot, sessions };
+    });
   };
 
   try {
@@ -389,8 +415,12 @@ export function createUiStore(transport: Transport): UiStore {
           // state never appears.
           const switched = nextId !== undefined && nextId !== state.activeSessionId;
           const base = switched ? initialSnapshot() : state.snapshot;
+                    let sessions = payload.sessions ?? [];
+          if (payload.session && !sessions.some((row) => row.id === payload.session!.id)) {
+            sessions = [payload.session, ...sessions];
+          }
           return {
-            sessions: payload.sessions,
+            sessions,
             activeSessionId: nextId,
             snapshot: withProviderStatus(
               payload.session ? withSession(base, payload.session) : base,

@@ -17,7 +17,7 @@
  * @module
  */
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { count, shortId } from '../lib/format.js';
 import { t } from '../i18n/strings.js';
@@ -29,6 +29,7 @@ import {
   saveSessionMarks,
   toggleFavorite,
   togglePinned,
+  unhideSession,
   type SessionMarks,
 } from '../state/session-marks.js';
 import { useNewSession } from '../state/new-session.js';
@@ -53,8 +54,31 @@ export function SessionRail(): ReactNode {
     saveSessionMarks(next);
     setMarks(next);
   };
+  // Hide is rail chrome, not a tombstone. If the engine resumed a "deleted" session,
+  // clear the hide mark so history matches what the user is looking at.
+    useEffect(() => {
+    if (!activeSessionId) return;
+    setMarks((prev) => {
+      if (!prev.hidden.includes(activeSessionId)) return prev;
+      const next = unhideSession(prev, activeSessionId);
+      saveSessionMarks(next);
+      return next;
+    });
+  }, [activeSessionId]);
+
   const needle = query.trim().toLowerCase();
-  const kindFiltered = sessions.filter((session) => {
+  const railSessions = useMemo(() => {
+    const list = [...sessions];
+    if (
+      activeSessionId &&
+      snapshot.session?.id === activeSessionId &&
+      !list.some((session) => session.id === activeSessionId)
+    ) {
+      list.unshift(snapshot.session);
+    }
+    return list;
+  }, [sessions, activeSessionId, snapshot.session]);
+  const kindFiltered = railSessions.filter((session) => {
     const kind = (session as { kind?: string }).kind ?? 'work';
     if (mode === 'math') return kind === 'math';
     if (mode === 'term') return kind === 'term';
@@ -62,9 +86,12 @@ export function SessionRail(): ReactNode {
   });
   const listed = orderSessions(
     needle
-      ? kindFiltered.filter((session) => `${session.title} ${session.provider} ${session.model}`.toLowerCase().includes(needle))
+      ? kindFiltered.filter((session) =>
+          `${session.title} ${session.provider} ${session.model}`.toLowerCase().includes(needle),
+        )
       : kindFiltered,
     marks,
+    { keepIds: [activeSessionId] },
   );
   const pinnedRows = listed.filter((session) => marks.pinned.includes(session.id));
   const recentRows = listed.filter((session) => !marks.pinned.includes(session.id));
@@ -79,6 +106,9 @@ export function SessionRail(): ReactNode {
         data-session={session.id}
         onClick={() => {
           if (active) return;
+          if (marks.hidden.includes(session.id)) {
+            applyMarks(unhideSession(marks, session.id));
+          }
           dispatch(makeCommand('select_session', { sessionId: session.id }));
           setActiveSession(session.id);
         }}
@@ -114,14 +144,25 @@ export function SessionRail(): ReactNode {
             <button
               type="button"
               className="text-[11px] text-bad hover:underline"
-              onClick={() => {
-                applyMarks(hideSession(marks, session.id));
+              onClick={(event) => {
+                event.stopPropagation();
+                const hidingId = session.id;
+                applyMarks(hideSession(marks, hidingId));
                 setConfirmId(null);
-              }}
+                if (hidingId === activeSessionId) {
+                  const fallback = listed.find((row) => row.id !== hidingId);
+                  if (fallback) {
+                    dispatch(makeCommand('select_session', { sessionId: fallback.id }));
+                    setActiveSession(fallback.id);
+                  } else {
+                    newSession();
+                  }
+                }
+                }}
             >
               {tr('sessions.confirmDelete')}
             </button>
-            <button type="button" className="text-[11px] text-ink-3 hover:text-ink" onClick={() => setConfirmId(null)}>
+            <button type="button" className="text-[11px] text-ink-3 hover:text-ink" onClick={(event) => { event.stopPropagation(); setConfirmId(null); }}>
               {tr('sessions.cancelDelete')}
             </button>
           </div>
@@ -132,7 +173,7 @@ export function SessionRail(): ReactNode {
               aria-label={pinned ? tr('sessions.unpin') : tr('sessions.pin')}
               title={pinned ? tr('sessions.unpin') : tr('sessions.pin')}
               className={`grid h-[22px] w-[22px] place-items-center rounded ${pinned ? 'text-accent' : 'text-ink-3 hover:text-ink'}`}
-              onClick={() => applyMarks(togglePinned(marks, session.id))}
+              onClick={(event) => { event.stopPropagation(); applyMarks(togglePinned(marks, session.id)); }}
             >
               <Icon name="pin" size={13} strokeWidth={1.6} />
             </button>
@@ -141,7 +182,7 @@ export function SessionRail(): ReactNode {
               aria-label={favorite ? tr('sessions.unfavorite') : tr('sessions.favorite')}
               title={favorite ? tr('sessions.unfavorite') : tr('sessions.favorite')}
               className={`grid h-[22px] w-[22px] place-items-center rounded ${favorite ? 'text-warn' : 'text-ink-3 hover:text-ink'}`}
-              onClick={() => applyMarks(toggleFavorite(marks, session.id))}
+              onClick={(event) => { event.stopPropagation(); applyMarks(toggleFavorite(marks, session.id)); }}
             >
               <Icon name="star" size={13} strokeWidth={1.6} filled={favorite} />
             </button>
@@ -150,7 +191,7 @@ export function SessionRail(): ReactNode {
               aria-label={tr('sessions.delete')}
               title={tr('sessions.delete')}
               className="grid h-[22px] w-[22px] place-items-center rounded text-ink-3 hover:text-bad"
-              onClick={() => setConfirmId(session.id)}
+              onClick={(event) => { event.stopPropagation(); setConfirmId(session.id); }}
             >
               <Icon name="trash" size={13} strokeWidth={1.6} />
             </button>

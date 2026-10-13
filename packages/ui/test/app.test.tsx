@@ -296,6 +296,23 @@ describe('App — layout contract', () => {
     expect(rail.closest('main')).toBeNull();
   });
 
+  it('keeps the active session listed even when it was hidden', () => {
+    // Reproduce the empty-rail bug: chrome hid the row, engine still resumes it.
+    localStorage.setItem(
+      'camelia.sessionMarks',
+      JSON.stringify({
+        pinned: [],
+        favorite: [],
+        hidden: ['ses_4b1e0c', 'ses_2a77d1'],
+      }),
+    );
+    const { container } = renderScene('running');
+    const rail = container.querySelector('[data-rail="left"]') as HTMLElement;
+    // Active primary session must remain; the other hidden id stays out.
+    expect(rail.querySelector('[data-session="ses_4b1e0c"]')).not.toBeNull();
+    expect(rail.querySelector('[data-session="ses_2a77d1"]')).toBeNull();
+  });
+
   it('pins and deletes a session from the left list', () => {
     localStorage.removeItem('camelia.sessionMarks');
     const { container } = renderScene('running');
@@ -309,8 +326,9 @@ describe('App — layout contract', () => {
     expect(titles()[0]).toBe('Harden the context compactor');
     fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0]!);
     fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
-    expect(screen.queryByText('Harden the context compactor')).not.toBeInTheDocument();
-    expect(titles()[0]).toBe('Add --json output to the camelia CLI');
+    expect(rail.querySelector('[data-session="ses_2a77d1"]')).toBeNull();
+    expect(rail.querySelector('[data-session="ses_4b1e0c"]')).not.toBeNull();
+    expect(titles().some((t) => t.includes('Add --json output'))).toBe(true);
   });
 });
 

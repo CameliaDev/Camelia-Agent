@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { hideSession, orderSessions, toggleFavorite, togglePinned, type SessionMarks } from '../src/state/session-marks.js';
+import {
+  hideSession,
+  orderSessions,
+  toggleFavorite,
+  togglePinned,
+  unhideSession,
+  type SessionMarks,
+} from '../src/state/session-marks.js';
 
 const empty: SessionMarks = { pinned: [], favorite: [], hidden: [] };
 const rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
@@ -10,5 +17,17 @@ describe('session marks', () => {
     const marked = toggleFavorite(togglePinned(empty, 'c'), 'b');
     expect(orderSessions(rows, marked).map((row) => row.id)).toEqual(['c', 'b', 'a']);
     expect(orderSessions(rows, hideSession(marked, 'c')).map((row) => row.id)).toEqual(['b', 'a']);
+  });
+
+  it('keeps keepIds visible even when hidden (active session must stay listed)', () => {
+    const marked = hideSession(hideSession(empty, 'a'), 'c');
+    expect(orderSessions(rows, marked).map((row) => row.id)).toEqual(['b']);
+    expect(orderSessions(rows, marked, { keepIds: ['a'] }).map((row) => row.id)).toEqual(['a', 'b']);
+  });
+
+  it('unhideSession clears a hide mark', () => {
+    const marked = hideSession(empty, 'a');
+    expect(unhideSession(marked, 'a').hidden).toEqual([]);
+    expect(unhideSession(marked, 'missing')).toEqual(marked);
   });
 });
