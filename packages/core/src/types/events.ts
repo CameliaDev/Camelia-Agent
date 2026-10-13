@@ -57,6 +57,12 @@ export interface DroppedMessage {
  */
 export type ChatPolicy = 'readonly-sandbox' | 'ask' | 'full';
 
+/**
+ * Composer effort. A prompt hint only — it does not select a different model.
+ * Absent means the caller did not send one (older clients).
+ */
+export type EffortLevel = 'max' | 'high' | 'low';
+
 /** Envelope shared by every event travelling through the bus. */
 export interface EventEnvelope<TType extends string, TPayload> {
   type: TType;
@@ -248,7 +254,7 @@ export type PlanEdit =
   | { op: 'insert'; afterStepId?: Id; title: string; path?: string };
 
 export interface CommandMap {
-  'submit_task': { sessionId: Id; intent: string; workspace: string };
+  'submit_task': { sessionId: Id; intent: string; workspace: string; effort?: EffortLevel };
   'approve_tool': { callId: Id; scope: 'once' | 'session' };
   'deny_tool': { callId: Id; reason: string };
   /** `session` auto-approves later plans in this project, same shape as `approve_tool`. */
@@ -308,7 +314,7 @@ export interface CommandMap {
 
   // ---- Chat (direct conversation path) -------------------------------------
   /** Send one chat turn. Rejected while a task run is active (see EngineServer). */
-  'chat_message': { sessionId: Id; text: string; policy: ChatPolicy };
+  'chat_message': { sessionId: Id; text: string; policy: ChatPolicy; effort?: EffortLevel };
   /** Answer a pending `chat.ask_user` picker. */
   'chat_answer': { sessionId: Id; askId: Id; optionIdx: number };
   /** Abort the in-flight chat turn (and clear any pending ask). */

@@ -19,6 +19,7 @@ import {
   newId,
   type ChatPolicy,
   type ChatRequest,
+  type EffortLevel,
   type EmitMeta,
   type EventBus,
   type Id,
@@ -47,6 +48,7 @@ import {
 } from '@camelia/harness';
 
 import { paths } from '../config/paths.js';
+import { effortInstruction } from './effort.js';
 
 /** Model/tool round trips allowed inside one chat turn. */
 const MAX_CHAT_ITERATIONS = 8;
@@ -84,14 +86,14 @@ const ASK_USER_SCHEMA: LLMToolSchema = {
 };
 
 /** English system prompt, in the spirit of the harness prompts (§5.1). */
-function chatSystemPrompt(policy: ChatPolicy, workspace: string): string {
+function chatSystemPrompt(policy: ChatPolicy, workspace: string, effort?: EffortLevel): string {
   const posture =
     policy === 'full'
       ? 'Permission mode: FULL — every tool runs directly.'
       : policy === 'ask'
         ? 'Permission mode: ASK — read-only tools run directly; any tool that writes, executes or reaches the network opens an approval prompt the user must answer.'
         : 'Permission mode: READ-ONLY SANDBOX — only read-only tools run; anything else is denied by policy.';
-  return [
+  const lines = [
     'You are Camelia in conversation mode: reply directly and concisely, like a normal chat app.',
     'No goal restatement, no plans, no task machinery, no acceptance checks — just the answer.',
     `Workspace: ${workspace}`,
@@ -99,7 +101,9 @@ function chatSystemPrompt(policy: ChatPolicy, workspace: string): string {
     'You may call tools when the user asks something that needs the workspace. Never fabricate tool output.',
     'If a tool is denied or fails, say plainly what you were trying to do and what you need — do not retry silently.',
     'When you cannot proceed without the user\'s input, call ask_user with one short question and 2-4 concrete options.',
-  ].join('\n');
+  ];
+  if (effort) lines.push(effortInstruction(effort));
+  return lines.join('\n');
 }
 
 interface ChatStreamError {
@@ -149,7 +153,7 @@ export class ChatLoop {
    * never throws for model/tool failures (they surface as `chat.failed`).
    * Throws only when another turn is already running.
    */
-  async chat(sessionId: Id, text: string, policy: ChatPolicy): Promise<void> {
+  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel): Promise<void> {
     if (this.active.current) throw new Error('A chat turn is already in progress.');
     const controller = new AbortController();
     this.active.current = controller;
@@ -174,7 +178,7 @@ export class ChatLoop {
       messages.push({ role: 'user', content: text });
       this.trimHistory(messages);
 
-      const system: LLMMessage = { role: 'system', content: chatSystemPrompt(policy, this.opts.workspace) };
+      const system: LLMMessage = { role: 'system', content: chatSystemPrompt(policy, this.opts.workspace, effort) };
       const tools: LLMToolSchema[] = [...this.opts.tools.schemas(this.allowedTools()), ASK_USER_SCHEMA];
 
       for (let iteration = 0; iteration < MAX_CHAT_ITERATIONS; iteration += 1) {

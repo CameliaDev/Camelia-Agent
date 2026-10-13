@@ -23,21 +23,21 @@ Owner-locked sprint: P0 type bugs, contrast/i18n/progress/density, Term mode, ar
 - Composer border softened (`border-line/50` + light-refined white card)
 
 ### Features
-- Work composer **effort** chips: max | high | low (persisted in `localPrefs.effort`)
+- Work composer **effort** chips: max | high | low (persisted in `localPrefs.effort`, sent on `chat_message` / `submit_task`)
 - Provider form: **Test connection** → OpenAI-compatible `/v1/models` (manual IDs if list fails)
 - Composer model switcher already present; works with discovered models after save/activate
 - **Term** mode MVP: mode id `term`, session kind, kind filtering, `TermWorkspace` stub
 - Right rail: panels reordered (run → **artifacts** → memory → …); Artifacts panel lists `task.artifacts`
 - Live panel: live/offline hints, reconnect label when offline (relaunch); no fake live
-- **Feedback**: Account menu + Settings → Feedback; creates GitHub Issue on `CameliaDev/camelia-feedback` (configurable via code default); prompts GitHub login when needed
+- **Feedback**: Account menu + Settings → Feedback; creates GitHub Issue on `feedback.repo` default `CameliaDev/camelia-feedback`; prompts GitHub login when needed
 
 ### Core / agent
 - `SessionKind` / `new_session` / runtime accept `'term'`
 
 ## Stubbed / honest gaps
 - Term: UI + session kind only — no multi-agent orchestration backend
-- Feedback repo `CameliaDev/camelia-feedback` must exist (or change `DEFAULT_FEEDBACK_REPO`); needs PAT with `issues` write
-- Effort chips are chrome prefs only — not yet sent as engine command payload
+- `feedback.repo` defaults to `CameliaDev/camelia-feedback` (`DEFAULT_FEEDBACK_REPO` in `packages/ui/src/window/feedback.ts`). There is no `config.json` key. `submitFeedback({ repo: 'owner/name' })` overrides it; any other value falls back to that default. The repo must exist and the PAT needs `issues` write.
+- Effort is on the command payload and is copied into the chat system prompt / task constraints. It does not switch the model.
 - Model discovery lists into the form; active switch still goes through existing `select_provider` after preset activate/restart
 
 ## Verify
