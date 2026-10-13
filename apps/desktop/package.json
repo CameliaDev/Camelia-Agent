@@ -6,6 +6,8 @@
   "description": "Camelia desktop shell (Tauri 2.x) — wraps @camelia/ui as a native Windows app.",
   "scripts": {
     "icons": "node scripts/gen-icons.mjs",
+    "icons:camellia": "node scripts/gen-icons-camellia.mjs",
+    "icons:verify": "node scripts/verify-icons.mjs",
     "desktop:check": "cargo check --manifest-path src-tauri/Cargo.toml",
     "desktop:dev": "cargo run --manifest-path src-tauri/Cargo.toml",
     "desktop:build": "pnpm --filter @camelia/ui build && cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml",

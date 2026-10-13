@@ -10,13 +10,25 @@ Camelia 不是「会聊天的代码工具」，而是「能把任务做到尽善
 - **Node.js 22**（`>=22.11`，仓库以 `.nvmrc` / `.node-version` / `package.json#engines` / CI / Dockerfile 统一锁定）
 - **pnpm 9.14.4**（`packageManager` 字段，可用 `corepack enable` 自动接管）
 
-`better-sqlite3` 是原生模块，**必须与运行时的 Node 大版本一致**。切换 Node 大版本后请先执行 `pnpm rebuild better-sqlite3`，否则会报 `NODE_MODULE_VERSION` 不匹配。
+`better-sqlite3` 是原生模块，按 **ABI（`NODE_MODULE_VERSION`）** 加载：谁加载它，就必须与谁编译时用的 Node 大版本一致。仓库里有两处会加载**同一份** `packages/core` 的绑定，所以两侧必须同时是 **Node 22（ABI `process.versions.modules === 127`）**：
+
+1. 桌面 exe 的引擎 sidecar（固定 Node 22）；
+2. 开发 / 测试 shell（`pnpm test`、`node packages/cli/dist/bin.js`）。
+
+**先校验再干活**：
 
 ```bash
-nvm use            # 读取 .nvmrc → Node 22
-pnpm install
-pnpm rebuild better-sqlite3
+node -p "process.versions.modules"   # 必须输出 127（Node 22）；输出 137 = Node 24，测试与引擎必报 ERR_DLOPEN
 ```
+
+**本机没有 nvm-windows，版本管理是 fnm**（且 fnm 不在 PATH）。PowerShell 临时切到 Node 22：
+
+```powershell
+$env:PATH = "$env:LOCALAPPDATA\fnm\node-versions\22.18.0\node-v22.18.0-win-x64;$env:PATH"
+node --version        # v22.18.0
+```
+
+**禁止在 Node 24 下执行 `pnpm rebuild better-sqlite3`** —— 那会把绑定编成 ABI 137，桌面 exe 启动即崩（`pnpm rebuild` 在本机还会因 prebuild-install 证书校验 + node-gyp 不在 PATH 而失败）。若绑定已被改坏，恢复方法见 `docs/ITERATION_LOG.md`（用 `NODE_TLS_REJECT_UNAUTHORIZED=0 node prebuild-install` 在 better-sqlite3 包目录取回 ABI 127 预编译产物）。
 
 ### 桌面壳用的 Node（重要）
 

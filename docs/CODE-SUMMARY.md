@@ -16,7 +16,7 @@ Camelia 是一个以「任务完成」为第一目标的桌面 AI 编码 Agent�
 | 包管理器 | pnpm `9.14.4`（`packageManager` 字段，`corepack enable` 可接管） |
 | Node | `>=22.11`（`.nvmrc` / `.node-version` / `package.json#engines` / CI / Dockerfile 统一锁定为 22） |
 | 构建 | Turborepo + pnpm workspace |
-| 原生模块 | `better-sqlite3 ^12.6.2`——**必须与运行时 Node 大版本一致**，切换 Node 后先 `pnpm rebuild better-sqlite3`，否则报 `NODE_MODULE_VERSION` 不匹配 |
+| 原生模块 | `better-sqlite3 ^12.6.2`——按 **ABI** 匹配：桌面 exe sidecar 与开发/测试 shell 共用同一份绑定，两侧都必须是 **Node 22（`process.versions.modules === 127`）**；先 `node -p "process.versions.modules"` 校验。**禁止在 Node 24 下 `pnpm rebuild`**（编出 ABI 137 直接弄崩 exe，且本机 rebuild 会失败）；修坏后的恢复方法见 `docs/ITERATION_LOG.md` |
 | 语言/类型 | TypeScript 5.7 `strict`，ESM（`"type":"module"`，内部 import 带 `.js` 后缀） |
 
 工作区成员：`packages/{core,harness,agent,cli,ui}`、`apps/desktop`、`tests`。根脚本：`build` / `typecheck` / `lint` / `test` / `test:coverage` / `dev` / `acceptance`。

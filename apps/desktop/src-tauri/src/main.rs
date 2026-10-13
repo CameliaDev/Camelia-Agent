@@ -32,6 +32,27 @@ use std::time::Duration;
 
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
+/// `CREATE_NO_WINDOW` — Windows runs the child without allocating it a console.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// A `Command` that never puts a console window on screen.
+///
+/// `node.exe` is a console-subsystem binary. When this GUI process spawns it, Windows
+/// allocates a fresh console for the child unless `CREATE_NO_WINDOW` is set — and
+/// because the engine lives as long as the window does, that black box stays on screen
+/// for the whole session. Piping stdout/stderr does **not** suppress it; only the
+/// creation flag does. The flag is a no-op on every other platform.
+fn hidden_command(program: &str) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 /// Resolve a boot value from `--<name>=<value>` first, then the environment variable.
 fn boot_value(flag: &str, env: &str) -> Option<String> {
     let prefix = format!("--{flag}=");
@@ -230,6 +251,14 @@ fn clean_base_url(value: &str, allow_empty: bool) -> Result<String, String> {
         return Err("base URL must start with http:// or https://".into());
     }
     Ok(trimmed.to_string())
+}
+
+fn clean_plan_approval(value: &str) -> Result<String, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "always" => Ok("always".to_string()),
+        "auto" => Ok("auto".to_string()),
+        other => Err(format!("invalid plan approval mode: {other}")),
+    }
 }
 
 fn write_config_map(map: serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
@@ -453,7 +482,7 @@ fn probe_better_sqlite3(node: &str, project_root: &std::path::Path) -> Result<()
         " process.exit(2);",
         "}"
     );
-    let output = Command::new(node)
+    let output = hidden_command(node)
         .arg("-e")
         .arg(script)
         .current_dir(project_root)
@@ -479,9 +508,30 @@ fn probe_better_sqlite3(node: &str, project_root: &std::path::Path) -> Result<()
 ///
 /// After the URL is parsed, background threads continue piping stdout and stderr
 /// into the log file so engine output after boot is not lost.
+/// Desktop first-run defaults, written once into `~/.camelia/config.json`.
+///
+/// The plan gate exists so a plan can be *reviewed*, not so every conversation waits. The
+/// engine's own fallback is `always`, which is right for headless `camelia` — nobody is
+/// watching a CLI to click approve — but wrong for a window where the plan is on screen
+/// the whole time. So the shell seeds `auto` instead, and never overwrites a value the
+/// Settings toggle (or a hand-edit) already put there.
+fn ensure_desktop_defaults() -> Result<(), String> {
+    let mut map = read_config_object()?;
+    if map.contains_key("planApproval") {
+        return Ok(());
+    }
+    map.insert("planApproval".into(), serde_json::Value::String("auto".into()));
+    write_config_map(map)
+}
+
 fn spawn_engine() -> Result<(Child, String, String), String> {
     let dbg_path = std::env::temp_dir().join("camelia-engine-debug.log");
     let mut dbg = String::new();
+
+    // Seed the desktop's first-run policy *before* the engine exists. The engine reads
+    // `~/.camelia/config.json` exactly once, at process start, so this is the last moment
+    // the write can matter for this launch.
+    dbg.push_str(&format!("seed: {:?}\n", ensure_desktop_defaults()));
 
     let bin = find_engine_path();
     dbg.push_str(&format!("bin: {:?}\n", bin));
@@ -520,7 +570,7 @@ fn spawn_engine() -> Result<(Child, String, String), String> {
     // Truncate the log on each fresh engine start so it does not grow forever.
     let _ = std::fs::write(engine_log_path(), format!("--- engine started {} ---\n", chrono_local_now()));
 
-    let child = Command::new(&node)
+    let child = hidden_command(&node)
         .arg(&bin)
         .arg("serve")
         .arg("--port=0")
@@ -672,8 +722,25 @@ fn read_model_settings() -> Result<serde_json::Value, String> {
         "preferredProvider": preferred,
         "model": model,
         "gruntModel": grunt,
+        // `null` when this install has never chosen, so the webview can tell
+        // "not set" apart from "set to the default" and avoid clobbering its own.
+        "planApproval": map.get("planApproval").and_then(|value| value.as_str()),
         "providers": providers,
     }))
+}
+
+/// Persist the plan-approval policy into `~/.camelia/config.json`.
+///
+/// This is the durable half of the Settings toggle. The engine command
+/// (`set_plan_approval`) only mutates process memory, and the desktop shell spawns a
+/// fresh engine on every launch — without this write the choice reverted to `always`
+/// on restart, which is why every conversation kept stopping at the plan gate.
+#[tauri::command]
+fn write_plan_approval(mode: String) -> Result<(), String> {
+    let mode = clean_plan_approval(&mode)?;
+    let mut map = read_config_object()?;
+    map.insert("planApproval".into(), serde_json::Value::String(mode));
+    write_config_map(map)
 }
 
 #[tauri::command]
@@ -990,6 +1057,7 @@ fn main() {
             read_engine_log,
             read_model_settings,
             write_model_settings,
+            write_plan_approval,
             upsert_provider_preset,
             delete_provider_preset,
             read_key_status,
@@ -1002,7 +1070,21 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::strip_utf8_bom;
+    use super::{clean_plan_approval, strip_utf8_bom};
+
+    #[test]
+    fn clean_plan_approval_accepts_both_modes_and_normalises_case() {
+        assert_eq!(clean_plan_approval("always").unwrap(), "always");
+        assert_eq!(clean_plan_approval("auto").unwrap(), "auto");
+        assert_eq!(clean_plan_approval("  AUTO  ").unwrap(), "auto");
+    }
+
+    #[test]
+    fn clean_plan_approval_rejects_anything_else() {
+        assert!(clean_plan_approval("").is_err());
+        assert!(clean_plan_approval("never").is_err());
+        assert!(clean_plan_approval("auto; rm -rf /").is_err());
+    }
 
     #[test]
     fn strip_utf8_bom_removes_bom_only() {
