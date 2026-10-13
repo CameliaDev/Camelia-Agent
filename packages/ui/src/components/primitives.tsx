@@ -128,6 +128,9 @@ export const PATHS: Record<string, string> = {
   // Chat / sessions. The left icon rail needs a glyph for "the conversation list" that is
   // not `layers` (provider stack) or `terminal` (event trail) — both already spoken for.
   chat: '<path d="M13.4 4.2v5.2a1.4 1.4 0 0 1-1.4 1.4H7.4l-2.8 2.4v-2.4H4a1.4 1.4 0 0 1-1.4-1.4V4.2A1.4 1.4 0 0 1 4 2.8h8a1.4 1.4 0 0 1 1.4 1.4z"/>',
+  // Right drawer. A window with a vertical split, the right pane marked — the same
+  // glyph chat apps use for "open the side panel", drawn at the same 16px stroke as the rest.
+  panelRight: '<rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.4"/><path d="M9.4 2.8v10.4"/>',
   plus: '<path d="M8 3.6v8.8M3.6 8h8.8"/>',
   // Folder, for the workspace path in the status bar. Drawn as an outline folder with a
   // tab, so it does not read as a generic square at 11px.

@@ -27,6 +27,7 @@ import {
   loadSessionMarks,
   orderSessions,
   saveSessionMarks,
+  sessionKeepIds,
   toggleFavorite,
   togglePinned,
   unhideSession,
@@ -50,21 +51,33 @@ export function SessionRail(): ReactNode {
   const [marks, setMarks] = useState<SessionMarks>(() => loadSessionMarks());
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  /**
+   * The session the user just deleted while it was still the active one and
+   * nothing else was listed. keepIds must not pin it, and the resume-unhide
+   * effect must not clear the hide before we have switched away.
+   */
+  const [leavingId, setLeavingId] = useState<string | null>(null);
   const applyMarks = (next: SessionMarks): void => {
     saveSessionMarks(next);
     setMarks(next);
   };
   // Hide is rail chrome, not a tombstone. If the engine resumed a "deleted" session,
   // clear the hide mark so history matches what the user is looking at.
-    useEffect(() => {
+  // Skip the id we are in the middle of leaving — that unhide is what made the
+  // last remaining row impossible to delete.
+  useEffect(() => {
     if (!activeSessionId) return;
+    if (leavingId && leavingId === activeSessionId) return;
     setMarks((prev) => {
       if (!prev.hidden.includes(activeSessionId)) return prev;
       const next = unhideSession(prev, activeSessionId);
       saveSessionMarks(next);
       return next;
     });
-  }, [activeSessionId]);
+  }, [activeSessionId, leavingId]);
+  useEffect(() => {
+    if (leavingId && activeSessionId && activeSessionId !== leavingId) setLeavingId(null);
+  }, [activeSessionId, leavingId]);
 
   const needle = query.trim().toLowerCase();
   const railSessions = useMemo(() => {
@@ -91,7 +104,7 @@ export function SessionRail(): ReactNode {
         )
       : kindFiltered,
     marks,
-    { keepIds: [activeSessionId] },
+    { keepIds: sessionKeepIds(activeSessionId, leavingId) },
   );
   const pinnedRows = listed.filter((session) => marks.pinned.includes(session.id));
   const recentRows = listed.filter((session) => !marks.pinned.includes(session.id));
@@ -147,18 +160,20 @@ export function SessionRail(): ReactNode {
               onClick={(event) => {
                 event.stopPropagation();
                 const hidingId = session.id;
+                const fallback = listed.find((row) => row.id !== hidingId);
                 applyMarks(hideSession(marks, hidingId));
                 setConfirmId(null);
-                if (hidingId === activeSessionId) {
-                  const fallback = listed.find((row) => row.id !== hidingId);
-                  if (fallback) {
-                    dispatch(makeCommand('select_session', { sessionId: fallback.id }));
-                    setActiveSession(fallback.id);
-                  } else {
-                    newSession();
-                  }
+                if (hidingId !== activeSessionId) return;
+                if (fallback) {
+                  dispatch(makeCommand('select_session', { sessionId: fallback.id }));
+                  setActiveSession(fallback.id);
+                  return;
                 }
-                }}
+                // Last visible row. Drop it from keepIds immediately and ask for a
+                // blank that is not this id, so the centred empty chat can show.
+                setLeavingId(hidingId);
+                newSession({ excludeId: hidingId });
+              }}
             >
               {tr('sessions.confirmDelete')}
             </button>

@@ -140,7 +140,13 @@ export interface LoadConfigOptions {
 export function loadConfig(options: LoadConfigOptions = {}): CameliaConfig {
   const fileConfig = options.skipFiles
     ? undefined
-    : readJson<Partial<CameliaConfig> & { providers?: Partial<ProviderProfile>[] }>(paths.config());
+    : readJson<
+        Partial<CameliaConfig> & {
+          providers?: Partial<ProviderProfile>[];
+          /** Written by `selectProvider`. Honoured only when `model` / `preferredProvider` are absent. */
+          lastSelectedProvider?: { providerId?: string; model?: string };
+        }
+      >(paths.config());
   const keys = options.skipFiles
     ? undefined
     : readJson<Record<string, string>>(paths.keys());
@@ -196,11 +202,17 @@ export function loadConfig(options: LoadConfigOptions = {}): CameliaConfig {
     }
   }
 
+  const remembered = fileConfig?.lastSelectedProvider;
   return {
     providers,
-    model: fileConfig?.model,
+    // An explicit `model` wins. Older builds only wrote `lastSelectedProvider`,
+    // so a picker change survived a restart only when something else had also
+    // set `model`.
+    model: fileConfig?.model || (typeof remembered?.model === 'string' ? remembered.model : undefined),
     gruntModel: fileConfig?.gruntModel,
-    preferredProvider: fileConfig?.preferredProvider,
+    preferredProvider:
+      fileConfig?.preferredProvider ||
+      (typeof remembered?.providerId === 'string' ? remembered.providerId : undefined),
     planApproval: fileConfig?.planApproval === 'auto' ? 'auto' : fileConfig?.planApproval === 'always' ? 'always' : undefined,
   };
 }

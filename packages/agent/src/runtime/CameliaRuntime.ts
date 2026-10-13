@@ -329,7 +329,8 @@ export class CameliaRuntime {
   readonly tools: ToolEngine;
   session: Session;
   readonly workspace: string;
-  readonly config: CameliaConfig;
+  /** Replaced when settings reload providers from disk. */
+  config: CameliaConfig;
   readonly harnessConfig: HarnessConfig;
   /** The active agent preset, when one was named. */
   readonly preset?: AgentPreset;
@@ -357,7 +358,14 @@ export class CameliaRuntime {
    */
   readonly memoryPanel: MemoryPanelFacade;
 
-  private readonly handles: ProviderHandle[];
+  private handles: ProviderHandle[];
+  /** Plugin ports kept across a config reload so a plugin is not dropped. */
+  private readonly pluginHandles: ProviderHandle[];
+  /**
+   * True when this process built its chain from `~/.camelia/config.json`.
+   * Injected test handles must not be replaced by whatever is on the developer machine.
+   */
+  private readonly configBacked: boolean;
   private readonly ports: HarnessPorts;
   private readonly logger: LoggerPort;
   private readonly fallback: FallbackLLMPort;
@@ -389,6 +397,8 @@ export class CameliaRuntime {
     tools: ToolEngine;
     ports: HarnessPorts;
     handles: ProviderHandle[];
+    pluginHandles?: ProviderHandle[];
+    configBacked?: boolean;
     fallback: FallbackLLMPort;
     decision: { model: string; gruntModel: string; reason: string };
     responder?: ApprovalResponder;
@@ -413,6 +423,8 @@ export class CameliaRuntime {
     this.tools = init.tools;
     this.ports = init.ports;
     this.handles = init.handles;
+    this.pluginHandles = init.pluginHandles ?? [];
+    this.configBacked = init.configBacked === true;
     this.fallback = init.fallback;
     this.decision = init.decision;
     this.responder = init.responder;
@@ -499,7 +511,10 @@ export class CameliaRuntime {
       metrics: init.metrics,
       config: init.harnessConfig,
       fallback: init.fallback,
-      model: init.decision.model,
+      // Live read: `selectProvider` / `applyProviderConfig` mutate `decision.model`,
+      // and the next chat turn must send that id. A copied string stayed on the
+      // model captured when the process spawned.
+      model: () => this.decision.model,
       responder: init.responder,
       allowedTools: init.preset?.allowedTools,
     });
@@ -700,6 +715,8 @@ export class CameliaRuntime {
       tools,
       ports,
       handles,
+      pluginHandles: pluginProviderHandles,
+      configBacked: options.providerHandles === undefined,
       fallback,
       decision,
       responder,
@@ -980,26 +997,90 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
    * User-initiated mid-session provider switch. Moves the fallback cursor to the
    * requested provider and emits `provider.selected`. Returns false when the
    * provider id is not in the chain.
+   *
+   * The choice is live for the next chat turn and the next task run: chat reads
+   * `decision.model` through a getter, and `run()` copies it when the run starts.
+   * When the id is missing from a config-backed chain, the file is re-read once
+   * so a provider just saved in Settings can be selected without a new process.
    */
   selectProvider(providerId: string, model?: string): boolean {
-    if (!this.fallback.switchTo(providerId)) return false;
-    if (model) this.decision.model = model;
-    this.bus.emit(
-      'provider.selected',
-      { providerId: this.fallback.active.id, model: model ?? this.decision.model, reason: 'user-selected' },
-      { traceId: 'user-action', sessionId: this.session.id, taskId: this.activeLoop?.currentTaskId },
-    );
-    this.persistSelectedProvider(this.fallback.active.id, model ?? this.decision.model);
+    if (!this.fallback.switchTo(providerId)) {
+      if (!this.configBacked) return false;
+      return this.applyProviderConfig({ providerId, model });
+    }
+    this.commitSelection(model);
     return true;
   }
 
+  /**
+   * Rebuild the provider chain from disk (keys, base URL, model list) and select.
+   *
+   * `~/.camelia/desktop.json` only names the node binary and the CLI path. The
+   * model lives in `config.json`, which this process used to read once at spawn.
+   * Rebuilding the handles here is the reconnect: the next send uses the new
+   * client. Injected test handles are left in place and only the cursor moves.
+   */
+  applyProviderConfig(input: { providerId?: string; model?: string; gruntModel?: string } = {}): boolean {
+    const previousId = this.fallback.active.id;
+    const previousModel = this.decision.model;
+    const wanted = input.providerId?.trim();
+    if (this.configBacked) {
+      const loaded = loadConfig();
+      const next = ProviderRegistry.fromConfig(loaded, this.pluginHandles).handles();
+      if (next.length === 0) return false;
+      if (wanted && !next.some((handle) => handle.id === wanted)) return false;
+      this.handles = next;
+      this.fallback.replaceHandles(next);
+      this.config = loaded;
+    }
+    if (wanted) {
+      if (!this.fallback.switchTo(wanted)) return false;
+    } else {
+      this.fallback.switchTo(previousId);
+    }
+    const model = input.model?.trim() || (this.fallback.active.id === previousId ? previousModel : undefined);
+    this.commitSelection(model, input.gruntModel);
+    return true;
+  }
+
+  /** Pin the model, tell the UI, and write config.json so the next cold start matches. */
+  private commitSelection(model: string | undefined, gruntModel?: string): void {
+    const providerId = this.fallback.active.id;
+    const chosen = (model?.trim() || this.fallback.active.model || this.decision.model).trim();
+    this.fallback.pinModel(chosen);
+    this.decision.model = chosen;
+    if (gruntModel?.trim()) this.decision.gruntModel = gruntModel.trim();
+    this.decision.reason = 'user-selected';
+    this.syncContextWindow();
+    this.session = { ...this.session, provider: providerId, model: chosen };
+    void this.store.updateSession(this.session.id, { provider: providerId, model: chosen }).catch(() => undefined);
+    this.bus.emit(
+      'provider.selected',
+      { providerId, model: chosen, reason: 'user-selected' },
+      { traceId: 'user-action', sessionId: this.session.id, taskId: this.activeLoop?.currentTaskId },
+    );
+    this.persistSelectedProvider(providerId, chosen, gruntModel?.trim() || undefined);
+  }
+
+  /** Follow the active provider's advertised window so a switch cannot keep promising the old one. */
+  private syncContextWindow(): void {
+    const caps = this.fallback.capabilities();
+    const detail = this.fallback.active.modelDetails?.find((row) => row.id === this.decision.model);
+    const window = detail?.contextWindow && detail.contextWindow > 0 ? detail.contextWindow : caps.maxContextWindow;
+    this.harnessConfig.contextWindow = Math.min(defaultHarnessConfig.contextWindow, window);
+  }
+
   /** Best-effort persistence of the user's provider choice across restarts. */
-  private persistSelectedProvider(providerId: string, model: string): void {
+  private persistSelectedProvider(providerId: string, model: string, gruntModel?: string): void {
     try {
       const configPath = paths.config();
       const raw = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '{}';
       const cfg = JSON.parse(raw) as Record<string, unknown>;
       cfg.lastSelectedProvider = { providerId, model, at: new Date().toISOString() };
+      // Spawn reads `model` / `preferredProvider`, not `lastSelectedProvider`.
+      cfg.preferredProvider = providerId;
+      cfg.model = model;
+      if (gruntModel) cfg.gruntModel = gruntModel;
       fs.mkdirSync(path.dirname(configPath), { recursive: true });
       fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf8');
     } catch {
@@ -1045,9 +1126,14 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
    * chat or a task is never reused here; the user asked for a clean slate, and
    * that only applies to rows that never held work.
    */
-  async newSession(kind: 'work' | 'math' | 'term' = 'work'): Promise<{ sessionId: string }> {
+  async newSession(
+    kind: 'work' | 'math' | 'term' = 'work',
+    options?: { excludeId?: string },
+  ): Promise<{ sessionId: string }> {
+    const excludeId = options?.excludeId;
     const recent = await this.store.listSessions();
     for (const candidate of recent) {
+      if (excludeId && candidate.id === excludeId) continue;
       if ((candidate.kind ?? 'work') !== kind) continue;
       const tasks = await this.store.listTasks(candidate.id);
       if (tasks.length > 0) continue;

@@ -32,11 +32,10 @@ function renderScene(scene: SceneId) {
 }
 
 /**
- * Open a panel from the mode header's icon row and return its title.
+ * Open a section in the right drawer and return the deck.
  *
- * The panels used to live in a right rail behind an expand toggle plus a tablist. They now
- * hang off the header (PanelIcons) and render into the main area's deck (PanelDeck), so
- * a test that wants to read the run steps clicks the icon, not a tab.
+ * The header has one toggle. The sections are tabs inside the drawer, so a test that
+ * wants the run steps opens the drawer, then the tab.
  */
 function expandCollapsed(container: HTMLElement): void {
   container.querySelectorAll('[data-collapsible-toggle]').forEach((btn) => {
@@ -45,9 +44,14 @@ function expandCollapsed(container: HTMLElement): void {
 }
 
 function openPanel(container: HTMLElement, id: string): HTMLElement {
-  const icon = container.querySelector(`[data-panel-icon="${id}"]`) as HTMLElement | null;
-  if (!icon) throw new Error(`panel icon not found: ${id}`);
-  fireEvent.click(icon);
+  if (!container.querySelector('[data-panel-deck]')) {
+    const toggle = container.querySelector('[data-panel-drawer]') as HTMLElement | null;
+    if (!toggle) throw new Error('drawer toggle not found');
+    fireEvent.click(toggle);
+  }
+  const tab = container.querySelector(`[data-panel-tab="${id}"]`) as HTMLElement | null;
+  if (!tab) throw new Error(`panel tab not found: ${id}`);
+  if (tab.getAttribute('aria-selected') !== 'true') fireEvent.click(tab);
   return container.querySelector('[data-panel-deck]') as HTMLElement;
 }
 
@@ -212,51 +216,56 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-composer-models]')).toBeNull();
   });
 
-  it('starts with no panel open and opens Memory on the first click', () => {
+  it('starts with no panel open and opens Memory from the single drawer toggle', () => {
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('empty');
-    // Nothing is open on boot: the deck is opt-in, so it cannot eat the workspace on a
-    // fresh window the way a permanently-visible rail used to.
+    // Nothing is open on boot: the drawer is opt-in, so it cannot eat the workspace.
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
-    const icon = container.querySelector('[data-panel-icon="memory"]') as HTMLElement;
-    expect(icon, 'the memory icon lives in the mode header').not.toBeNull();
-    expect(icon.closest('[data-mode-header]'), 'and the header is its host').not.toBeNull();
-    fireEvent.click(icon);
+    const header = container.querySelector('[data-mode-header]') as HTMLElement;
+    const toggles = header.querySelectorAll('[data-panel-drawer]');
+    expect(toggles, 'one drawer glyph in the header').toHaveLength(1);
+    expect(header.querySelectorAll('[data-panel-icon]'), 'the icon strip is gone').toHaveLength(0);
+    fireEvent.click(toggles[0] as HTMLElement);
     expect(panelTitle(container)).toBe('记忆');
-    // Clicking again closes it — the icon is a toggle, not an "open" button.
-    fireEvent.click(icon);
+    // Clicking again closes it.
+    fireEvent.click(toggles[0] as HTMLElement);
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
   });
 
-  it('hangs non-math panels (incl. artifacts) off the header of every mode', () => {
+  it('keeps every section as a tab inside the drawer, and restores the last one', () => {
     const { container } = renderScene('running');
-    // The panels were a right rail, so they only existed in one place. A mode that cannot
-    // reach them is a mode missing a capability the other two have — the same defect the
-    // run controls had. `PanelIcons` is mounted by `ModeHeader`, so this holds everywhere.
     for (const mode of ['work', 'math'] as const) {
       fireEvent.click(container.querySelector(`[data-mode-tab="${mode}"]`) as HTMLElement);
       const header = container.querySelector('[data-mode-header]') as HTMLElement;
-      const icons = [...header.querySelectorAll('[data-panel-icon]')].map((n) =>
-        n.getAttribute('data-panel-icon'),
-      );
-      // Five everywhere, plus the model icon only in math.
-      expect(icons).toEqual(
+      expect(header.querySelectorAll('[data-panel-drawer]')).toHaveLength(1);
+      expect(header.querySelectorAll('[data-panel-icon], [data-panel-tab]')).toHaveLength(0);
+      if (!container.querySelector('[data-panel-deck]')) {
+        fireEvent.click(header.querySelector('[data-panel-drawer]') as HTMLElement);
+      }
+      const tabs = [...container.querySelectorAll('[data-panel-tab]')].map((n) => n.getAttribute('data-panel-tab'));
+      expect(tabs).toEqual(
         mode === 'math'
           ? ['run', 'artifacts', 'memory', 'context', 'events', 'sub', 'model']
           : ['run', 'artifacts', 'memory', 'context', 'events', 'sub'],
       );
     }
+    fireEvent.click(container.querySelector('[data-panel-tab="artifacts"]') as HTMLElement);
+    expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
+    fireEvent.click(container.querySelector('[data-mode-header] [data-panel-drawer]') as HTMLElement);
+    expect(container.querySelector('[data-panel-deck]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-mode-header] [data-panel-drawer]') as HTMLElement);
+    expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
   });
 
-  it('dims a task-bound panel instead of hiding it', () => {
+  it('dims a task-bound tab instead of hiding it', () => {
     const { container } = renderScene('empty');
-    const needsTask = container.querySelector('[data-panel-icon="run"]') as HTMLElement;
-    const free = container.querySelector('[data-panel-icon="memory"]') as HTMLElement;
-    // No task here, so Run has nothing to show. Hiding it would move the other icons and
-    // leave a ragged row; dimming it keeps the set stable and explains itself on hover.
+    fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
+    const needsTask = container.querySelector('[data-panel-tab="run"]') as HTMLElement;
+    const free = container.querySelector('[data-panel-tab="memory"]') as HTMLElement;
+    // No task here, so Run has nothing to show. Hiding it would reshuffle the tabs;
+    // dimming keeps the set stable.
     expect(needsTask.className).toContain('opacity-40');
     expect(free.className).not.toContain('opacity-40');
-    // Still clickable — opening it shows the panel's own empty state rather than nothing.
     fireEvent.click(needsTask);
     expect(container.querySelector('[data-panel-deck="run"]')).not.toBeNull();
   });
@@ -273,8 +282,7 @@ describe('App — layout contract', () => {
   it('drops an open panel that the next mode cannot offer', () => {
     const { container } = renderScene('running');
     fireEvent.click(container.querySelector('[data-mode-tab="math"]') as HTMLElement);
-    const icon = container.querySelector('[data-panel-icon="model"]') as HTMLElement;
-    fireEvent.click(icon);
+    openPanel(container, 'model');
     expect(container.querySelector('[data-panel-deck="model"]')).not.toBeNull();
     // Back to chat: the model icon is gone, so a body left on screen would be something
     // open with no control that closes it.
@@ -329,6 +337,53 @@ describe('App — layout contract', () => {
     expect(rail.querySelector('[data-session="ses_2a77d1"]')).toBeNull();
     expect(rail.querySelector('[data-session="ses_4b1e0c"]')).not.toBeNull();
     expect(titles().some((t) => t.includes('Add --json output'))).toBe(true);
+  });
+
+  it('deletes the last remaining session and lands on a fresh chat', async () => {
+    localStorage.setItem(
+      'camelia.sessionMarks',
+      JSON.stringify({ pinned: [], favorite: [], hidden: ['ses_2a77d1', 'ses_91bb03'] }),
+    );
+    const { container, transport } = renderScene('running');
+    expect(container.querySelectorAll('[data-rail="left"] [data-session]')).toHaveLength(1);
+    const row = container.querySelector('[data-session="ses_4b1e0c"]') as HTMLElement;
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row).getByRole('button', { name: '删除' }));
+    fireEvent.click(within(row).getByRole('button', { name: '确认删除' }));
+    await waitFor(() => {
+      expect(container.querySelector('[data-session="ses_4b1e0c"]')).toBeNull();
+      expect(container.querySelector('[data-session="ses_blank_work"]')).not.toBeNull();
+    });
+    const created = transport.sent.filter((command) => command.type === 'new_session');
+    expect(created.at(-1)?.payload).toMatchObject({ excludeId: 'ses_4b1e0c' });
+    expect(container.querySelector('[data-composer-slot="centered"]')).not.toBeNull();
+  });
+
+  it('does not hand the deleted blank back when it was the last row', async () => {
+    localStorage.removeItem('camelia.sessionMarks');
+    const { container, transport } = renderScene('running');
+    fireEvent.click(container.querySelector('[data-new-session]') as HTMLElement);
+    await waitFor(() => {
+      expect(container.querySelector('[data-session="ses_blank_work"]')).not.toBeNull();
+    });
+    for (const id of ['ses_4b1e0c', 'ses_2a77d1', 'ses_91bb03']) {
+      const row = container.querySelector(`[data-session="${id}"]`) as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: '删除' }));
+      fireEvent.click(within(row).getByRole('button', { name: '确认删除' }));
+      await waitFor(() => {
+        expect(container.querySelector(`[data-session="${id}"]`)).toBeNull();
+      });
+    }
+    const blank = container.querySelector('[data-session="ses_blank_work"]') as HTMLElement;
+    fireEvent.click(within(blank).getByRole('button', { name: '删除' }));
+    fireEvent.click(within(blank).getByRole('button', { name: '确认删除' }));
+    await waitFor(() => {
+      expect(container.querySelector('[data-session="ses_blank_work_next"]')).not.toBeNull();
+    });
+    const created = transport.sent.filter((command) => command.type === 'new_session');
+    expect(created.at(-1)?.payload).toMatchObject({ excludeId: 'ses_blank_work' });
+    expect(container.querySelector('[data-session="ses_blank_work"]')).toBeNull();
+    expect(container.querySelector('[data-composer-slot="centered"]')).not.toBeNull();
   });
 });
 

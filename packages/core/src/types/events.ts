@@ -277,10 +277,19 @@ export interface CommandMap {
   'intervene_goal': { taskId: Id; instruction: string };
   'rollback_step': { taskId: Id; checkpointId: Id };
   'select_provider': { providerId: string; model?: string };
+  /**
+   * Re-read `~/.camelia/config.json` into the running engine and select a provider.
+   * Response data is the live provider status. Does not restart the process.
+   */
+  'apply_provider': { providerId?: string; model?: string; gruntModel?: string };
 
   // ---- Session switching (P0) ------------------------------------------
-  /** Create a fresh session row. Response data: `{ sessionId: Id }`. */
-  'new_session': { kind?: 'work' | 'math' | 'term' };
+  /**
+   * Create a fresh session row. Response data: `{ sessionId: Id }`.
+   * `excludeId` skips that row when reusing a blank — deleting the last session
+   * must not be handed the same id back.
+   */
+  'new_session': { kind?: 'work' | 'math' | 'term'; excludeId?: string };
   /** Ask the UI to re-attach to a prior session's event stream. */
   'select_session': { sessionId: Id };
 

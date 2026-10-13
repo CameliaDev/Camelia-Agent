@@ -69,6 +69,19 @@ export function unhideSession(marks: SessionMarks, id: string): SessionMarks {
   return { ...marks, hidden: marks.hidden.filter((item) => item !== id) };
 }
 
+/**
+ * Ids `orderSessions` must keep even when hidden.
+ *
+ * The active session stays listed so a resumed chat is not an empty rail.
+ * The session the user is deleting must not: if it is the last row, keepIds
+ * would pin it on screen and the hide would look like it failed.
+ */
+export function sessionKeepIds(activeId: string | undefined, leavingId?: string | null): string[] {
+  if (!activeId) return [];
+  if (leavingId && leavingId === activeId) return [];
+  return [activeId];
+}
+
 export function orderSessions<T extends { id: string }>(
   sessions: T[],
   marks: SessionMarks,

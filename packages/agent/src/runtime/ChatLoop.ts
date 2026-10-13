@@ -127,8 +127,13 @@ export interface ChatLoopOptions {
   config: HarnessConfig;
   /** The streaming LLM chain (the runtime's FallbackLLMPort). */
   fallback: LLMPort;
-  /** Model id used for chat turns. */
-  model: string;
+  /**
+   * Model id used for chat turns.
+   *
+   * A string is snapshotted. A getter is read on every request so a composer or
+   * settings switch applies to the next send without rebuilding this loop.
+   */
+  model: string | (() => string);
   /** Approval responder for the `ask` policy — the shared UI/CLI broker. */
   responder?: ApprovalResponder;
   /** Preset allowlist, same semantics as `RunContext.allowedTools`. */
@@ -146,6 +151,12 @@ export class ChatLoop {
   private lastPolicy?: ChatPolicy;
 
   constructor(private readonly opts: ChatLoopOptions) {}
+
+  /** Resolve the model at request time, not at construction time. */
+  private resolveModel(): string {
+    const model = this.opts.model;
+    return typeof model === 'function' ? model() : model;
+  }
 
   /** True while a turn is in flight — the server refuses further `chat_message`. */
   get busy(): boolean {
@@ -194,7 +205,7 @@ export class ChatLoop {
         let streamError: ChatStreamError | undefined;
 
         const request: ChatRequest = {
-          model: this.opts.model,
+          model: this.resolveModel(),
           messages: [system, ...messages],
           tools,
           temperature: this.opts.config.temperature,

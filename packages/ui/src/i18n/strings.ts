@@ -273,9 +273,12 @@ type StringKey =
   // there are no actions here, so none of these strings is a verb the user can press.
   // The run panels that moved out of the removed right rail into the mode header.
   | 'panels.label'
+  | 'panels.drawer'
   | 'panels.close'
   | 'panels.needsTask'
   | 'panels.open'
+  | 'panels.toggleOpen'
+  | 'panels.toggleClose'
   | 'statusBar.label'
   | 'statusBar.noWorkspace'
   | 'statusBar.stepsHint'
@@ -301,6 +304,8 @@ type StringKey =
   | 'settings.presets.saveOnly'
   | 'settings.presets.saved'
   | 'settings.presets.savedActive'
+  | 'settings.presets.applied'
+  | 'settings.presets.applyFailed'
   | 'settings.presets.deleted'
   | 'settings.presets.restartHint'
   | 'settings.presets.restartNow'
@@ -565,7 +570,7 @@ const en: Record<StringKey, string> = {
   'settings.provider': 'Provider',
   'settings.modelName': 'Decision model',
   'settings.gruntModel': 'Cheap model',
-  'settings.modelHint.live': 'Saved to ~/.camelia/config.json. Restart the desktop when you want the running engine to pick it up.',
+  'settings.modelHint.live': 'Saved to ~/.camelia/config.json. The running engine uses it on the next message — no need to quit the app.',
   'settings.modelHint.offline': 'This window is offline, so a typed task cannot be planned. Save a model, then reopen so the desktop can start the local engine.',
   'settings.apiKey': 'API key',
   'settings.apiKey.configured': 'Key saved',
@@ -674,9 +679,12 @@ const en: Record<StringKey, string> = {
   'connection.liveHint': 'Engine stream is live',
   'connection.offlineHonest': 'Offline — not pretending to be live',
   'panels.label': 'Run panels',
+  'panels.drawer': 'Side panel',
   'panels.close': 'Close panel',
   'panels.needsTask': 'no task yet',
   'panels.open': 'Open run panel',
+  'panels.toggleOpen': 'Open side panel',
+  'panels.toggleClose': 'Close side panel',
   'statusBar.label': 'Status',
   'statusBar.noWorkspace': 'No workspace',
   'statusBar.stepsHint': '{done} of {total} steps done',
@@ -722,14 +730,16 @@ const en: Record<StringKey, string> = {
   'settings.presets.baseUrl': 'Base URL',
   'settings.presets.templates': 'Templates',
   'settings.presets.todo': 'Connection presets save to ~/.camelia/config.json providers[].',
-  'settings.presets.hint': 'Cards map to providers[] in ~/.camelia/config.json. Keys stay in keys.json. Saving does not force a restart.',
+  'settings.presets.hint': 'Cards map to providers[] in ~/.camelia/config.json. Keys stay in keys.json. Save and use reloads the running engine — you do not have to quit the app.',
   'settings.presets.id': 'Preset id',
   'settings.presets.saveUse': 'Save and use',
   'settings.presets.saveOnly': 'Save',
   'settings.presets.saved': 'Preset saved.',
   'settings.presets.savedActive': 'Preset saved and set as preferred.',
+  'settings.presets.applied': 'Applied to the running engine. The next message uses this model.',
+  'settings.presets.applyFailed': 'Saved, but the running engine did not switch. The next launch will load it.',
   'settings.presets.deleted': 'Preset deleted.',
-  'settings.presets.restartHint': 'Config updated. Restart the desktop for the engine to load the new provider.',
+  'settings.presets.restartHint': 'Saved. The running engine reloads this provider — quitting the app is not required.',
   'settings.presets.restartNow': 'Restart now',
   'settings.presets.cannotDeleteActive': 'Switch to another preset before deleting the one in use.',
   'settings.presets.builtinLocked': 'Built-in presets stay in the list; clear a custom override by editing instead.',
@@ -988,7 +998,7 @@ const zh: Record<StringKey, string> = {
   'settings.provider': '服务商',
   'settings.modelName': '决策模型',
   'settings.gruntModel': '便宜模型',
-  'settings.modelHint.live': '已写入 ~/.camelia/config.json。重新打开桌面后，正在运行的引擎才会用上新模型。',
+  'settings.modelHint.live': '已写入配置。当前引擎会在下一条消息使用新模型，无需重新打开桌面。',
   'settings.modelHint.offline': '当前窗口离线，输入任务不会生成计划。先保存模型，再重新打开，桌面才会启动本机引擎。',
   'settings.apiKey': 'API 密钥',
   'settings.apiKey.configured': '已保存密钥',
@@ -1096,9 +1106,12 @@ const zh: Record<StringKey, string> = {
   'connection.liveHint': '引擎事件流在线',
   'connection.offlineHonest': '离线 — 不会假装在线',
   'panels.label': '运行面板',
+  'panels.drawer': '侧栏',
   'panels.close': '关闭面板',
   'panels.needsTask': '还没有任务',
   'panels.open': '打开运行面板',
+  'panels.toggleOpen': '打开侧栏',
+  'panels.toggleClose': '关闭侧栏',
   'statusBar.label': '状态栏',
   'statusBar.noWorkspace': '未设置工作区',
   'statusBar.stepsHint': '{total} 步中已完成 {done} 步',
@@ -1144,14 +1157,16 @@ const zh: Record<StringKey, string> = {
   'settings.presets.baseUrl': 'Base URL',
   'settings.presets.templates': '模板',
   'settings.presets.todo': '连接预设会写入 ~/.camelia/config.json 的 providers[]。',
-  'settings.presets.hint': '卡片对应 ~/.camelia/config.json 的 providers[]，密钥在 keys.json。保存后不会强制重启。',
+  'settings.presets.hint': '卡片对应 ~/.camelia/config.json 的 providers[]，密钥在 keys.json。保存并启用后，正在运行的引擎会换上新模型，不必重新打开桌面。',
   'settings.presets.id': '预设 ID',
   'settings.presets.saveUse': '保存并启用',
   'settings.presets.saveOnly': '仅保存',
   'settings.presets.saved': '预设已保存。',
   'settings.presets.savedActive': '预设已保存并设为当前使用。',
+  'settings.presets.applied': '已交给当前引擎，下一条消息会使用这个模型。',
+  'settings.presets.applyFailed': '已保存，但当前引擎没有换上。下次启动时会加载。',
   'settings.presets.deleted': '预设已删除。',
-  'settings.presets.restartHint': '配置已更新。重启桌面后，引擎才会加载新的服务商。',
+  'settings.presets.restartHint': '已保存。正在运行的引擎会重新加载这个服务商，不必退出应用。',
   'settings.presets.restartNow': '立即重启',
   'settings.presets.cannotDeleteActive': '请先切换到其他预设，再删除当前使用的预设。',
   'settings.presets.builtinLocked': '内置预设会留在列表中；如需覆盖请直接编辑。',

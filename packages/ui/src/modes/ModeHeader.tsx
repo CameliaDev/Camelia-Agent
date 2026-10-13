@@ -52,7 +52,7 @@ import { planStageOf } from '../progress/deriveProgress.js';
 import type { PlanStage, ProgressTone } from '../progress/types.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { Icon } from '../components/primitives.js';
-import { PanelIcons } from '../components/PanelIcons.js';
+import { PanelDrawerToggle } from '../components/PanelIcons.js';
 
 /**
  * The fixed strip height, in px.
@@ -192,13 +192,11 @@ export function ModeHeader({
         <SessionTitle />
       </div>
       {/*
-        The six run panels, drawn here rather than supplied by each mode. They used to
-        be tabs in a fourth column, and they moved into this row for the doctrine the
-        header has always served: a control that exists in one mode and not another is
-        missing exactly where it is needed. Run controls — pause/steer/stop — belong to
-        the composer instead; they live directly above it, mounted once in `App`.
+        One drawer toggle. The sections (artifacts, memory, context, …) are tabs
+        inside the right rail, not a strip of icons in this row. Run controls —
+        pause/steer/stop — belong to the composer; they sit directly above it.
       */}
-      <PanelIcons />
+      <PanelDrawerToggle />
       {trailing}
     </div>
   );

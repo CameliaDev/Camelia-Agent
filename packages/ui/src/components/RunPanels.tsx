@@ -12,11 +12,9 @@
  *
  * ## What replaced it
  *
- * The six entries are now icons in `ModeHeader`'s trailing slot (see `PanelIcons`), which
- * is the row that never scrolls away and is present in all three modes. The bodies live
- * here, laid out **horizontally** across the work area (`PanelDeck`) rather than stacked
- * in a narrow column — the user asked for 横着放, and it is also the better fit: a wide row
- * suits the event trail and the step list, both of which were being truncated at 360px.
+ * The header keeps one drawer toggle (`PanelDrawerToggle`). The sections are tabs
+ * inside `RightRail`, and the bodies live here. A task-bound section stays in the
+ * tab row when there is no task — dimmed, not removed — so the set does not jump.
  *
  * Nothing is deleted and nothing is simplified. The panel bodies are the same components
  * that rendered in the rail, moved wholesale — a rewrite would risk the run record and the

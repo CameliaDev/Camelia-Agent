@@ -247,16 +247,22 @@ describe('math workspace', () => {
       act(() => {
         fireEvent.click(modeTab(container, mode));
       });
-      expect(container.querySelector('[data-panel-icon="model"]')).toBeNull();
+      if (!container.querySelector('[data-panel-deck]')) {
+        fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
+      }
+      expect(container.querySelector('[data-panel-tab="model"]')).toBeNull();
+      fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
     }
 
     act(() => {
       fireEvent.click(modeTab(container, 'math'));
     });
-    const icon = container.querySelector('[data-panel-icon="model"]') as HTMLElement;
-    expect(icon, 'math mode gets the model icon').not.toBeNull();
+    fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
+    const tab = container.querySelector('[data-panel-tab="model"]') as HTMLElement;
+    expect(tab, 'math mode gets the model tab inside the drawer').not.toBeNull();
+    expect(tab.closest('[data-mode-header]'), 'the tab is not a header icon').toBeNull();
     act(() => {
-      fireEvent.click(icon);
+      fireEvent.click(tab);
     });
     const deck = container.querySelector('[data-panel-deck="model"]');
     expect(deck).not.toBeNull();

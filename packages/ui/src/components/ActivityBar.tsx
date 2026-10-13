@@ -1,8 +1,8 @@
 /**
  * Activity bar — compact task status chip above the run card.
  *
- * ModeHeader (with PanelIcons) already sits once in ChatWorkspace / MathWorkspace.
- * This chip must NOT wrap ModeHeader again — that duplicated the panel icon row.
+ * ModeHeader already sits once in ChatWorkspace / MathWorkspace, with one drawer toggle.
+ * This chip must NOT wrap ModeHeader again.
  * @module
  */
 

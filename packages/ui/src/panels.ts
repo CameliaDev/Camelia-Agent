@@ -34,6 +34,12 @@ export function panelsForMode(mode: AppModeId): PanelSpec[] {
   return PANELS.filter((p) => !p.mathOnly || mode === 'math');
 }
 
+/** First section that can show something with no task, else the first section. */
+export function defaultPanelForMode(mode: AppModeId): PanelId | undefined {
+  const available = panelsForMode(mode);
+  return available.find((panel) => !panel.needsTask)?.id ?? available[0]?.id;
+}
+
 export function panelNeedsTask(id: PanelId): boolean {
   return PANELS.find((p) => p.id === id)?.needsTask ?? false;
 }

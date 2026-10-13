@@ -6,12 +6,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { t } from '../i18n/strings.js';
+import { makeCommand } from '../state/store.js';
 import { useUiStore } from '../state/UiProvider.js';
 import {
   deleteProviderPreset,
   readKeyStatus,
   readModelSettings,
-  relaunchDesktop,
   testOpenAiCompatible,
   upsertProviderPreset,
   writeProviderKey,
@@ -51,6 +51,7 @@ type Tr = (key: Parameters<typeof t>[1]) => string;
 
 export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
   const status = useUiStore((s) => s.status);
+  const query = useUiStore((s) => s.query);
   const connected = status === 'live' || status === 'finished';
   const [cards, setCards] = useState<ConnectionPresetCard[]>([]);
   const [keys, setKeys] = useState<Record<string, KeyStatus>>({});
@@ -66,7 +67,6 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
   const [apiKey, setApiKey] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [needsRestart, setNeedsRestart] = useState(false);
   const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
 
@@ -98,6 +98,35 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Push the preset just written to disk onto the process that is already serving chat.
+   * Offline, the file is enough: the next engine start reads it. A live engine used to
+   * ignore the file until the desktop was quit.
+   */
+  async function pushLive(input: {
+    providerId?: string;
+    model?: string;
+    gruntModel?: string;
+  }): Promise<'applied' | 'offline' | 'failed'> {
+    if (!connected) return 'offline';
+    const payload: { providerId?: string; model?: string; gruntModel?: string } = {};
+    if (input.providerId) payload.providerId = input.providerId;
+    if (input.model) payload.model = input.model;
+    if (input.gruntModel) payload.gruntModel = input.gruntModel;
+    try {
+      await query(makeCommand('apply_provider', payload));
+      return 'applied';
+    } catch {
+      return 'failed';
+    }
+  }
+
+  function savedNote(activate: boolean, live: 'applied' | 'offline' | 'failed'): string {
+    if (live === 'failed') return tr('settings.presets.applyFailed');
+    if (live === 'applied' && activate) return tr('settings.presets.applied');
+    return activate ? tr('settings.presets.savedActive') : tr('settings.presets.saved');
+  }
 
   const formOpen = creating || editingId !== null;
   const template = templateFor(templateId);
@@ -218,8 +247,16 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         setNote(error);
         return;
       }
-      setNote(activate ? tr('settings.presets.savedActive') : tr('settings.presets.saved'));
-      setNeedsRestart(true);
+      const live = await pushLive(
+        activate
+          ? {
+              providerId: id,
+              model: model.trim(),
+              ...(gruntModel.trim() ? { gruntModel: gruntModel.trim() } : {}),
+            }
+          : {},
+      );
+      setNote(savedNote(activate, live));
       setCreating(false);
       setEditingId(null);
       await reload();
@@ -247,8 +284,13 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         setNote(error);
         return;
       }
-      setNote(tr('settings.presets.savedActive'));
-      setNeedsRestart(true);
+      const chosen = card.model || suggestionFor(card.id);
+      const live = await pushLive({
+        providerId: card.id,
+        model: chosen,
+        ...(gruntModel.trim() ? { gruntModel: gruntModel.trim() } : {}),
+      });
+      setNote(savedNote(true, live));
       await reload();
     } finally {
       setBusy(false);
@@ -268,8 +310,8 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         setNote(error);
         return;
       }
-      setNote(tr('settings.presets.deleted'));
-      setNeedsRestart(true);
+      const live = await pushLive({});
+      setNote(live === 'failed' ? tr('settings.presets.applyFailed') : tr('settings.presets.deleted'));
       if (editingId === card.id) setEditingId(null);
       await reload();
     } finally {
@@ -512,27 +554,6 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         </div>
       )}
 
-      {needsRestart ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-[12px] text-warn">
-          <span className="flex-1">{tr('settings.presets.restartHint')}</span>
-          <button
-            type="button"
-            disabled={busy}
-            className="rounded-md border border-warn/40 px-2.5 py-1 text-[11px] hover:bg-warn/20 disabled:opacity-40"
-            onClick={() => {
-              setBusy(true);
-              void relaunchDesktop().then((error) => {
-                if (error) {
-                  setNote(error);
-                  setBusy(false);
-                }
-              });
-            }}
-          >
-            {tr('settings.presets.restartNow')}
-          </button>
-        </div>
-      ) : null}
       {!formOpen && note ? <p className="text-[12px] text-ink-2">{note}</p> : null}
       {!formOpen ? <p className="font-mono text-[10.5px] text-ink-3">preferredProvider={preferred || '—'}</p> : null}
     </div>
