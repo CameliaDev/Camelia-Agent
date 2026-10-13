@@ -43,7 +43,9 @@ import { create, type UseBoundStore, type StoreApi } from 'zustand';
 import type { ConnectionStatus, Transport } from '../transport/types.js';
 import type { AppModeId } from '../mode/types.js';
 import type { MathDemoSnapshot } from '../modes/math/mathDemoFixture.js';
+import type { PanelId } from '../panels.js';
 import {
+  RAIL_LEFT_DEFAULT,
   applySavedTheme,
   loadLocalPrefs,
   sanitizeLocalPrefs,
@@ -111,6 +113,30 @@ export interface UiState {
   /** Ephemeral. Not persisted and not part of `snapshot`. */
   settingsOpen: boolean;
   /**
+   * Which settings page is showing. Ephemeral, like the drawer itself.
+   *
+   * It lives on the store rather than inside the drawer because the shell has two entries
+   * that open *different* pages — the rail's account mark lands on appearance, the gear on
+   * the first page — and a drawer-local `useState` cannot be told where to start.
+   */
+  settingsSection: SettingsSection;
+  /**
+   * Which run panel is open in the work-area deck, or `undefined` when none is.
+   *
+   * On the store, like `steeringOpen`, for the same reason: the icons that open it live in
+   * `ModeHeader` — a shared row drawn by all three modes — while the deck that shows it is
+   * drawn by `App`. A local `useState` in either would give the two ends different answers.
+   */
+  panelId?: PanelId;
+  /**
+   * Whether the steering form is open. Ephemeral chrome, like the settings drawer.
+   *
+   * It is on the store, not in the transcript, because the button that opens it lives in the
+   * shared mode header — one click in any mode has to raise the same panel, wherever it is
+   * drawn.
+   */
+  steeringOpen: boolean;
+  /**
    * Active workbench mode — ephemeral chrome, like `settingsOpen`.
    *
    * Deliberately *not* in `snapshot`: all modes read the same task, so a mode can never
@@ -132,7 +158,17 @@ export interface UiState {
   setMode: (mode: AppModeId) => void;
   setMathDemo: (demo: MathDemoSnapshot | undefined) => void;
   setLocalPrefs: (patch: Partial<LocalPrefs>) => void;
-  setSettingsOpen: (open: boolean) => void;
+  /**
+   * Open or close the drawer, optionally naming the page it should land on.
+   *
+   * A plain `setSettingsOpen(true)` resets to the first page: the caller asked for
+   * "settings" without naming a page, so inheriting wherever the reader last was would make
+   * that entry's destination depend on history. A named page always wins.
+   */
+  setSettingsOpen: (open: boolean, section?: SettingsSection) => void;
+  setSettingsSection: (section: SettingsSection) => void;
+  setSteeringOpen: (open: boolean) => void;
+  setPanelId: (id: PanelId | undefined) => void;
   /** Switch the active session id locally (after new_session / select_session ack). */
   setActiveSession: (id: Id) => void;
   restoreDefaultLayout: () => void;
@@ -142,6 +178,9 @@ export interface UiState {
 }
 
 export type UiStore = UseBoundStore<StoreApi<UiState>>;
+
+/** The pages the settings drawer can show. Defined here so the shell can name one. */
+export type SettingsSection = 'connections' | 'appearance' | 'engine' | 'about';
 
 /** Build a well-formed command envelope. The transport owns delivery; this owns shape. */
 export function makeCommand<T extends CommandType>(
@@ -181,11 +220,23 @@ export function createUiStore(transport: Transport): UiStore {
     sessions: [],
     localPrefs: bootPrefs,
     settingsOpen: false,
+    panelId: undefined,
+    settingsSection: 'connections',
+    steeringOpen: false,
     mode: bootPrefs.preferredMode,
     ...(bootTheme
       ? { activeTheme: { id: bootPrefs.themeId, label: themeLabel(bootPrefs.themeId), rejected: bootTheme.rejected } }
       : {}),
-    setSettingsOpen: (open) => set({ settingsOpen: open }),
+    setSettingsOpen: (open, section) =>
+      set((state) => ({
+        settingsOpen: open,
+        // Closing leaves the page where it was, so the animation does not flip content
+        // underneath a fading panel; the next plain open resets it anyway.
+        settingsSection: open ? section ?? 'connections' : state.settingsSection,
+      })),
+    setSettingsSection: (settingsSection) => set({ settingsSection }),
+    setSteeringOpen: (steeringOpen) => set({ steeringOpen }),
+    setPanelId: (panelId) => set({ panelId }),
     setMode: (mode) => set({ mode }),
     setMathDemo: (mathDemo) => set({ mathDemo }),
     setActiveSession: (id) => set({ activeSessionId: id }),
@@ -213,11 +264,8 @@ export function createUiStore(transport: Transport): UiStore {
       set((state) => {
         const next = sanitizeLocalPrefs({
           ...state.localPrefs,
-          leftWidth: 260,
-          rightWidth: 360,
+          leftWidth: RAIL_LEFT_DEFAULT,
           leftCollapsed: false,
-          rightCollapsed: true,
-          userSetRightRail: true,
         });
         saveLocalPrefs(next);
         return { localPrefs: next };
@@ -257,8 +305,21 @@ export function createUiStore(transport: Transport): UiStore {
   const memoryActions: MemoryPanelActions = {
     load: async () => {
       store.setState((state) => ({ memory: { ...state.memory, loading: true, error: undefined } }));
+      // Scope the list to the session on screen. The panel answers "what did this task
+      // learn?"; the unscoped list mixed every session's memories together, which is why
+      // the panel read as noise. Cross-session memories live behind Settings.
+      const sessionId = store.getState().activeSessionId;
+      if (!sessionId) {
+        // No session means no task, and a task-scoped panel has nothing to show. Falling
+        // back to the unscoped query here would quietly turn the panel back into the
+        // "every memory in the database" dump this scope removed.
+        store.setState((state) => ({
+          memory: { ...state.memory, items: [], forgetLog: [], reactivationDue: [], loading: false, error: undefined },
+        }));
+        return;
+      }
       try {
-        const items = await store.getState().query<MemoryView[]>(makeCommand('list_memories', {}));
+        const items = await store.getState().query<MemoryView[]>(makeCommand('list_memories', { sessionId }));
         const forgetLog = await store.getState().query<ForgetLogView[]>(makeCommand('list_forget_log', {}));
         const reactivationDue = await store.getState().query<MemoryView[]>(makeCommand('list_reactivation_due', {}));
         const health = await store.getState().query<MemoryHealthView>(makeCommand('get_memory_health', {}));

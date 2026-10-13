@@ -1,6 +1,17 @@
 /**
  * Four built-in themes.
  *
+ * The theme **ids** are historical and are deliberately left alone: `themeId` is
+ * persisted in `localStorage`, so renaming an id would silently reset every existing
+ * install's choice back to the default. `warm-dark` therefore now means *Ink Dark* —
+ * the label is the user-facing truth.
+ *
+ * Palettes are ported from Hermes Studio's `黑白水墨 / Pure Ink` sheet
+ * (`packages/client/src/styles/variables.scss`): `light` from that file's default
+ * `:root` block, `warm-dark` from its `.dark` block (which lives in `index.css` as the
+ * stylesheet default). `cool-dark` and `high-contrast` predate the port and are not
+ * part of the ink family.
+ *
  * Every key is already on `THEME_TOKEN_WHITELIST`. Warm Dark is the stylesheet
  * itself, so applying it clears inline overrides instead of re-stating them.
  * Switching calls `applyThemeTokens` — nothing here writes CSS by hand.
@@ -17,8 +28,9 @@ export interface ThemePreset {
 
 export const THEME_PRESETS: readonly ThemePreset[] = [
   {
+    // id kept for storage compatibility; the palette is now neutral grey, not warm.
     id: 'warm-dark',
-    label: 'Warm Dark',
+    label: 'Ink Dark',
     tokens: {},
   },
   {
@@ -45,27 +57,31 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
     },
   },
   {
-    // Wireframe v2: low-fidelity grayscale line art on white, single blue accent.
+    // Hermes' default sheet: #fafafa paper, #333 ink, no hue anywhere.
     id: 'light',
-    label: 'Light',
+    label: 'Ink Light',
     tokens: {
-      '--color-base': '#ffffff',
-      '--color-elevated': '#f7f8fa',
-      '--color-panel': '#eef0f4',
-      '--color-hover': '#eceef2',
-      '--color-line': '#e2e4ea',
-      '--color-ink': '#1f2329',
-      '--color-ink-2': '#4b5563',
-      '--color-ink-3': '#8f959e',
-      '--color-accent': '#2563eb',
-      '--color-accent-2': '#3b82f6',
-      '--color-accent-dim': '#dbeafe',
-      '--color-ok': '#16a34a',
-      '--color-bad': '#dc2626',
-      '--color-warn': '#d97706',
-      '--color-info': '#0284c7',
-      '--color-add': 'rgba(22, 163, 74, 0.10)',
-      '--color-del': 'rgba(220, 38, 38, 0.08)',
+      '--color-base': '#fafafa',
+      '--color-elevated': '#ffffff',
+      '--color-panel': '#f5f5f5',
+      '--color-hover': '#f0f0f0',
+      '--color-line': '#e0e0e0',
+      '--color-ink': '#1a1a1a',
+      '--color-ink-2': '#666666',
+      '--color-ink-3': '#999999',
+      '--color-accent': '#333333',
+      '--color-accent-2': '#1a1a1a',
+      '--color-accent-dim': '#888888',
+      '--color-ok': '#2e7d32',
+      '--color-bad': '#c62828',
+      '--color-warn': '#f57f17',
+      // Deeper than the original #4a90d9, which only reached 3.34:1 against white
+      // — under AA for the composer's 12.5px "Steer" pill, and only 3.16:1 as
+      // `text-info` on the #fafafa paper. This value clears AA in both directions:
+      // white on it, and it on paper.
+      '--color-info': '#2b6cb0',
+      '--color-add': 'rgba(46, 125, 50, 0.12)',
+      '--color-del': 'rgba(198, 40, 40, 0.10)',
     },
   },
   {

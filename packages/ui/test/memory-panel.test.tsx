@@ -5,9 +5,14 @@
  * through `SseTransport → EngineServer → SqliteSessionStore` in production and
  * through the same command channel in the fixture. These tests render the panel
  * against the *fixture* engine (the offline stand-in that speaks the identical
- * command protocol) and assert the four panel goals: four layers are visible,
- * value scores decompose, interventions leave as commands and re-render from the
- * engine's mutated store, and recall provenance is readable.
+ * command protocol) and assert the four panel goals: the task scope holds, layers
+ * are visible, value scores decompose, interventions leave as commands and re-render
+ * from the engine's mutated store, and recall provenance is readable.
+ *
+ * The **scope** assertion is the load-bearing one: the panel answers "what did *this
+ * task* learn?", so a cross-session memory must never appear in it. That distinction
+ * is what makes the panel readable, and it is the reason the fixture's global row is
+ * asserted *absent* rather than merely unmentioned.
  * @module
  */
 
@@ -33,8 +38,14 @@ function forgetLog(): HTMLElement {
   return screen.getByTestId('forget-log');
 }
 
+/** The cross-session row the panel must never show — it belongs to Settings. */
+const GLOBAL_ROW = /Camelia matches recall by token overlap/;
+
 async function renderPanel() {
-  const transport = new FixtureTransport({ scene: 'empty' });
+  // A scene *with* a session: the panel is task-scoped, so `empty` (no session) is the
+  // one state where it is correct for the list to be blank. Using it here would assert
+  // the wrong thing.
+  const transport = new FixtureTransport({ scene: 'running' });
   const store = createUiStore(transport);
   render(
     <UiProvider store={store}>
@@ -46,15 +57,20 @@ async function renderPanel() {
 }
 
 describe('MemoryPanel — visible (Iteration 22)', () => {
-  it('shows the four layers, the value decomposition and the evidence line', async () => {
+  it('shows only what this task learned, with the value decomposition and evidence line', async () => {
     await renderPanel();
 
-    // The long-term fact is listed with engine data.
-    expect(screen.getAllByText(/^MEMORY$|^记忆$/).length).toBeGreaterThan(0);
-    expect(within(list()).getByText(/Camelia matches recall by token overlap/)).toBeInTheDocument();
+    // The panel is titled for its scope, not as a generic memory dump.
+    expect(screen.getByText(/^TASK MEMORY$|^本任务记忆$/)).toBeInTheDocument();
+
+    // A session memory is listed with engine data…
+    expect(within(list()).getByText(/create-todo-module recipe/)).toBeInTheDocument();
+
+    // …and the cross-session row is NOT, because the list is scoped to this session.
+    expect(within(list()).queryByText(GLOBAL_ROW)).not.toBeInTheDocument();
 
     // Value decomposition: strength = importance × recency × correctness.
-    expect(within(list()).getByText('= imp 0.80 × 0.50 × 0.90')).toBeInTheDocument();
+    expect(within(list()).getByText('= imp 0.85 × 0.50 × 1.00')).toBeInTheDocument();
 
     // Evidence line for the validated procedural memory.
     expect(within(list()).getByText(/validated by tsk_fixture_verify \(pass\)/)).toBeInTheDocument();
@@ -63,16 +79,24 @@ describe('MemoryPanel — visible (Iteration 22)', () => {
     expect(screen.getByText('noise 8%')).toBeInTheDocument();
   });
 
-  it('filters by layer and every tab shows only that layer', async () => {
+  it('filters by layer within the task scope', async () => {
     await renderPanel();
 
     await userEvent.click(screen.getByRole('button', { name: 'Proc' }));
-    expect(within(list()).queryByText(/Camelia matches recall by token overlap/)).not.toBeInTheDocument();
     expect(within(list()).getByText(/create-todo-module recipe/)).toBeInTheDocument();
+    expect(within(list()).queryByText(/idempotent seed/)).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Long' }));
-    expect(within(list()).getByText(/Camelia matches recall by token overlap/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Short' }));
+    expect(within(list()).getByText(/idempotent seed/)).toBeInTheDocument();
     expect(within(list()).queryByText(/create-todo-module recipe/)).not.toBeInTheDocument();
+
+    // No tab can surface a cross-session row — the scope is applied before the tab is.
+    // `long` is unreachable for a session memory (promotion re-scopes it to global), so
+    // this tab lands on the honest empty state rather than on the global row.
+    await userEvent.click(screen.getByRole('button', { name: 'Long' }));
+    expect(screen.queryByTestId('memory-list')).toBeNull();
+    expect(screen.queryByText(GLOBAL_ROW)).not.toBeInTheDocument();
+    expect(screen.getByText(/No long memories in this task\./)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'All' }));
     expect(within(list()).getAllByText(/incorrect/).length).toBeGreaterThan(0);
@@ -119,14 +143,17 @@ describe('MemoryPanel — usable (Iteration 22)', () => {
     expect(within(forgetLog()).getByText(/The todo module needs an idempotent seed/)).toBeInTheDocument();
   });
 
-  it('promote moves a short memory to the long tab', async () => {
+  it('promote graduates a memory out of the task panel (long-term lives in Settings)', async () => {
     const { transport } = await renderPanel();
 
     const row = within(list()).getByText(/The todo module needs an idempotent seed/).closest('li')!;
     await userEvent.click(within(row).getByRole('button', { name: 'promote' }));
 
     await waitFor(() => expect(transport.sent.some((command) => command.type === 'promote_memory')).toBe(true));
-    await userEvent.click(screen.getByRole('button', { name: 'Long' }));
-    await waitFor(() => expect(within(list()).getByText(/The todo module needs an idempotent seed/)).toBeInTheDocument());
+    // Promotion re-scopes the memory to global, so it leaves the task-scoped list —
+    // the row is not "lost", it moved to the surface that owns cross-session memories.
+    await waitFor(() =>
+      expect(within(list()).queryByText(/The todo module needs an idempotent seed/)).not.toBeInTheDocument(),
+    );
   });
 });

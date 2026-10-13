@@ -7,7 +7,7 @@
  * @module
  */
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { App } from '../src/App.js';
@@ -193,8 +193,9 @@ describe('math workspace', () => {
     expect(container.querySelector('[data-math-demo-badge]')).not.toBeNull();
     expect(container.querySelector('[data-math-result-card]')).not.toBeNull();
     expect(container.querySelector('[data-math-solver-log]')).not.toBeNull();
-    // The progress rail reads the same demo, and flags itself as demo.
-    expect(container.querySelector('[data-progress-bar]')).not.toBeNull();
+    // Nothing in the shell flags the demo by *not* being there any more: the demo badge is
+    // the only marker, which is why it has to be on every surface that shows demo data.
+    expect(container.querySelectorAll('[data-progress-bar]')).toHaveLength(0);
 
     act(() => {
       fireEvent.click(container.querySelector('[data-math-demo-clear]') as HTMLElement);
@@ -234,22 +235,159 @@ describe('math workspace', () => {
     expect(container.querySelector('[data-math-current="true"]')?.getAttribute('data-math-stage')).toBe('modeling');
   });
 
-  it('puts the model in the right rail as read-only, and only in math mode', () => {
+  it('offers the model panel as read-only, and only in math mode', () => {
     const { container } = renderScene('empty');
-    // Chat: no model tab.
-    expect(screen.queryByRole('tab', { name: /模型|Model/ })).toBeNull();
+    // Chat and plan: no model icon at all. `mathOnly` is the rule — a read-only model
+    // readout in the other two modes would be a second place showing the same numbers the
+    // composer already shows in its own chip.
+    for (const mode of ['chat', 'plan'] as const) {
+      act(() => {
+        fireEvent.click(modeTab(container, mode));
+      });
+      expect(container.querySelector('[data-panel-icon="model"]')).toBeNull();
+    }
+
     act(() => {
       fireEvent.click(modeTab(container, 'math'));
     });
-    const open = container.querySelector('[data-open-right-rail]') as HTMLElement | null;
-    if (open) act(() => { fireEvent.click(open); });
+    const icon = container.querySelector('[data-panel-icon="model"]') as HTMLElement;
+    expect(icon, 'math mode gets the model icon').not.toBeNull();
     act(() => {
-      fireEvent.click(screen.getByRole('tab', { name: /模型|Model/ }));
+      fireEvent.click(icon);
     });
-    const section = container.querySelector('[data-rail-model]');
-    expect(section).not.toBeNull();
-    // Read-only: no inputs, no buttons other than the rail's own chrome.
-    expect(section!.querySelectorAll('input, textarea, select')).toHaveLength(0);
+    const deck = container.querySelector('[data-panel-deck="model"]');
+    expect(deck).not.toBeNull();
+    // Read-only: no inputs anywhere in the body. Editing lives in the math workspace.
+    expect(deck!.querySelectorAll('input, textarea, select')).toHaveLength(0);
+  });
+});
+
+describe('run controls are reachable from every mode', () => {
+  // The report this guards: "这个任务停止不了，和取消不了也是一个问题。" Pause / steer /
+  // cancel used to be four props on `ActivityBar`, and only chat renders that component;
+  // plan and math offered no way to intervene at all. They are one shared group now,
+  // right-aligned in the run dock above the composer, with the lifecycle stepper centred
+  // in the same dock — reachable no matter which mode is on screen.
+  it('draws one run dock above the composer in all three modes', () => {
+    for (const mode of ['chat', 'plan', 'math'] as const) {
+      const { container, unmount } = renderScene('running');
+      act(() => {
+        fireEvent.click(modeTab(container, mode));
+      });
+      expect(container.querySelector(`[data-mode-shell="${mode}"]`)).not.toBeNull();
+
+      // Exactly one dock, and the header is not where it lives — that strip keeps only
+      // the session title and the panel icons.
+      expect(container.querySelectorAll('[data-run-dock]')).toHaveLength(1);
+      const header = container.querySelector(`[data-mode-shell="${mode}"] [data-mode-header]`);
+      expect(header).not.toBeNull();
+      expect(header!.querySelector('[data-run-dock]')).toBeNull();
+      expect(header!.querySelector('[data-run-controls]')).toBeNull();
+      expect(header!.querySelector('[data-plan-lifecycle]')).toBeNull();
+
+      // Stepper centred, controls right: both inside the dock, stepper before the group.
+      const dock = container.querySelector('[data-run-dock]')!;
+      const stepper = dock.querySelector('[data-plan-lifecycle]');
+      const controls = dock.querySelector('[data-run-controls]');
+      expect(stepper).not.toBeNull();
+      expect(controls).not.toBeNull();
+      expect(
+        stepper!.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(controls!.querySelector('[data-run-pause]')).not.toBeNull();
+      expect(controls!.querySelector('[data-run-steer]')).not.toBeNull();
+      expect(controls!.querySelector('[data-run-cancel]')).not.toBeNull();
+
+      // Above the composer, not inside it — the anchor the dock is drawn at.
+      const composer = container.querySelector('[data-composer]')!;
+      expect(composer.contains(dock)).toBe(false);
+
+      // The header centres the session's project name, not the run's own text.
+      expect(header!.querySelector('[data-session-title]')).not.toBeNull();
+      unmount();
+    }
+  });
+
+  it('greys out rather than removes pause and cancel once the task is done', () => {
+    const { container } = renderScene('done');
+    const pause = container.querySelector('[data-run-pause]') as HTMLButtonElement;
+    const cancel = container.querySelector('[data-run-cancel]') as HTMLButtonElement;
+    expect(pause).not.toBeNull();
+    expect(cancel).not.toBeNull();
+    // Still in the tree: a button that vanishes takes its slot with it and reflows the
+    // header, which reads as "the button broke" rather than "there is nothing to stop".
+    expect(pause.disabled).toBe(true);
+    expect(cancel.disabled).toBe(true);
+  });
+
+  it('offers resume instead of pause once the task is paused', () => {
+    const { container, store } = renderScene('running');
+    act(() => {
+      store.setState((state) => ({
+        snapshot: {
+          ...state.snapshot,
+          task: { ...state.snapshot.task!, status: 'paused' },
+        },
+      }));
+    });
+    expect(container.querySelector('[data-run-pause]')).toBeNull();
+    expect(container.querySelector('[data-run-resume]')).not.toBeNull();
+  });
+
+  it('sends pause_task with the task on screen, not just a reason', () => {
+    const { container, store, transport } = renderScene('running');
+    const taskId = store.getState().snapshot.task!.id;
+    const sent: { type: string; payload: Record<string, unknown> }[] = [];
+    // Spy at the transport, which the store's dispatch always funnels through — the
+    // command is what matters here, not which layer issued it.
+    const real = transport.send.bind(transport);
+    transport.send = (cmd) => {
+      sent.push(cmd as unknown as { type: string; payload: Record<string, unknown> });
+      real(cmd);
+    };
+    act(() => {
+      fireEvent.click(container.querySelector('[data-run-pause]') as HTMLElement);
+    });
+    expect(sent.map((c) => c.type)).toContain('pause_task');
+    const pause = sent.find((c) => c.type === 'pause_task')!;
+    // The engine now refuses a taskId that is not the running one, so an omitted id
+    // would make the button refuse itself.
+    expect(pause.payload.taskId).toBe(taskId);
+  });
+
+  it('opens the steering form from any mode, above the composer', () => {
+    for (const mode of ['chat', 'plan', 'math'] as const) {
+      const { container, unmount } = renderScene('running');
+      act(() => {
+        fireEvent.click(modeTab(container, mode));
+      });
+      expect(container.querySelector('[data-steering]')).toBeNull();
+      act(() => {
+        fireEvent.click(container.querySelector('[data-run-steer]') as HTMLElement);
+      });
+      expect(container.querySelector('[data-steering]')).not.toBeNull();
+      unmount();
+    }
+  });
+
+  it('shows a failed command in every mode, not only in chat', () => {
+    // The notice used to be drawn inside the chat transcript, which is why a pause
+    // rejected in plan mode showed nothing at all: `{ ok: false }` was recorded and
+    // never rendered anywhere the user was looking.
+    for (const mode of ['chat', 'plan', 'math'] as const) {
+      const { container, store, unmount } = renderScene('running');
+      act(() => {
+        fireEvent.click(modeTab(container, mode));
+      });
+      act(() => {
+        store.setState({ lastCommandError: { type: 'pause_task', error: '当前没有运行中的任务', at: 1 } });
+      });
+      const notice = container.querySelector('[data-command-error]');
+      expect(notice).not.toBeNull();
+      // The engine's own words, not a flattened "操作失败".
+      expect(notice!.textContent).toContain('当前没有运行中的任务');
+      unmount();
+    }
   });
 });
 

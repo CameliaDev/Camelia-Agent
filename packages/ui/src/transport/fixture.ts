@@ -50,7 +50,7 @@ export class FixtureTransport implements Transport {
   private clock = 0;
   private snapshot: ProjectionSnapshot = initialSnapshot();
   /** Scripted memory panel data (Iteration 22) — a stand-in, never the engine. */
-  private memory: FixtureMemoryDb = createFixtureMemoryDb(Date.now());
+  private memory: FixtureMemoryDb = createFixtureMemoryDb(Date.now(), PRIMARY_SESSION.id);
 
   constructor(private readonly options: FixtureOptions = {}) {}
 
@@ -132,7 +132,7 @@ export class FixtureTransport implements Transport {
     switch (command.type) {
       // ---- memory panel (Iteration 22) -----------------------------------
       case 'list_memories':
-        this.answer(command.commandId, this.memory.list(command.payload.layer));
+        this.answer(command.commandId, this.memory.list(command.payload.layer, command.payload.sessionId));
         return;
       case 'get_memory':
         this.answer(command.commandId, this.memory.get(command.payload.memoryId));
@@ -257,6 +257,22 @@ export class FixtureTransport implements Transport {
           model: command.payload.model ?? 'default',
           reason: 'user selection',
         });
+        return;
+      // ---- chat (对话 mode): the same chat.* events a live engine emits -----
+      case 'chat_message': {
+        const turnId = `turn_${(this.sent.length * 6151 + 2749).toString(16)}`;
+        const answer =
+          '这是对话模式的直答回复（offline fixture）。真实引擎在这里流式输出模型回复，并按所选权限策略使用工具。';
+        this.push('chat.received', { turnId, text: command.payload.text });
+        this.push('chat.delta', { turnId, delta: answer.slice(0, 18) });
+        this.push('chat.delta', { turnId, delta: answer.slice(18) });
+        this.push('chat.message', { turnId, role: 'assistant', text: answer });
+        return;
+      }
+      case 'chat_answer':
+        this.push('chat.answered', { askId: command.payload.askId, optionIdx: command.payload.optionIdx });
+        return;
+      case 'chat_cancel':
         return;
       case 'submit_task': {
         // Offline fixture: do not replay the canned CLI demo for a typed intent.

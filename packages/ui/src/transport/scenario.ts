@@ -49,7 +49,8 @@ export type SceneId =
   | 'failure'
   | 'error'
   | 'done'
-  | 'math-demo';
+  | 'math-demo'
+  | 'chat';
 
 export const SCENES: { id: SceneId; label: string; blurb: string }[] = [
   { id: 'empty', label: 'Idle', blurb: 'No task yet — the empty state.' },
@@ -66,6 +67,11 @@ export const SCENES: { id: SceneId; label: string; blurb: string }[] = [
     id: 'math-demo',
     label: 'Math (demo)',
     blurb: 'The math workspace with its labelled demo loaded. No engine, no solver — the mode is opt-in demo data.',
+  },
+  {
+    id: 'chat',
+    label: 'Chat (对话)',
+    blurb: 'A chat transcript with a tool call and a pending ask_user picker — the direct conversation path.',
   },
 ];
 
@@ -116,6 +122,9 @@ export const BOOTSTRAP_PROVIDER_STATUS: ProviderStatus = {
   state: 'connected',
   id: BOOTSTRAP_PROVIDER.activeProvider,
   model: BOOTSTRAP_PROVIDER.activeModel,
+  // More than one, so the composer's model picker is reachable offline — a fixture with a
+  // single model would silently exercise the "fall back to Settings" branch instead.
+  models: ['qwen3-coder:free', 'deepseek-v3:free', 'glm-4.5-air:free'],
   chain: ['opencode-zen', 'openrouter', 'ollama'],
 };
 
@@ -555,6 +564,8 @@ export function buildScenario(scene: SceneId): DomainEvent[] {
       return [];
     case 'done':
       return beats.slice();
+    case 'chat':
+      return chatBeats();
     case 'math-demo':
       // Deliberately no events. The math demo is *UI* demonstration data, not engine
       // state: pushing it through the domain stream would fold it into `snapshot` and make
@@ -563,6 +574,38 @@ export function buildScenario(scene: SceneId): DomainEvent[] {
       // engine" stream — which is exactly what makes the Offline badge truthful here.
       return [];
   }
+}
+
+/**
+ * The 对话 scene: one user turn, one assistant answer with a folded read-only
+ * tool call, and an open `ask_user` picker — the whole chat surface in one frame.
+ */
+function chatBeats(): DomainEvent[] {
+  const mk = <T extends DomainEventType>(type: T, payload: DomainEventMap[T], ts: number): DomainEvent =>
+    ({ type, payload, traceId: TRACE, sessionId: SESSION_ID, ts }) as DomainEvent;
+  const call: ToolCall = {
+    id: 'call_chat_01',
+    stepId: 'turn_02',
+    taskId: 'turn_02',
+    name: 'fs.list',
+    input: { dir: '.' },
+    output: { entries: ['src', 'tests', 'package.json'], truncated: false },
+    status: 'ok',
+    risk: 'read-only',
+    reversible: true,
+    durationMs: 12,
+    traceId: TRACE,
+    createdAt: BASE + 155,
+  };
+  return [
+    mk('chat.policy_changed', { policy: 'readonly-sandbox' }, BASE + 90),
+    mk('chat.received', { turnId: 'turn_01', text: '帮我看一下这个项目的入口文件是哪个？顺便确认下目录结构。' }, BASE + 100),
+    mk('chat.delta', { turnId: 'turn_02', delta: '我先看一下目录结构。' }, BASE + 150),
+    mk('chat.tool', { call }, BASE + 156),
+    mk('chat.delta', { turnId: 'turn_02', delta: ' 入口在 src/main.ts。' }, BASE + 160),
+    mk('chat.message', { turnId: 'turn_02', role: 'assistant', text: '我先看一下目录结构。 入口在 src/main.ts。' }, BASE + 170),
+    mk('chat.ask_user', { askId: 'ask_01', question: '要继续深入哪个模块？', options: ['main.ts 启动流程', 'EngineServer', '先不用了'] }, BASE + 200),
+  ];
 }
 
 /** Whether the scene's engine should still be considered connected after replay. */

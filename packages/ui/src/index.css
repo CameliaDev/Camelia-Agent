@@ -27,57 +27,85 @@
   inherits: true;
   initial-value: 260px;
 }
-@property --rail-right-w {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 360px;
-}
+/**
+ * There is no `--rail-right-w` any more. The right data rail was removed when its panels
+ * moved into the mode header; a registered custom property with a live initial value
+ * would keep animating an axis that no longer exists.
+ */
 
 /*
- * Camellia dark theme — whitepaper §6.5.
+ * Camelia dark theme — "Ink Dark".
  *
- * The palette is warm: the "black" is a warm near-black (#1A1514), never #000, and
- * the text is a warm white. The single accent is camellia red. Semantic colours reuse
- * the same warmth so success/failure read as part of one family rather than as
- * generic web green/red.
+ * Palette ported from Hermes Studio's `黑白水墨 / Pure Ink` sheet
+ * (`packages/client/src/styles/variables.scss`, the `.dark` block). The palette is
+ * deliberately colourless: every surface is a neutral grey and the "accent" is not a
+ * hue at all but the lightest neutral — which is why `--color-accent` equals
+ * `--color-ink` here, and why anything sitting on an accent surface must take
+ * `--color-base` as its foreground (the `text-base` convention, already used by
+ * PlanReview and Reliability) rather than white.
+ *
+ * Semantic colours are the one exception: a failed task has to read as failed. They
+ * keep the ink family's restraint rather than generic web green/red.
+ *
+ * Token → Hermes source:
+ *   base/elevated/panel/hover/line  ←  --bg-primary / --bg-card / --bg-sidebar /
+ *                                      --bg-card-hover / --border-color
+ *   ink / ink-2 / ink-3             ←  --text-primary / -secondary / -muted
+ *   accent / accent-2 / accent-dim  ←  --accent-primary / -hover / -muted
+ *   ok / bad / warn / info          ←  --success / --error / --warning / --accent-info
  *
  * Tailwind v4 emits every `@theme` entry as a custom property on `:root`, so these
  * are usable both as utilities (`bg-base`, `text-ink`, `text-accent`) and as raw
  * variables (`var(--color-accent)`) where an inline value is clearer.
  */
 @theme {
-  /* Background — warm near-black, never pure black */
-  --color-base: #1a1514;
-  --color-elevated: #221b19;
-  --color-panel: #2a2220;
-  --color-hover: #332a27;
-  --color-line: #3a2f2b;
+  /* Background — neutral greys, never a tinted black */
+  --color-base: #1a1a1a;
+  --color-elevated: #2a2a2a;
+  --color-panel: #202020;
+  --color-hover: #333333;
+  --color-line: #3a3a3a;
 
-  /* Text — warm white */
-  --color-ink: #f7efe9;
-  --color-ink-2: #c9b8ae;
-  --color-ink-3: #8a7a72;
+  /* Text — neutral greys */
+  --color-ink: #e0e0e0;
+  --color-ink-2: #a0a0a0;
+  --color-ink-3: #888888;
 
-  /* Accent — camellia red */
-  --color-accent: #d96c5f;
-  --color-accent-2: #e27d70;
-  --color-accent-dim: #8c4239;
+  /* Accent — no hue left: emphasis is the lightest neutral */
+  --color-accent: #e0e0e0;
+  --color-accent-2: #f5f5f5;
+  --color-accent-dim: #888888;
 
-  /* Semantic */
-  --color-ok: #7fa86b;
-  --color-bad: #c4554a;
-  --color-warn: #d9a15f;
-  --color-info: #7fa3c4;
+  /* Semantic — the only colour in the palette */
+  --color-ok: #66bb6a;
+  --color-bad: #ef5350;
+  --color-warn: #ffb74d;
+  --color-info: #6ba3d6;
 
   /* Diff washes */
-  --color-add: rgba(127, 168, 107, 0.14);
-  --color-del: rgba(196, 85, 74, 0.14);
+  --color-add: rgba(102, 187, 106, 0.16);
+  --color-del: rgba(239, 83, 80, 0.16);
 
-  /* Geometry */
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  /* Geometry — Hermes' $radius-md and $radius-lg are both 8px */
+  --radius-md: 8px;
+  --radius-lg: 8px;
 
   --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SFMono-Regular', Consolas, monospace;
+}
+
+/*
+ * Native control chrome follows the selected preset instead of the OS. Without this
+ * the <select>/<input> popups keep dark chrome while the app renders Ink Light.
+ * `data-theme` is stamped by `applySavedTheme`; the meta tag in index.html covers the
+ * gap between first paint and boot.
+ */
+html[data-theme='light'] {
+  color-scheme: light;
+}
+html[data-theme='warm-dark'],
+html[data-theme='cool-dark'],
+html[data-theme='high-contrast'] {
+  color-scheme: dark;
 }
 
 html,
@@ -141,8 +169,7 @@ body {
 }
 .camelia-rails {
   transition:
-    --rail-left-w 180ms ease,
-    --rail-right-w 180ms ease;
+    --rail-left-w 180ms ease;
 }
 .camelia-topbar {
   transition: transform 180ms ease;
@@ -172,38 +199,44 @@ html[data-motion='reduce'] .camelia-sweep::after {
   position: absolute;
   inset: 0;
   width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.45), transparent);
+  /* 从 accent 令牌推导，不写死色值：水墨下 accent 是无彩色，写死蓝色会破坏配色。 */
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 45%, transparent), transparent);
   animation: camelia-sweep 1.8s ease-in-out infinite;
 }
 
 /* =========================================================================
- * Shared surface styles — single blue accent on a light base.
- * 蓝=主操作/当前态 · 圆形头像=微信式对话气泡 · 步骤圆圈=计划进度。
+ * Shared surface styles — neutral ink scale, "on-accent" is the base surface.
+ * 中性=主操作/当前态 · 圆形头像=微信式对话气泡 · 步骤圆圈=计划进度。
  * (v2 的橙框/虚线注解类已随 wireframe v3 下线；下面的 wf- 前缀是历史命名，
  *  承载的是真实产品样式，不是线框注解。)
  * 实线边框请直接用 Tailwind：border / border-dashed border-line。
+ *
+ * 这里原先写死了蓝/粉/白三处色值。水墨调色板把 accent 从「山茶红」换成了
+ * 「最亮的中性灰」，写死的白色前景在深色下会直接看不见，所以下面一律改为
+ * 令牌引用：accent 面上的前景用 --color-base（与 PlanReview/Reliability 的
+ * `text-base` 约定一致），面板底色用 --color-elevated。
  * ========================================================================= */
 
-/* 微信式圆形对话头像：user 蓝底白字"你"，agent 粉底深粉字"花" */
+/* 微信式圆形对话头像：user 实心强调底＋底色字"你"，agent 面板底＋次级字"花" */
 .wf-avatar-user {
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-base);
   border: 1px solid var(--color-accent);
 }
 .wf-avatar-agent {
-  background: #fde2e8;
-  color: #b04a6a;
-  border: 1px solid #fbcbd8;
+  background: var(--color-panel);
+  color: var(--color-ink-2);
+  border: 1px solid var(--color-line);
 }
 
 /* 微信式对话气泡 */
 .wf-bubble-user {
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-base);
   border-radius: 14px 14px 4px 14px;
 }
 .wf-bubble-agent {
-  background: #ffffff;
+  background: var(--color-elevated);
   color: var(--color-ink);
   border: 1px solid var(--color-line);
   border-radius: 14px 14px 14px 4px;
@@ -220,7 +253,7 @@ html[data-motion='reduce'] .camelia-sweep::after {
   font-weight: 600;
   border: 1.5px solid var(--color-line);
   color: var(--color-ink-3);
-  background: #ffffff;
+  background: var(--color-elevated);
   flex-shrink: 0;
 }
 .wf-step-circle.done {
@@ -229,6 +262,6 @@ html[data-motion='reduce'] .camelia-sweep::after {
 }
 .wf-step-circle.active {
   border-color: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-base);
   background: var(--color-accent);
 }

@@ -1,9 +1,14 @@
 /**
- * `deriveProgress` — the one place progress becomes a number.
+ * `deriveProgress` — the one place a task's progress becomes a number.
  *
- * Both the top bar's thin rail and the activity bar's step strip call this. If you find
- * yourself computing a second percentage anywhere in the tree, stop: the two will drift
- * and there is no way for the user to tell which is authoritative.
+ * ## Who calls it now
+ *
+ * Two places, and the count is the point: `ModeHeader`'s lifecycle stepper (for the stage's
+ * tone) and the math workspace (for pipeline position). The continuous percentage readout
+ * this function used to feed — the top bar's 2px rail and its microcopy — was removed, so
+ * `TaskProgressBar` and `ProgressMicrocopy` are gone with it. If you find yourself computing
+ * a second percentage anywhere in the tree, stop: it will drift from this one and the user
+ * will have no way to tell which is authoritative.
  *
  * ## Source precedence
  *
@@ -21,7 +26,6 @@
 
 import type { StepView, TaskView } from '@camelia/agent/view';
 
-import { isTaskActive } from '../mode/useMode.js';
 import { type AppModeId } from '../mode/types.js';
 import { localizePlanText } from '../i18n/plan-copy.js';
 import {
@@ -33,9 +37,6 @@ import {
 } from './types.js';
 import { ENGINE_MATH_STEPS, MATH_STAGES, overallForEngineStep, stageForEngineStep } from '../modes/math/mathStageMap.js';
 import { type MathDemoSnapshot } from '../modes/math/mathDemoFixture.js';
-
-/** Task statuses that mean "no longer running". Mirrors `isTaskActive` for clarity here. */
-const TERMINAL = new Set(['done', 'failed', 'cancelled']);
 
 function statusOf(task: TaskView | undefined): TaskProgressStatus {
   if (!task) return 'idle';
@@ -247,7 +248,3 @@ export function deriveProgress({ task, mode, language, mathDemo }: DeriveProgres
 }
 
 /** True when the engine should be considered mid-flight for force-visible purposes. */
-export function taskInFlight(task: TaskView | undefined): boolean {
-  if (!task) return false;
-  return !TERMINAL.has(task.status) && isTaskActive(task.status);
-}

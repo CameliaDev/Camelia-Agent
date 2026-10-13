@@ -1,10 +1,13 @@
 /**
  * The progress model — one shape, three modes.
  *
- * The UI has exactly **one** progress derivation (`deriveProgress`) and both the top bar
- * and the activity bar render from its output. That is not a stylistic preference: with
- * two derivations, the header and the task strip can disagree about which step is running,
- * and there is no way to tell the user which one is right.
+ * The UI has exactly **one** progress derivation (`deriveProgress`), and the mode header's
+ * lifecycle stepper and the math workspace both render from its output. That is not a
+ * stylistic preference: with two derivations, two parts of the UI can disagree about which
+ * step is running, and there is no way to tell the user which one is right.
+ *
+ * Nothing in the shell shows a continuous percentage any more — see `deriveProgress.ts`.
+ * The shape below is still what feeds the stepper's tone and the math pipeline position.
  *
  * Every variant is derived from fields the engine already emits. Nothing here invents a
  * stage the projection cannot support — see `deriveProgress.ts` for how each field maps

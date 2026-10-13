@@ -8,13 +8,29 @@
  * capsule reading "名称与吉祥物 TBD" and a "按需滑出" tag — which are annotation, not
  * product. Those are gone; the middle is now the mode selector and the progress rail.
  *
+ * ## What is no longer here
+ *
+ * Two things used to be in this bar and both were asked to move:
+ *
+ * - **The mode selector.** It is in the composer now (`ModeTabs` is rendered by
+ *   `Composer`), because the mode decides what a keystroke in the input *means*, and the
+ *   input is where the user is already looking. A mode switcher 40px above the box it
+ *   changes the meaning of is a context switch the eye has to travel to catch up with.
+ * - **The percentage rail and its microcopy** (`TaskProgressBar` + `ProgressMicrocopy`).
+ *   Gone entirely, along with the conditional copy of the same rail in `ModeHeader` that
+ *   existed only to cover for `topBar: 'hidden'`. What remains is the lifecycle stepper in
+ *   `ModeHeader`: four named stops that answer *which stage*, which is the question a
+ *   reader of a strip this short can actually act on. A continuous percentage is better
+ *   answered by the step list in the run panel, where each step has its own state —
+ *   one number for the whole run said less than the list it was summarising.
+ *
+ * What the bar still is: brand, connection, window controls, and the drag region.
+ *
  * ## Visibility policy
  *
- * The bar is an overlay that can slide away (`localPrefs.topBar`). But it now carries the
- * progress rail, and "work is in flight" is exactly when the user needs to see progress.
- * So: **while a task is running the bar is forced visible**, regardless of `auto`. When
- * the user has explicitly chosen `hidden`, that choice still wins — and at that point the
- * activity bar carries the same rail, so progress is never lost. See `App.tsx`.
+ * The bar is an overlay that can slide away (`localPrefs.topBar`). Nothing on it is a
+ * progress readout any more, so the "forced visible while a task runs" rule has nothing to
+ * protect and is gone with the rail: `auto` now genuinely means auto.
  * @module
  */
 
@@ -26,32 +42,15 @@ import { isTauri, windowClose, windowMinimize, windowStartDragging, windowToggle
 import { openEngineLog, readEngineTrust } from '../window/engine.js';
 import { relaunchDesktop } from '../window/model-settings.js';
 import { t } from '../i18n/strings.js';
-import { deriveProgress } from '../progress/deriveProgress.js';
-import { ProgressMicrocopy, TaskProgressBar } from '../progress/TaskProgressBar.js';
-import { useMode } from '../mode/useMode.js';
-import { ModeTabs } from '../mode/ModeTabs.js';
-import { Icon, StatusDot } from './primitives.js';
+import { Icon, Mascot, StatusDot } from './primitives.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
-  const { snapshot, status, localPrefs, setSettingsOpen, mathDemo } = useUiState();
+  const { status, localPrefs, setSettingsOpen } = useUiState();
   const connection = CONNECTION_META[status];
   const desktop = isTauri();
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
   const [panelOpen, setPanelOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const { mode, setMode } = useMode();
-
-  const progress = deriveProgress({
-    task: snapshot.task,
-    mode,
-    language: localPrefs.language,
-    ...(mathDemo ? { mathDemo } : {}),
-  });
-  const taskRunning = progress.progress.kind === 'task'
-    ? progress.progress.status === 'running' || progress.progress.status === 'paused'
-    : progress.progress.kind === 'math'
-      ? progress.progress.status === 'running'
-      : snapshot.task !== undefined && snapshot.task.status !== 'done' && snapshot.task.status !== 'failed' && snapshot.task.status !== 'cancelled';
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -91,31 +90,17 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
         className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-[3px] text-[11.5px] font-medium text-ink"
         title={tr('brand.placeholder.hint')}
       >
-        <Icon name="camellia" size={13} className="text-accent" />
+        <Mascot size={16} />
         {tr('brand.transition')}
       </span>
 
-      <span className="h-4 w-px shrink-0 bg-line" />
-
-      {/* Mode selector — the only way the mode changes. */}
-      <ModeTabs mode={mode} language={localPrefs.language} onSelect={setMode} taskRunning={taskRunning} />
-
-      <span className="h-4 w-px shrink-0 bg-line" />
-
-      {/* Progress: rail + microcopy. The copy drops first when narrow; the rail stays.
-          Not mounted while the bar is off-screen (`topBar: 'hidden'`) — the activity bar
-          carries the same rail there, and mounting both would leave two progress nodes in
-          the tree, only one of which anyone can see. */}
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        {revealed ? (
-          <>
-            <TaskProgressBar result={progress} />
-            <span className="hidden min-w-0 shrink-0 md:block">
-              <ProgressMicrocopy result={progress} language={localPrefs.language} />
-            </span>
-          </>
-        ) : null}
-      </div>
+      {/*
+        The gap that used to hold the mode selector and the progress rail. Brand on the
+        left, window controls on the right, nothing between: a drag region that says
+        nothing is what a title bar is for, and the middle of this one was the most
+        contested real estate in the shell.
+      */}
+      <div className="min-w-0 flex-1" />
 
       {/* Engine connection — opens the existing trust panel. */}
       <div className="relative shrink-0" ref={panelRef}>

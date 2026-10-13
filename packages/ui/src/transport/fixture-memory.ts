@@ -14,7 +14,7 @@ import type { ForgetLogEntry, MemoryItem, MemoryLayer } from '@camelia/core';
 import type { ForgetLogView, MemoryView } from '@camelia/agent/view';
 
 /** Deterministic, pre-scored fixture memories for the panel scenes. */
-export function createFixtureMemoryDb(now: number): FixtureMemoryDb {
+export function createFixtureMemoryDb(now: number, sessionId: string): FixtureMemoryDb {
   const items: MemoryItem[] = [
     {
       id: 'mem_fixture_long_1',
@@ -36,6 +36,7 @@ export function createFixtureMemoryDb(now: number): FixtureMemoryDb {
     {
       id: 'mem_fixture_short_1',
       scope: 'session',
+      sessionId,
       kind: 'lesson',
       content: 'The todo module needs an idempotent seed — re-running init must not duplicate rows.',
       keywords: 'todo seed idempotent',
@@ -52,7 +53,8 @@ export function createFixtureMemoryDb(now: number): FixtureMemoryDb {
     },
     {
       id: 'mem_fixture_proc_1',
-      scope: 'global',
+      scope: 'session',
+      sessionId,
       kind: 'procedural',
       content: 'create-todo-module recipe: scaffold files → wire the model → run verification → promote.',
       keywords: 'todo module recipe procedure',
@@ -76,6 +78,7 @@ export function createFixtureMemoryDb(now: number): FixtureMemoryDb {
     {
       id: 'mem_fixture_short_2',
       scope: 'session',
+      sessionId,
       kind: 'fact',
       content: 'The UI right rail currently holds: plan, context, verification, approvals and memory (Iteration 22).',
       keywords: 'right rail memory panel',
@@ -106,8 +109,14 @@ export function createFixtureMemoryDb(now: number): FixtureMemoryDb {
   return {
     items,
     forgetLog,
-    list(layer) {
-      return (layer ? items.filter((item) => item.layer === layer) : items).map(toView);
+    list(layer, sessionId) {
+      // Mirrors the engine's panel query: a sessionId scopes the list to what that
+      // session learned, without folding in `scope = 'global'` rows. Keeping the two
+      // paths identical is what stops the offline demo from disagreeing with a real run.
+      const scoped = sessionId
+        ? items.filter((item) => item.scope === 'session' && item.sessionId === sessionId)
+        : items;
+      return (layer ? scoped.filter((item) => item.layer === layer) : scoped).map(toView);
     },
     get(id) {
       const item = items.find((entry) => entry.id === id);
@@ -168,7 +177,7 @@ export function createFixtureMemoryDb(now: number): FixtureMemoryDb {
 export interface FixtureMemoryDb {
   items: MemoryItem[];
   forgetLog: ForgetLogEntry[];
-  list(layer?: MemoryLayer): MemoryView[];
+  list(layer?: MemoryLayer, sessionId?: string): MemoryView[];
   get(id: string): MemoryView | null;
   markIncorrect(id: string): MemoryView | null;
   forget(id: string, reason: string): MemoryView | null;

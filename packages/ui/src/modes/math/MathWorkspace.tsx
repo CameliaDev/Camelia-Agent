@@ -27,6 +27,7 @@ import { deriveProgress } from '../../progress/deriveProgress.js';
 import { useUiState, useUiStore } from '../../state/UiProvider.js';
 import { canIntervene, interveneUnavailableReason } from '../../window/capabilities.js';
 import { Icon, SectionHeader } from '../../components/primitives.js';
+import { ModeHeader } from '../ModeHeader.js';
 import { MATH_STAGES, stageIndex } from './mathStageMap.js';
 import { MATH_DEMO_FRAMES, MATH_DEMO_FIRST, type MathDemoSnapshot } from './mathDemoFixture.js';
 import { AssumptionsPanel, EquationsPanel, ResultCards, SolverStatus, VariablesPanel } from './MathPanels.js';
@@ -80,56 +81,66 @@ export function MathWorkspace(): ReactNode {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-math-workspace data-demo={demoMode ? 'true' : undefined}>
-      {/* Stage strip + controls */}
-      <div className="shrink-0 border-b border-line px-4 py-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <ol className="flex flex-wrap items-center gap-1.5" data-math-stages>
-            {MATH_STAGES.map((spec, idx) => {
-              const reached = idx <= activeIdx;
-              const current = idx === activeIdx;
-              return (
-                <li key={spec.id}>
-                  <span
-                    data-math-stage={spec.id}
-                    data-math-current={current ? 'true' : undefined}
-                    title={tr(spec.hintKey as Parameters<typeof t>[1])}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[11px] ${
-                      current
-                        ? 'border-accent/50 bg-accent/12 font-medium text-accent'
-                        : reached
-                          ? 'border-line text-ink-2'
-                          : 'border-line/60 text-ink-3/70'
-                    }`}
-                  >
-                    <span className="font-mono text-[10px] opacity-70">{idx + 1}</span>
-                    {tr(spec.labelKey as Parameters<typeof t>[1])}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+      {/*
+        Stage strip + controls, in the shared 33px header.
 
-          <span
-            data-math-pipeline-hint
-            className="font-mono text-[10px] text-ink-3"
-            title={tr('math.stage.pipeline', { index: activeIdx + 1 })}
-          >
-            {shown ? shown.engineStepHint : tr('math.stage.pipeline', { index: activeIdx + 1 })}
+        The stage chips are this mode's `leading` content because they answer a question
+        the lifecycle stepper does not: *which stage of the math pipeline*. The stepper in
+        the middle is the task lifecycle, identical to chat and plan. Two different
+        questions, one row — which is why this mode keeps its chips rather than folding
+        them into the stepper.
+      */}
+      <ModeHeader
+        leading={
+          <span className="flex shrink-0 items-center gap-1.5">
+            <ol className="flex shrink-0 items-center gap-1.5" data-math-stages>
+              {MATH_STAGES.map((spec, idx) => {
+                const reached = idx <= activeIdx;
+                const current = idx === activeIdx;
+                return (
+                  <li key={spec.id}>
+                    <span
+                      data-math-stage={spec.id}
+                      data-math-current={current ? 'true' : undefined}
+                      title={tr(spec.hintKey as Parameters<typeof t>[1])}
+                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-[7px] py-[1px] text-[11px] leading-4 ${
+                        current
+                          ? 'border-accent/50 bg-accent/12 font-medium text-accent'
+                          : reached
+                            ? 'border-line text-ink-2'
+                            : 'border-line/60 text-ink-3/70'
+                      }`}
+                    >
+                      <span className="font-mono text-[10px] opacity-70">{idx + 1}</span>
+                      {tr(spec.labelKey as Parameters<typeof t>[1])}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            <span
+              data-math-pipeline-hint
+              className="shrink-0 font-mono text-[10px] text-ink-3"
+              title={tr('math.stage.pipeline', { index: activeIdx + 1 })}
+            >
+              {shown ? shown.engineStepHint : tr('math.stage.pipeline', { index: activeIdx + 1 })}
+            </span>
           </span>
-
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        }
+        trailing={
+          <span className="flex shrink-0 items-center gap-1.5">
             {demoMode ? (
               <>
                 <span
                   data-math-demo-badge
-                  className="rounded border border-warn/50 bg-warn/10 px-1.5 py-[2px] text-[10px] font-semibold tracking-wide text-warn"
+                  className="rounded border border-warn/50 bg-warn/10 px-1.5 py-[1px] text-[10px] font-semibold tracking-wide text-warn"
                 >
                   {tr('math.demo.badge')}
                 </span>
                 <button
                   type="button"
                   data-math-demo-reload
-                  className="rounded-md border border-line px-2 py-1 text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
+                  className="rounded-md border border-line px-2 py-[2px] text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
                   onClick={loadDemo}
                 >
                   {tr('math.demo.reload')}
@@ -137,7 +148,7 @@ export function MathWorkspace(): ReactNode {
                 <button
                   type="button"
                   data-math-demo-clear
-                  className="rounded-md border border-line px-2 py-1 text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
+                  className="rounded-md border border-line px-2 py-[2px] text-[11px] text-ink-2 hover:border-accent/40 hover:text-accent"
                   onClick={clearDemo}
                 >
                   {tr('math.demo.clear')}
@@ -147,7 +158,7 @@ export function MathWorkspace(): ReactNode {
               <button
                 type="button"
                 data-math-demo-load
-                className="rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/15"
+                className="rounded-md border border-accent/40 bg-accent/10 px-2 py-[2px] text-[11px] font-medium text-accent hover:bg-accent/15"
                 onClick={loadDemo}
               >
                 {tr('math.demo.load')}
@@ -158,7 +169,7 @@ export function MathWorkspace(): ReactNode {
               data-math-solve-disabled={solveOk ? undefined : 'true'}
               title={solveOk ? undefined : solveReason}
               aria-disabled={solveOk ? undefined : true}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] ${
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-[2px] text-[11px] ${
                 solveOk
                   ? 'cursor-pointer border-line text-ink-2 hover:border-accent/40 hover:text-accent'
                   : 'cursor-not-allowed border-line/60 text-ink-3/70'
@@ -167,9 +178,10 @@ export function MathWorkspace(): ReactNode {
               <Icon name="play" size={11} />
               {tr('math.stage.run')}
             </span>
-          </div>
-        </div>
-      </div>
+
+          </span>
+        }
+      />
 
       {/* Honest banner: this build has no math backend. */}
       <div

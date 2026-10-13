@@ -204,12 +204,15 @@ function ForgetLogSection({
 export function MemoryPanel(): ReactNode {
   const memory = useUiStore((s) => s.memory);
   const actions = useUiStore((s) => s.memoryActions);
+  const activeSessionId = useUiStore((s) => s.activeSessionId);
   const tr = useTr();
   const [open, setOpen] = useState(true);
 
+  // Reload when the session changes, not just on mount: the list is scoped to one
+  // session, so a stale list would attribute another task's memories to this one.
   useEffect(() => {
     void actions.load();
-  }, [actions]);
+  }, [actions, activeSessionId]);
 
   const layer = memory.layerFilter;
   const visible = layer === 'all' ? memory.items : memory.items.filter((item) => item.layer === layer);
@@ -219,7 +222,7 @@ export function MemoryPanel(): ReactNode {
     <section className="border-b border-line">
       <SectionHeader
         icon="layers"
-        title={tr('memory.title')}
+        title={tr('memory.title.session')}
         right={
           <span className="flex items-center gap-1.5">
             {noiseRate !== undefined ? (
@@ -242,6 +245,7 @@ export function MemoryPanel(): ReactNode {
       />
       {open ? (
         <div className="space-y-2.5 px-3 pb-3">
+          <p className="text-[10.5px] leading-4 text-ink-3">{tr('memory.scopeHint')}</p>
           <div className="flex gap-1">
             {LAYER_TABS.map((tab) => (
               <button
@@ -264,8 +268,8 @@ export function MemoryPanel(): ReactNode {
           ) : visible.length === 0 ? (
             <p className="text-[11.5px] text-ink-3">
               {memory.items.length === 0
-                ? 'No memories yet. Reflections during a task write them here, scored by value.'
-                : `No ${layer} memories.`}
+                ? 'This task has not learned anything yet. Reflections during a run write memories here, scored by value.'
+                : `No ${layer} memories in this task.`}
             </p>
           ) : (
             <ul data-testid="memory-list" className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5">

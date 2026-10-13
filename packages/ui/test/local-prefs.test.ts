@@ -10,20 +10,24 @@ import {
   LOCAL_PREFS_VERSION,
   clampRail,
   loadLocalPrefs,
+  railWidth,
   sanitizeLocalPrefs,
   saveLocalPrefs,
-  rightRailUserPatch,
   type LocalPrefs,
 } from '../src/state/local-prefs.js';
 import { createUiStore } from '../src/state/store.js';
 import { FixtureTransport } from '../src/transport/fixture.js';
 
 describe('localPrefs', () => {
-  it('clamps rail widths into the drag range', () => {
-    expect(clampRail('left', 10)).toBe(200);
-    expect(clampRail('left', 900)).toBe(420);
-    expect(clampRail('right', 100)).toBe(280);
-    expect(clampRail('right', 900)).toBe(560);
+  it('clamps the session column into the drag range', () => {
+    expect(clampRail(10)).toBe(200);
+    expect(clampRail(900)).toBe(420);
+    expect(clampRail(Number.NaN)).toBe(260);
+  });
+
+  it('reads a collapsed session column as 0, not as a strip', () => {
+    expect(railWidth(sanitizeLocalPrefs({ leftWidth: 300 }))).toBe(300);
+    expect(railWidth(sanitizeLocalPrefs({ leftWidth: 300, leftCollapsed: true }))).toBe(0);
   });
 
   it('drops an unknown theme instead of inventing one', () => {
@@ -37,14 +41,38 @@ describe('localPrefs', () => {
     expect(sanitizeLocalPrefs({ language: 'en' }).language).toBe('en');
   });
 
+  it('defaults the user avatar to the mascot when the install has no opinion', () => {
+    // The point of the feature: "only use the mark if the user has not set one".
+    // An older install has no `userAvatar` key at all, so it must land on the mascot —
+    // and an unknown value must not leak through as a third state.
+    expect(sanitizeLocalPrefs({}).userAvatar).toBe('mascot');
+    expect(sanitizeLocalPrefs({ userAvatar: 'nope' as LocalPrefs['userAvatar'] }).userAvatar).toBe('mascot');
+    expect(sanitizeLocalPrefs({ userAvatar: 'letter' }).userAvatar).toBe('letter');
+    expect(sanitizeLocalPrefs({}).displayName).toBe('');
+  });
+
+  it('defaults plan approval to auto, and re-reads a pre-v5 `always` as unchosen', () => {
+    // The desktop default: the plan is shown, not demanded. Risky tool calls keep their own
+    // approval, so the plan gate is the review affordance and nothing else.
+    expect(sanitizeLocalPrefs({}).planApproval).toBe('auto');
+
+    // Before v5 this key defaulted to `always`, so every existing install has it stored
+    // whether or not the user ever opened the control. That leftover is not an opt-in.
+    expect(sanitizeLocalPrefs({ version: 4, planApproval: 'always' }).planApproval).toBe('auto');
+    // From v5 on, `always` is a decision and is honoured.
+    expect(sanitizeLocalPrefs({ version: 5, planApproval: 'always' }).planApproval).toBe('always');
+    expect(sanitizeLocalPrefs({ version: 5, planApproval: 'auto' }).planApproval).toBe('auto');
+    // Anything unrecognised takes the default rather than turning into a nag.
+    expect(
+      sanitizeLocalPrefs({ version: 5, planApproval: 'nope' as LocalPrefs['planApproval'] }).planApproval,
+    ).toBe('auto');
+  });
+
   it('round-trips through storage and stays out of the snapshot', () => {
     saveLocalPrefs({
       version: LOCAL_PREFS_VERSION,
       leftWidth: 300,
-      rightWidth: 400,
       leftCollapsed: true,
-      rightCollapsed: false,
-      userSetRightRail: true,
       themeId: 'light',
       language: 'zh',
       topBar: 'pinned',
@@ -53,52 +81,38 @@ describe('localPrefs', () => {
       planApproval: 'always',
       preferredMode: 'plan',
       showAvatars: false,
+      userAvatar: 'letter',
+      displayName: '阿离',
+      chatPolicy: 'ask',
     });
     const store = createUiStore(new FixtureTransport({ scene: 'empty' }));
     expect(store.getState().localPrefs.leftWidth).toBe(300);
+    expect(store.getState().localPrefs.leftCollapsed).toBe(true);
     expect(store.getState().localPrefs.themeId).toBe('light');
-    // boot policy: expand does not survive createUiStore / loadLocalPrefs
-    expect(store.getState().localPrefs.rightCollapsed).toBe(true);
-    expect(store.getState().localPrefs.userSetRightRail).toBe(false);
     // The mode preference is ordinary window chrome: it persists across boots.
     expect(store.getState().localPrefs.preferredMode).toBe('plan');
     expect(store.getState().localPrefs.showAvatars).toBe(false);
+    expect(store.getState().localPrefs.userAvatar).toBe('letter');
+    expect(store.getState().localPrefs.displayName).toBe('阿离');
+    // The chat permission posture is window-local chrome too — it round-trips.
+    expect(store.getState().localPrefs.chatPolicy).toBe('ask');
     expect(store.getState().snapshot.task).toBeUndefined();
     expect(loadLocalPrefs().topBar).toBe('pinned');
-    expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#ffffff');
+    // Pinned deliberately: if the Ink Light palette moves, this test must fail so the
+    // change is looked at rather than absorbed. #fafafa is the base token shipped by
+    // the `light` preset (Hermes' --bg-primary).
+    expect(document.documentElement.style.getPropertyValue('--color-base')).toBe('#fafafa');
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
-  it('boots collapsed even when sticky v3 expanded prefs are in storage', () => {
+  it('drops the removed right-rail keys on boot instead of migrating them', () => {
+    // v6 removed the right rail. A stored blob still carries `rightWidth` /
+    // `rightCollapsed` / `userSetRightRail`; they must not survive into the live prefs,
+    // and the rewritten blob must not carry them either.
     localStorage.setItem(
       'camelia.localPrefs',
       JSON.stringify({
-        leftWidth: 300,
-        rightWidth: 400,
-        leftCollapsed: false,
-        rightCollapsed: false,
-        themeId: 'light',
-        language: 'zh',
-        topBar: 'pinned',
-        motion: 'system',
-        fontMono: '',
-        planApproval: 'always',
-      }),
-    );
-    const migrated = loadLocalPrefs();
-    expect(migrated.version).toBe(4);
-    expect(migrated.rightCollapsed).toBe(true);
-    expect(migrated.userSetRightRail).toBe(false);
-    expect(migrated.leftWidth).toBe(300);
-    const stored = JSON.parse(localStorage.getItem('camelia.localPrefs')!);
-    expect(stored.version).toBe(4);
-    expect(stored.rightCollapsed).toBe(true);
-
-    // Stuck v3: version already 3 + userSetRightRail after smoke expand — must still boot collapsed.
-    localStorage.setItem(
-      'camelia.localPrefs',
-      JSON.stringify({
-        version: 3,
+        version: 5,
         leftWidth: 300,
         rightWidth: 400,
         leftCollapsed: false,
@@ -112,32 +126,44 @@ describe('localPrefs', () => {
         planApproval: 'always',
       }),
     );
-    const fromSticky = loadLocalPrefs();
-    expect(fromSticky.version).toBe(4);
-    expect(fromSticky.rightCollapsed).toBe(true);
-    expect(fromSticky.userSetRightRail).toBe(false);
+    const booted = loadLocalPrefs();
+    expect(booted.version).toBe(LOCAL_PREFS_VERSION);
+    expect(booted.leftWidth).toBe(300);
 
-    // In-session expand still works via sanitize + save; next load boots collapsed again.
-    saveLocalPrefs({ ...fromSticky, ...rightRailUserPatch(false) });
-    expect(JSON.parse(localStorage.getItem('camelia.localPrefs')!).rightCollapsed).toBe(false);
-    expect(loadLocalPrefs().rightCollapsed).toBe(true);
-    expect(loadLocalPrefs().userSetRightRail).toBe(false);
+    const stored = JSON.parse(localStorage.getItem('camelia.localPrefs')!) as Record<string, unknown>;
+    expect(stored.version).toBe(LOCAL_PREFS_VERSION);
+    expect(stored).not.toHaveProperty('rightWidth');
+    expect(stored).not.toHaveProperty('rightCollapsed');
+    expect(stored).not.toHaveProperty('userSetRightRail');
+
+    // A second boot is already clean, so it rewrites nothing. The rewrite must be
+    // idempotent or every launch would dirty localStorage forever.
+    const before = localStorage.getItem('camelia.localPrefs');
+    loadLocalPrefs();
+    expect(localStorage.getItem('camelia.localPrefs')).toBe(before);
   });
 
-  it('sanitize allows in-session expand only at v4+ with userSetRightRail', () => {
-    expect(sanitizeLocalPrefs({ version: 4, rightCollapsed: false }).rightCollapsed).toBe(true);
-    expect(
-      sanitizeLocalPrefs({ version: 4, rightCollapsed: false, userSetRightRail: true }).rightCollapsed,
-    ).toBe(false);
-    expect(
-      sanitizeLocalPrefs({ version: 4, rightCollapsed: true, userSetRightRail: true }).rightCollapsed,
-    ).toBe(true);
-    // Pre-v4 sticky expand is ignored by sanitize too.
-    expect(
-      sanitizeLocalPrefs({ version: 3, rightCollapsed: false, userSetRightRail: true }).rightCollapsed,
-    ).toBe(true);
-    expect(sanitizeLocalPrefs({}).rightCollapsed).toBe(true);
-    expect(sanitizeLocalPrefs({ version: 2, rightCollapsed: false }).rightCollapsed).toBe(true);
+  it('repairs a blob whose sanitized form differs, without a version bump', () => {
+    localStorage.setItem(
+      'camelia.localPrefs',
+      JSON.stringify({
+        version: LOCAL_PREFS_VERSION,
+        leftWidth: 9999, // out of the drag range
+        leftCollapsed: false,
+        themeId: 'nope',
+        language: 'zh',
+        topBar: 'pinned',
+        motion: 'system',
+        fontMono: '',
+        planApproval: 'auto',
+      }),
+    );
+    const repaired = loadLocalPrefs();
+    expect(repaired.leftWidth).toBe(420);
+    expect(repaired.themeId).toBe('light');
+    const stored = JSON.parse(localStorage.getItem('camelia.localPrefs')!) as Record<string, unknown>;
+    expect(stored.leftWidth).toBe(420);
+    expect(stored.themeId).toBe('light');
   });
 
   it('shows a rejected token instead of dropping it silently', () => {

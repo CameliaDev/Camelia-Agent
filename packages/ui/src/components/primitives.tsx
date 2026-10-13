@@ -8,7 +8,51 @@
 
 import type { ReactNode } from 'react';
 
+import mascotUrl from '../assets/mascot.png';
+
+import type { UserAvatarMode } from '../state/local-prefs.js';
+
 import { TONE_BG, TONE_DOT, TONE_TEXT, type Tone } from '../lib/status.js';
+
+// ---------------------------------------------------------------------------
+// brand mark
+// ---------------------------------------------------------------------------
+
+/**
+ * The product mark.
+ *
+ * Deliberately a raster asset rather than an inline SVG path like the rest of
+ * `PATHS`: the mark is hand-drawn artwork whose identity is its ink texture and its
+ * few colour accents, and a path cannot carry either. `PATHS.camellia` is kept for the
+ * icon sheet, but nothing user-facing draws it any more — see `TopBar` and
+ * `Conversation`.
+ *
+ * Clipped to a circle at every size so the same call site works for the 16px top-bar
+ * slot and the 80px welcome mark. Pass `alt` only where the mark carries meaning on
+ * its own; beside the wordmark it is decorative and stays out of the a11y tree.
+ */
+export function Mascot({
+  size = 16,
+  className = '',
+  alt,
+}: {
+  size?: number;
+  className?: string;
+  alt?: string;
+}): ReactNode {
+  return (
+    <img
+      src={mascotUrl}
+      alt={alt ?? ''}
+      aria-hidden={alt ? undefined : true}
+      draggable={false}
+      width={size}
+      height={size}
+      className={`shrink-0 select-none rounded-full object-cover ${className}`}
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
 // ---------------------------------------------------------------------------
 // icons — inline so the bundle stays dependency-free and Tauri-friendly
@@ -54,8 +98,12 @@ export const PATHS: Record<string, string> = {
     '<circle cx="6" cy="4.2" r="0.7" fill="currentColor" stroke="none"/><circle cx="10" cy="4.2" r="0.7" fill="currentColor" stroke="none"/><circle cx="6" cy="8" r="0.7" fill="currentColor" stroke="none"/><circle cx="10" cy="8" r="0.7" fill="currentColor" stroke="none"/><circle cx="6" cy="11.8" r="0.7" fill="currentColor" stroke="none"/><circle cx="10" cy="11.8" r="0.7" fill="currentColor" stroke="none"/>',
   expand: '<path d="M3.2 2.6v10.8M6.4 5.4 10.6 8 6.4 10.6"/>',
   collapse: '<path d="M3.2 2.6v10.8M10.6 5.4 6.4 8l4.2 2.6"/>',
+  // A real cog, not a sun. This used to be a circle with eight rays — which is also what
+  // `theme` draws, so the settings entry and the appearance section were near-twins, and at
+  // 16px both read as "brightness". Filled with an even-odd hole: a stroked gear at this size
+  // is a smudge, because eight teeth plus a hub do not fit in a 2px line.
   settings:
-    '<circle cx="8" cy="8" r="2"/><path d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.5 3.5l1.2 1.2M11.3 11.3l1.2 1.2M12.5 3.5 11.3 4.7M4.7 11.3 3.5 12.5"/>',
+    '<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M12.68 6.11 14.46 6.63 14.46 9.37 12.68 9.89 12.65 9.97 13.54 11.59 11.59 13.54 9.97 12.65 9.89 12.68 9.37 14.46 6.63 14.46 6.11 12.68 6.03 12.65 4.41 13.54 2.46 11.59 3.35 9.97 3.32 9.89 1.54 9.37 1.54 6.63 3.32 6.11 3.35 6.03 2.46 4.41 4.41 2.46 6.03 3.35 6.11 3.32 6.63 1.54 9.37 1.54 9.89 3.32 9.97 3.35 11.59 2.46 13.54 4.41 12.65 6.03ZM8 5.75a2.25 2.25 0 1 0 0 4.5a2.25 2.25 0 1 0 0 -4.5z"/>',
   theme:
     '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4 11.5 4.5M4.5 11.5 3.4 12.6"/>',
   minimize: '<path d="M3.4 11.6h9.2"/>',
@@ -73,6 +121,18 @@ export const PATHS: Record<string, string> = {
   flow: '<rect x="2.4" y="2.6" width="4.2" height="3.4" rx="1"/><rect x="9.4" y="10" width="4.2" height="3.4" rx="1"/><path d="M4.5 6v3.6a1.8 1.8 0 0 0 1.8 1.8h3.1"/>',
   // Ruler / acceptance — used by the math stage chips.
   ruler: '<rect x="2.4" y="5.6" width="11.2" height="4.8" rx="1"/><path d="M5.4 5.6v2M8 5.6v2.8M10.6 5.6v2"/>',
+  // Send, in the shape every chat app has settled on. Distinct from `send` (a paper
+  // plane) because the composer's circular button needs a glyph that reads as "up" at
+  // 15px inside a filled disc, and a paper plane does not.
+  arrowUp: '<path d="M8 13V3.4M3.9 7.5 8 3.4l4.1 4.1"/>',
+  // Chat / sessions. The left icon rail needs a glyph for "the conversation list" that is
+  // not `layers` (provider stack) or `terminal` (event trail) — both already spoken for.
+  chat: '<path d="M13.4 4.2v5.2a1.4 1.4 0 0 1-1.4 1.4H7.4l-2.8 2.4v-2.4H4a1.4 1.4 0 0 1-1.4-1.4V4.2A1.4 1.4 0 0 1 4 2.8h8a1.4 1.4 0 0 1 1.4 1.4z"/>',
+  plus: '<path d="M8 3.6v8.8M3.6 8h8.8"/>',
+  // Folder, for the workspace path in the status bar. Drawn as an outline folder with a
+  // tab, so it does not read as a generic square at 11px.
+  folder:
+    '<path d="M2.4 12.2V4.4A1.2 1.2 0 0 1 3.6 3.2h2.5l1.3 1.6h5A1.2 1.2 0 0 1 13.6 6v6.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/>',
 };
 
 export const ICON_NAMES = Object.keys(PATHS);
@@ -206,12 +266,32 @@ export function Avatar({
   size = 32,
   className = '',
   title,
+  src,
 }: {
   kind: 'user' | 'agent';
   size?: number;
   className?: string;
   title?: string;
+  /**
+   * Image to draw instead of the letter disc. The user side passes
+   * `userAvatarSrc(...)` so the "no avatar set" case is decided once, in one place,
+   * rather than re-derived at every call site.
+   */
+  src?: string;
 }): ReactNode {
+  if (src) {
+    return (
+      <span
+        data-avatar={kind}
+        title={title}
+        className={`inline-grid shrink-0 place-items-center overflow-hidden rounded-full ${className}`}
+        style={{ width: size, height: size }}
+        aria-hidden={title ? undefined : true}
+      >
+        <img src={src} alt="" draggable={false} className="h-full w-full select-none object-cover" />
+      </span>
+    );
+  }
   const text = kind === 'user' ? '你' : '花';
   const tone = kind === 'user' ? 'wf-avatar-user' : 'wf-avatar-agent';
   const fontSize = Math.max(11, Math.round(size * 0.42));
@@ -226,6 +306,17 @@ export function Avatar({
       {text}
     </span>
   );
+}
+
+/**
+ * Resolve the user's avatar image from the preference.
+ *
+ * `undefined` means "draw the letter disc" — the documented behaviour of
+ * `UserAvatarMode`. Keeping the mapping here means a future upload-backed mode only
+ * has to change this function, not the four call sites that render a user avatar.
+ */
+export function userAvatarSrc(mode: UserAvatarMode): string | undefined {
+  return mode === 'letter' ? undefined : mascotUrl;
 }
 
 // ---------------------------------------------------------------------------

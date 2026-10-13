@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TaskView } from '@camelia/agent/view';
 
-import { deriveProgress, planStageOf, taskInFlight } from '../src/progress/deriveProgress.js';
+import { deriveProgress, planStageOf } from '../src/progress/deriveProgress.js';
 import { mathDemoAt } from '../src/modes/math/mathDemoFixture.js';
 
 /** A minimal TaskView with only the fields the derivation reads. */
@@ -174,17 +174,5 @@ describe('deriveProgress — math mode', () => {
     });
     expect(result.source).toBe('derived');
     expect(result.demo).toBe(false);
-  });
-});
-
-describe('taskInFlight', () => {
-  it('counts paused as in flight and terminal states as not', () => {
-    expect(taskInFlight(task({ status: 'executing' }))).toBe(true);
-    expect(taskInFlight(task({ status: 'paused' }))).toBe(true);
-    expect(taskInFlight(task({ status: 'awaiting-approval' }))).toBe(true);
-    expect(taskInFlight(task({ status: 'done' }))).toBe(false);
-    expect(taskInFlight(task({ status: 'failed' }))).toBe(false);
-    expect(taskInFlight(task({ status: 'cancelled' }))).toBe(false);
-    expect(taskInFlight(undefined)).toBe(false);
   });
 });

@@ -1,27 +1,29 @@
 /**
- * Settings page — multi-section shell opened from the bottom-left account entry.
+ * Settings page — multi-section shell opened from the left rail.
  *
  * Sections (wireframe v2): connection presets, language & appearance, engine & logs, about.
  * Connection presets live in ConnectionsSection (config.json providers[] + keys.json).
+ *
+ * The active section is *not* local state: the rail has two doors into this drawer — the
+ * settings gear and the account mark — and they are supposed to land on different pages, so
+ * the caller has to be able to name one. See `UiState.setSettingsOpen`.
  * @module
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { makeCommand } from '../state/store.js';
+import { makeCommand, type SettingsSection } from '../state/store.js';
 import { useUiStore } from '../state/UiProvider.js';
-import { rightRailUserPatch, type LanguagePref, type MotionPref, type TopBarMode } from '../state/local-prefs.js';
+import { type LanguagePref, type MotionPref, type TopBarMode, type UserAvatarMode } from '../state/local-prefs.js';
 import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
-import { relaunchDesktop } from '../window/model-settings.js';
+import { relaunchDesktop, writePlanApproval } from '../window/model-settings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { MODE_REGISTRY } from '../mode/ModeRegistry.js';
 import type { AppModeId } from '../mode/types.js';
 import { openEngineLog, readEngineLog, readEngineTrust } from '../window/engine.js';
 import { isTauri } from '../window/shell.js';
 import { Avatar, Icon } from './primitives.js';
-
-type SettingsSection = 'connections' | 'appearance' | 'engine' | 'about';
 
 const MONO_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '', label: 'JetBrains Mono' },
@@ -37,12 +39,9 @@ export function SettingsDrawer(): ReactNode {
   const prefs = useUiStore((s) => s.localPrefs);
   const rejected = useUiStore((s) => s.activeTheme?.rejected) ?? NO_REJECTIONS;
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  const setSettingsSection = useUiStore((s) => s.setSettingsSection);
   const tr = (key: Parameters<typeof t>[1]) => t(prefs.language, key);
-  const [section, setSection] = useState<SettingsSection>('connections');
-
-  useEffect(() => {
-    if (open) setSection('connections');
-  }, [open]);
+  const section = useUiStore((s) => s.settingsSection);
 
   if (!open) return null;
 
@@ -74,7 +73,7 @@ export function SettingsDrawer(): ReactNode {
                   className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12.5px] ${
                     section === item.id ? 'bg-accent/10 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
                   }`}
-                  onClick={() => setSection(item.id)}
+                  onClick={() => setSettingsSection(item.id)}
                 >
                   <Icon name={item.icon} size={14} />
                   {item.label}
@@ -208,6 +207,32 @@ function AppearanceSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => strin
           {tr('settings.appearance.avatars')}
         </label>
         <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.appearance.avatars.hint')}</p>
+        <label className="block text-[12px] text-ink-2">
+          {tr('settings.appearance.userAvatar')}
+          <select
+            aria-label={tr('settings.appearance.userAvatar')}
+            className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 text-[12px] text-ink"
+            value={prefs.userAvatar}
+            onChange={(event) => setLocalPrefs({ userAvatar: event.target.value as UserAvatarMode })}
+          >
+            <option value="mascot">{tr('settings.appearance.userAvatar.mascot')}</option>
+            <option value="letter">{tr('settings.appearance.userAvatar.letter')}</option>
+          </select>
+        </label>
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.appearance.userAvatar.hint')}</p>
+        <label className="block text-[12px] text-ink-2">
+          {tr('settings.appearance.displayName')}
+          <input
+            type="text"
+            aria-label={tr('settings.appearance.displayName')}
+            maxLength={48}
+            placeholder={tr('account.defaultUser')}
+            className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1.5 text-[12px] text-ink placeholder:text-ink-3"
+            value={prefs.displayName}
+            onChange={(event) => setLocalPrefs({ displayName: event.target.value })}
+          />
+        </label>
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.appearance.displayName.hint')}</p>
       </section>
 
       <section className="space-y-3">
@@ -241,7 +266,11 @@ function AppearanceSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => strin
             onChange={(event) => {
               const mode = event.target.value === 'auto' ? 'auto' : 'always';
               setLocalPrefs({ planApproval: mode });
+              // Two writes on purpose: the command changes the engine that is running
+              // now, the disk write makes the choice survive the next launch. The shell
+              // spawns a fresh engine every time, so the command alone was not durable.
               dispatch(makeCommand('set_plan_approval', { mode }));
+              void writePlanApproval(mode);
             }}
           >
             <option value="always">{tr('settings.planApproval.always')}</option>
@@ -264,25 +293,9 @@ function AppearanceSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => strin
             onChange={(event) => setLocalPrefs({ leftWidth: Number(event.target.value) })}
           />
         </label>
-        <label className="block text-[12px] text-ink-2">
-          {tr('settings.rightWidth')} ({prefs.rightWidth}px)
-          <input
-            aria-label={tr('settings.rightWidth')}
-            type="range"
-            min={280}
-            max={560}
-            value={prefs.rightWidth}
-            className="mt-1 w-full"
-            onChange={(event) => setLocalPrefs({ rightWidth: Number(event.target.value) })}
-          />
-        </label>
         <label className="flex items-center gap-2 text-[12px] text-ink-2">
           <input type="checkbox" checked={prefs.leftCollapsed} onChange={(event) => setLocalPrefs({ leftCollapsed: event.target.checked })} />
           {tr('settings.collapseSessions')}
-        </label>
-        <label className="flex items-center gap-2 text-[12px] text-ink-2">
-          <input type="checkbox" checked={prefs.rightCollapsed} onChange={(event) => setLocalPrefs(rightRailUserPatch(event.target.checked))} />
-          {tr('settings.collapseRunRail')}
         </label>
         <button
           type="button"

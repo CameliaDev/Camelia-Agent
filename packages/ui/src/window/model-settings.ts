@@ -7,10 +7,21 @@
 
 import type { ProviderPresetRecord } from './provider-presets.js';
 
+/** Mirrors `HarnessConfig['planApproval']` and `CameliaConfig['planApproval']`. */
+export type PlanApprovalMode = 'always' | 'auto';
+
 export interface ModelSettings {
   preferredProvider: string;
   model: string;
   gruntModel: string;
+  /**
+   * The persisted plan-approval policy.
+   *
+   * `null` means this install has never chosen one. That is deliberately distinct from
+   * `'always'` (the engine's fallback): boot reconciliation must be able to leave an
+   * existing window-local preference alone rather than overwrite it with a default.
+   */
+  planApproval: PlanApprovalMode | null;
   providers: ProviderPresetRecord[];
 }
 
@@ -76,6 +87,8 @@ export async function readModelSettings(): Promise<ModelSettings | null> {
       preferredProvider: value.preferredProvider,
       model: typeof value.model === 'string' ? value.model : '',
       gruntModel: typeof value.gruntModel === 'string' ? value.gruntModel : '',
+      planApproval:
+        value.planApproval === 'auto' ? 'auto' : value.planApproval === 'always' ? 'always' : null,
       providers: asProviders(value.providers),
     };
   } catch {
@@ -93,6 +106,24 @@ export async function writeModelSettings(settings: {
     model: settings.model,
     gruntModel: settings.gruntModel,
   });
+  if (!pending) return 'desktop shell required';
+  try {
+    await pending;
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+/**
+ * Persist the plan-approval policy to `~/.camelia/config.json`.
+ *
+ * Paired with a `set_plan_approval` command: the command changes the *running* engine,
+ * this makes the choice survive the next launch. Without it the desktop's
+ * spawn-a-fresh-engine-per-launch model silently reverted to `always`.
+ */
+export async function writePlanApproval(mode: PlanApprovalMode): Promise<string | null> {
+  const pending = invoke<void>('write_plan_approval', { mode });
   if (!pending) return 'desktop shell required';
   try {
     await pending;

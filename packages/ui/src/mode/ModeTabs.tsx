@@ -1,5 +1,14 @@
 /**
- * The mode selector — a segmented control in the top bar.
+ * The mode selector — a segmented control in the composer's control row.
+ *
+ * ## Where it lives, and why there
+ *
+ * It was in the top bar. It is now rendered by `Composer`, directly above the submit button
+ * and left of the model chip. The mode decides what Enter *means* — chat submits a task, plan
+ * reviews one, math runs a workspace — so the control belongs with the input whose meaning it
+ * changes, not in a separate strip the reader has to look away from to correlate. Put in the
+ * same row as the model chip, the row reads left to right as the two facts about the pending
+ * submission: which workspace, then what will run in it.
  *
  * Three source-of-truth decisions are encoded here:
  *

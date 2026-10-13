@@ -1,5 +1,10 @@
 /**
  * Edge and corner resize targets. Present only inside the Tauri webview.
+ *
+ * `z-40` rather than the old `z-30`: the south edge sits at the very bottom of the
+ * window, which is exactly where the status bar now lives, and a 22px strip at `z-30`
+ * would swallow it — the window would stop being resizable from the bottom edge with
+ * nothing on screen to suggest why. Above the bar, below the drawer.
  * @module
  */
 
@@ -25,7 +30,7 @@ export function WindowEdges(): ReactNode {
       {EDGES.map((edge) => (
         <div
           key={edge.direction}
-          className={`absolute z-30 ${edge.className}`}
+          className={`absolute z-40 ${edge.className}`}
           onMouseDown={(event) => {
             event.preventDefault();
             void windowStartResize(edge.direction);

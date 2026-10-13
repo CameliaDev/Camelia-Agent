@@ -25,6 +25,11 @@ type StringKey =
   | 'sessions.cancelDelete'
   | 'sessions.search'
   | 'sessions.recent'
+  | 'sessions.history'
+  | 'rail.label'
+  | 'rail.sessions'
+  | 'rail.search'
+  | 'rail.new'
   | 'workspace.title'
   | 'provider.title'
   | 'provider.primary'
@@ -41,8 +46,8 @@ type StringKey =
   | 'metrics.title'
   | 'metrics.empty'
   | 'footer.keys'
-  | 'right.noSession'
-  | 'right.noProvider'
+  | 'panel.noSession'
+  | 'panel.noProvider'
   | 'run.title'
   | 'run.steps'
   | 'run.tools'
@@ -66,6 +71,12 @@ type StringKey =
   | 'pause'
   | 'resume'
   | 'steer'
+  // The steering panel. It was hard-coded English while the rest of the shell was
+  // translated; these four are the only copy it renders.
+  | 'steer.title'
+  | 'steer.placeholder'
+  | 'steer.send'
+  | 'steer.cancel'
   // Retained after the conversation's centre tab strip moved to mode tabs; still
   // referenced by plan-copy helpers and available for a future in-panel toggle.
   | 'plan.tab'
@@ -73,9 +84,19 @@ type StringKey =
   | 'composer.placeholder'
   | 'composer.run'
   | 'composer.steerPlaceholder'
+  | 'composer.chatPlaceholder'
+  | 'composer.policy'
+  | 'composer.policy.readonly'
+  | 'composer.policy.ask'
+  | 'composer.policy.full'
+  | 'chat.empty'
+  | 'chat.askTitle'
   | 'composer.noActiveRun'
   | 'composer.enterToSend'
   | 'composer.shiftEnter'
+  | 'composer.modelSettings'
+  | 'composer.switchModel'
+  | 'composer.singleModel'
   | 'welcome.title'
   | 'welcome.body'
   | 'step.pending'
@@ -104,9 +125,7 @@ type StringKey =
   | 'settings.planApproval.auto'
   | 'settings.layout'
   | 'settings.leftWidth'
-  | 'settings.rightWidth'
   | 'settings.collapseSessions'
-  | 'settings.collapseRunRail'
   | 'settings.restoreLayout'
   | 'settings.layoutDefaults'
   | 'settings.model'
@@ -156,6 +175,8 @@ type StringKey =
   | 'run.atStep'
   | 'run.ctx'
   | 'memory.title'
+  | 'memory.title.session'
+  | 'memory.scopeHint'
   | 'memory.due'
   | 'memory.forgetLog'
   | 'memory.noForget'
@@ -181,12 +202,22 @@ type StringKey =
   | 'step.fail'
   | 'step.unknown'
   | 'brand.placeholder'
-  | 'account.entry'
+  | 'account.defaultUser'
+  | 'account.profile'
   | 'avatar.user'
   | 'avatar.agent'
-  | 'right.expand'
-  | 'right.collapse'
-  | 'right.inspect'
+  // The bottom strip. Every key is a tooltip or an accessible name for a *readout* —
+  // there are no actions here, so none of these strings is a verb the user can press.
+  // The run panels that moved out of the removed right rail into the mode header.
+  | 'panels.label'
+  | 'panels.close'
+  | 'panels.needsTask'
+  | 'panels.open'
+  | 'statusBar.label'
+  | 'statusBar.noWorkspace'
+  | 'statusBar.stepsHint'
+  | 'statusBar.contextHint'
+  | 'statusBar.elapsedHint'
   | 'settings.section.connections'
   | 'settings.section.appearance'
   | 'settings.section.engine'
@@ -260,8 +291,6 @@ type StringKey =
   | 'mode.elsewhere.cta'
   | 'mode.elsewhere.dismiss'
   // ---- Progress (single derivation, two renderers) --------------------------
-  | 'progress.idle'
-  | 'progress.step'
   | 'progress.plan.draft'
   | 'progress.plan.executing'
   | 'progress.plan.done'
@@ -321,19 +350,25 @@ type StringKey =
   | 'settings.modes.default'
   | 'settings.appearance.avatars'
   | 'settings.appearance.avatars.hint'
+  | 'settings.appearance.userAvatar'
+  | 'settings.appearance.userAvatar.mascot'
+  | 'settings.appearance.userAvatar.letter'
+  | 'settings.appearance.userAvatar.hint'
+  | 'settings.appearance.displayName'
+  | 'settings.appearance.displayName.hint'
   | 'settings.topbar.alwaysOnTask'
   | 'settings.topbar.alwaysOnTask.hint'
   // ---- Brand (transitional placeholder) -------------------------------------
   | 'brand.transition'
   | 'brand.placeholder.hint'
   // ---- Right rail tabs (labelled via i18n rather than hard-coded zh) ---------
-  | 'right.tab.memory'
-  | 'right.tab.events'
-  | 'right.tab.run'
-  | 'right.tab.context'
-  | 'right.tab.sub'
-  | 'right.tab.model'
-  | 'right.model.hint'
+  | 'panel.memory'
+  | 'panel.events'
+  | 'panel.run'
+  | 'panel.context'
+  | 'panel.sub'
+  | 'panel.model'
+  | 'panel.model.hint'
   | 'activity.running';
 
 const en: Record<StringKey, string> = {
@@ -352,6 +387,11 @@ const en: Record<StringKey, string> = {
   'sessions.cancelDelete': 'Cancel',
   'sessions.search': 'Search sessions',
   'sessions.recent': 'Recent',
+  'sessions.history': 'Chat history',
+  'rail.label': 'Left navigation',
+  'rail.sessions': 'Chats',
+  'rail.search': 'Search chats',
+  'rail.new': 'New chat',
   'workspace.title': 'Workspace',
   'provider.title': 'Provider path',
   'provider.primary': 'primary',
@@ -368,8 +408,8 @@ const en: Record<StringKey, string> = {
   'metrics.title': 'Metrics',
   'metrics.empty': 'No metrics emitted.',
   'footer.keys': 'keys in ~/.camelia · zero telemetry · Apache-2.0',
-  'right.noSession': 'No session',
-  'right.noProvider': 'No provider',
+  'panel.noSession': 'No session',
+  'panel.noProvider': 'No provider',
   'run.title': 'Run',
   'run.steps': 'STEPS',
   'run.tools': 'TOOLS',
@@ -393,14 +433,28 @@ const en: Record<StringKey, string> = {
   'pause': 'Pause',
   'resume': 'Resume',
   'steer': 'Steer',
+  'steer.title': 'Steer the run — the goal is re-anchored, prior work is kept.',
+  'steer.placeholder': 'e.g. also update the README, and skip the e2e suite',
+  'steer.send': 'Send',
+  'steer.cancel': 'Cancel',
   'plan.tab': 'Plan',
   'conversation.tab': 'Conversation',
   'composer.placeholder': 'Describe a task. Camelia plans, executes, verifies and shows its work…',
   'composer.run': 'Run',
   'composer.steerPlaceholder': 'Steer the run — the goal is re-anchored, prior work kept…',
+  'composer.chatPlaceholder': 'Ask anything — direct replies, workspace access per the permission you pick…',
+  'composer.policy': 'Chat permission mode',
+  'composer.policy.readonly': 'Read-only sandbox',
+  'composer.policy.ask': 'Ask before writes',
+  'composer.policy.full': 'Full access',
+  'chat.empty': 'Conversation mode — the model answers directly. No plan, no task machinery.',
+  'chat.askTitle': 'Camelia needs your choice',
   'composer.noActiveRun': 'no active run',
   'composer.enterToSend': 'Enter to send',
   'composer.shiftEnter': 'Shift + Enter for a new line',
+  'composer.modelSettings': 'Active model — open settings',
+  'composer.switchModel': 'Switch model',
+  'composer.singleModel': 'This provider advertises one model — open settings to add more',
   'welcome.title': 'No task yet',
   'welcome.body': 'Describe what you want built, fixed or investigated. Camelia plans it, executes it step by step, verifies every acceptance point and shows you the whole run.',
   'step.pending': 'Pending',
@@ -429,9 +483,7 @@ const en: Record<StringKey, string> = {
   'settings.planApproval.auto': 'Approve plans automatically',
   'settings.layout': 'Layout',
   'settings.leftWidth': 'Left width',
-  'settings.rightWidth': 'Right width',
   'settings.collapseSessions': 'Start with sessions collapsed',
-  'settings.collapseRunRail': 'Start with the run rail collapsed',
   'settings.restoreLayout': 'Restore default layout',
   'settings.layoutDefaults': 'Defaults are 260px left expanded, 360px right collapsed.',
   'settings.model': 'Model',
@@ -481,6 +533,8 @@ const en: Record<StringKey, string> = {
   'run.atStep': 'at step',
   'run.ctx': 'ctx',
   'memory.title': 'MEMORY',
+  'memory.title.session': 'TASK MEMORY',
+  'memory.scopeHint': 'Only what this task learned. Cross-session memories live in Settings.',
   'memory.due': 'DUE FOR REACTIVATION',
   'memory.forgetLog': 'FORGET LOG',
   'memory.noForget': 'Nothing has been forgotten.',
@@ -506,12 +560,20 @@ const en: Record<StringKey, string> = {
   'step.fail': 'FAIL',
   'step.unknown': 'UNKNOWN',
   'brand.placeholder': 'Name & mascot TBD',
-  'account.entry': 'Account & settings',
+  'account.defaultUser': 'Local user',
+  // The rail's account mark. Not "account & settings": that entry was split in two.
+  'account.profile': 'Account',
   'avatar.user': 'You',
   'avatar.agent': 'Camelia',
-  'right.expand': 'Show run data',
-  'right.collapse': 'Hide run data',
-  'right.inspect': 'Data',
+  'panels.label': 'Run panels',
+  'panels.close': 'Close panel',
+  'panels.needsTask': 'no task yet',
+  'panels.open': 'Open run panel',
+  'statusBar.label': 'Status',
+  'statusBar.noWorkspace': 'No workspace',
+  'statusBar.stepsHint': '{done} of {total} steps done',
+  'statusBar.contextHint': 'Context: {used} of {window} tokens used',
+  'statusBar.elapsedHint': 'Time since this task started',
   'settings.section.connections': 'Connection presets',
   'settings.section.appearance': 'Language & appearance',
   'settings.section.engine': 'Engine & logs',
@@ -583,8 +645,6 @@ const en: Record<StringKey, string> = {
   'mode.elsewhere': 'A task is running in {mode} mode.',
   'mode.elsewhere.cta': 'View',
   'mode.elsewhere.dismiss': 'Dismiss',
-  'progress.idle': 'Idle',
-  'progress.step': 'Step {current}/{total}',
   'progress.plan.draft': 'Drafting',
   'progress.plan.executing': 'Executing',
   'progress.plan.done': 'Complete',
@@ -642,17 +702,23 @@ const en: Record<StringKey, string> = {
   'settings.modes.default': 'Default mode',
   'settings.appearance.avatars': 'Message avatars',
   'settings.appearance.avatars.hint': 'Round avatars beside each message, in the WeChat style.',
+  'settings.appearance.userAvatar': 'Your avatar',
+  'settings.appearance.userAvatar.mascot': 'Camelia mark',
+  'settings.appearance.userAvatar.letter': '「你」 letter',
+  'settings.appearance.userAvatar.hint': 'Used for your own messages and the rail profile until you pick something else.',
+  'settings.appearance.displayName': 'Display name',
+  'settings.appearance.displayName.hint': 'Shown when you hover the avatar at the foot of the icon rail. Leave empty to show only the action.',
   'settings.topbar.alwaysOnTask': 'Keep the top bar visible while a task runs',
   'settings.topbar.alwaysOnTask.hint': 'The top bar carries the progress rail, so it stays put while work is in flight even if you set it to auto-hide.',
   'brand.transition': 'Camelia',
   'brand.placeholder.hint': 'Final name and mascot pending product decision.',
-  'right.tab.memory': 'Memory',
-  'right.tab.events': 'Events',
-  'right.tab.run': 'Run',
-  'right.tab.context': 'Context',
-  'right.tab.sub': 'Sub-agents',
-  'right.tab.model': 'Model',
-  'right.model.hint': 'Read-only model view. Editing lives in the math workspace.',
+  'panel.memory': 'Memory',
+  'panel.events': 'Events',
+  'panel.run': 'Run',
+  'panel.context': 'Context',
+  'panel.sub': 'Sub-agents',
+  'panel.model': 'Model',
+  'panel.model.hint': 'Read-only model view. Editing lives in the math workspace.',
   'activity.running': 'Running',
 };
 
@@ -673,6 +739,11 @@ const zh: Record<StringKey, string> = {
   'sessions.cancelDelete': '取消',
   'sessions.search': '搜索会话',
   'sessions.recent': '最近',
+  'sessions.history': '聊天记录',
+  'rail.label': '左侧导航',
+  'rail.sessions': '会话',
+  'rail.search': '搜索会话',
+  'rail.new': '新建会话',
   'workspace.title': '工作区',
   'provider.title': '模型链路',
   'provider.primary': '主',
@@ -689,8 +760,8 @@ const zh: Record<StringKey, string> = {
   'metrics.title': '指标',
   'metrics.empty': '暂无指标。',
   'footer.keys': '密钥存于 ~/.camelia · 零遥测 · Apache-2.0',
-  'right.noSession': '无会话',
-  'right.noProvider': '无模型',
+  'panel.noSession': '无会话',
+  'panel.noProvider': '无模型',
   'run.title': '运行',
   'run.steps': '步骤',
   'run.tools': '工具',
@@ -714,14 +785,28 @@ const zh: Record<StringKey, string> = {
   'pause': '暂停',
   'resume': '继续',
   'steer': '引导',
+  'steer.title': '引导本次运行 —— 目标会重新锚定，已完成的工作保留。',
+  'steer.placeholder': '例如：顺便更新 README，跳过 e2e 测试',
+  'steer.send': '发送',
+  'steer.cancel': '取消',
   'plan.tab': '计划',
   'conversation.tab': '对话',
   'composer.placeholder': '描述一个任务。Camelia 会规划、执行、校验并展示全过程……',
   'composer.run': '运行',
   'composer.steerPlaceholder': '引导本次运行——目标重新锚定，已有工作保留……',
+  'composer.chatPlaceholder': '随便聊——直接回答，按所选权限使用工作区……',
+  'composer.policy': '对话权限模式',
+  'composer.policy.readonly': '只读沙箱',
+  'composer.policy.ask': '写入前询问',
+  'composer.policy.full': '完全放行',
+  'chat.empty': '对话模式——模型直接回答，不建任务、不做计划。',
+  'chat.askTitle': 'Camelia 需要你的选择',
   'composer.noActiveRun': '无运行中任务',
   'composer.enterToSend': '回车发送',
   'composer.shiftEnter': 'Shift+回车换行',
+  'composer.modelSettings': '当前模型——打开设置',
+  'composer.switchModel': '切换模型',
+  'composer.singleModel': '该服务商只对外提供一个模型——可在设置里添加更多',
   'welcome.title': '暂无任务',
   'welcome.body': '描述你想构建、修复或调查的内容。Camelia 会规划、逐步执行、校验每个验收点，并向你展示完整运行过程。',
   'step.pending': '待处理',
@@ -750,9 +835,7 @@ const zh: Record<StringKey, string> = {
   'settings.planApproval.auto': '自动批准计划',
   'settings.layout': '布局',
   'settings.leftWidth': '左侧栏宽度',
-  'settings.rightWidth': '右侧栏宽度',
   'settings.collapseSessions': '启动时收起会话栏',
-  'settings.collapseRunRail': '启动时收起运行栏',
   'settings.restoreLayout': '恢复默认布局',
   'settings.layoutDefaults': '默认左侧 260px 展开，右侧 360px 收起。',
   'settings.model': '模型',
@@ -802,6 +885,8 @@ const zh: Record<StringKey, string> = {
   'run.atStep': '当前步骤',
   'run.ctx': '上下文',
   'memory.title': '记忆',
+  'memory.title.session': '本任务记忆',
+  'memory.scopeHint': '只显示本任务学到的记忆；跨会话的长期记忆在设置里。',
   'memory.due': '待再激活',
   'memory.forgetLog': '遗忘日志',
   'memory.noForget': '暂无遗忘记录。',
@@ -827,12 +912,19 @@ const zh: Record<StringKey, string> = {
   'step.fail': '失败',
   'step.unknown': '未知',
   'brand.placeholder': '待定：名字 / 吉祥物',
-  'account.entry': '账户与设置',
+  'account.defaultUser': '本地用户',
+  'account.profile': '账户',
   'avatar.user': '你',
   'avatar.agent': 'Camelia',
-  'right.expand': '展开运行数据',
-  'right.collapse': '收起运行数据',
-  'right.inspect': '数据',
+  'panels.label': '运行面板',
+  'panels.close': '关闭面板',
+  'panels.needsTask': '还没有任务',
+  'panels.open': '打开运行面板',
+  'statusBar.label': '状态栏',
+  'statusBar.noWorkspace': '未设置工作区',
+  'statusBar.stepsHint': '{total} 步中已完成 {done} 步',
+  'statusBar.contextHint': '上下文：已用 {used} / {window} tokens',
+  'statusBar.elapsedHint': '本任务开始至今',
   'settings.section.connections': '连接预设',
   'settings.section.appearance': '语言与外观',
   'settings.section.engine': '引擎与日志',
@@ -904,8 +996,6 @@ const zh: Record<StringKey, string> = {
   'mode.elsewhere': '{mode}模式有一个任务正在运行。',
   'mode.elsewhere.cta': '查看',
   'mode.elsewhere.dismiss': '忽略',
-  'progress.idle': '待命',
-  'progress.step': '第{current}/{total}步',
   'progress.plan.draft': '起草中',
   'progress.plan.executing': '执行中',
   'progress.plan.done': '已完成',
@@ -963,17 +1053,23 @@ const zh: Record<StringKey, string> = {
   'settings.modes.default': '默认模式',
   'settings.appearance.avatars': '消息头像',
   'settings.appearance.avatars.hint': '每条消息旁的圆形头像，微信风格。',
+  'settings.appearance.userAvatar': '用户头像',
+  'settings.appearance.userAvatar.mascot': 'Camelia 图标',
+  'settings.appearance.userAvatar.letter': '「你」字',
+  'settings.appearance.userAvatar.hint': '没设置头像时，你自己的消息和左下角都用它。',
+  'settings.appearance.displayName': '用户名',
+  'settings.appearance.displayName.hint': '鼠标悬停最左窄栏底部的头像时显示。留空则只显示功能名。',
   'settings.topbar.alwaysOnTask': '任务运行期间保持顶栏常显',
   'settings.topbar.alwaysOnTask.hint': '顶栏承载进度条，因此即使设为自动隐藏，任务运行期间也会保持常显。',
   'brand.transition': 'Camelia',
   'brand.placeholder.hint': '最终名称与吉祥物待产品决策。',
-  'right.tab.memory': '记忆',
-  'right.tab.events': '事件',
-  'right.tab.run': '运行',
-  'right.tab.context': '上下文',
-  'right.tab.sub': '子代理',
-  'right.tab.model': '模型',
-  'right.model.hint': '模型只读视图。编辑在主工作区进行。',
+  'panel.memory': '记忆',
+  'panel.events': '事件',
+  'panel.run': '运行',
+  'panel.context': '上下文',
+  'panel.sub': '子代理',
+  'panel.model': '模型',
+  'panel.model.hint': '模型只读视图。编辑在主工作区进行。',
   'activity.running': '运行中',
 };
 

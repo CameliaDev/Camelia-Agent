@@ -12,26 +12,52 @@
  * @module
  */
 
+import type { ChatPolicy } from '@camelia/core';
+
 import { applyThemeTokens, clearThemeTokens, type ThemeApplyResult } from '../theme/apply-theme.js';
 import { applyPreset, type ThemeId } from '../theme/presets.js';
 import { DEFAULT_MODE, isAppModeId, type AppModeId } from '../mode/types.js';
 
 export const LOCAL_PREFS_KEY = 'camelia.localPrefs';
 
-/** Bump when a one-shot layout migration must run for existing installs. */
-export const LOCAL_PREFS_VERSION = 4;
+/**
+ * Bump when a one-shot layout migration must run for existing installs.
+ *
+ * v5 — `planApproval` defaulted to `always` before this version; a stored `always` from
+ *      an older install is a leftover default, not a choice, and is re-read as unset.
+ * v6 — the right data rail is gone (its panels moved into the header + a main-area deck).
+ *      Stored `rightWidth` / `rightCollapsed` are dropped, not migrated.
+ * v7 — `chatPolicy` added: the 对话 mode's tool permission posture. Absent (pre-v7)
+ *      means "never chosen" and re-reads as the restrictive default.
+ */
+export const LOCAL_PREFS_VERSION = 7;
 
 export const RAIL_LEFT_DEFAULT = 260;
-export const RAIL_RIGHT_DEFAULT = 360;
 export const RAIL_COLLAPSED = 48;
+/**
+ * Width of the permanent icon rail that sits outside the left column.
+ *
+ * Deliberately the same number as `RAIL_COLLAPSED`: the rail is the left column's own
+ * collapsed strip promoted to a permanent fixture, so a window with the session column
+ * closed shows one 48px strip there rather than two of different widths. Same width means
+ * the icons line up whether the column beside them is open or shut.
+ */
+export const RAIL_ICON_WIDTH = RAIL_COLLAPSED;
 export const RAIL_LEFT_MIN = 200;
 export const RAIL_LEFT_MAX = 420;
-export const RAIL_RIGHT_MIN = 280;
-export const RAIL_RIGHT_MAX = 560;
 
 export type TopBarMode = 'auto' | 'pinned' | 'hidden';
 export type MotionPref = 'system' | 'reduce';
 export type LanguagePref = 'en' | 'zh';
+
+/**
+ * Which mark the user's own messages and the rail's profile row carry.
+ *
+ * `mascot` is the default: a fresh install signs the user's messages with the product
+ * mark rather than a placeholder glyph. `letter` keeps the original 「你」 disc for
+ * anyone who finds a photographic mark beside their own words odd.
+ */
+export type UserAvatarMode = 'mascot' | 'letter';
 
 export interface WindowGeometry {
   x: number;
@@ -42,25 +68,28 @@ export interface WindowGeometry {
 }
 
 export interface LocalPrefs {
-  /** Schema version. < 4 means boot must ignore sticky expanded right rail. */
+  /** Schema version. Bumped when a stored value stops meaning what it used to. */
   version: number;
   leftWidth: number;
-  rightWidth: number;
   leftCollapsed: boolean;
-  rightCollapsed: boolean;
-  /**
-   * True only after the user explicitly toggles the right rail (ActivityBar /
-   * rail chrome / Settings). Without this flag, expanded state from older
-   * installs is ignored — v2 already stamped version:2 while keeping the old
-   * expanded default, so version alone is not enough.
-   */
-  userSetRightRail: boolean;
   themeId: ThemeId;
   language: LanguagePref;
   topBar: TopBarMode;
   motion: MotionPref;
   /** Passed through `--font-mono`. Empty keeps the stylesheet stack. */
   fontMono: string;
+  /**
+   * Whether a plan is shown for approval before the run proceeds.
+   *
+   * Defaults to `auto` on the desktop. The gate is a *review* affordance, not a security
+   * boundary — risky tool calls have their own approval and keep asking. Blocking every
+   * conversation on a plan the user rarely edits is friction with no safety payoff, and
+   * it was the single most common complaint about the shell.
+   *
+   * This is a window-local default; the durable value lives in `~/.camelia/config.json`
+   * and outranks it (`App` reconciles the two at boot). Headless `camelia` keeps `always`
+   * — nobody is watching a CLI to click approve.
+   */
   planApproval: 'always' | 'auto';
   /**
    * Mode a new window opens in. Window chrome, not domain state — the engine has no
@@ -69,46 +98,70 @@ export interface LocalPrefs {
   preferredMode: AppModeId;
   /** WeChat-style message avatars. Default on; the toggle lives in Settings → 外观. */
   showAvatars: boolean;
+  /**
+   * The mark on the user's own messages. The engine has no accounts, so this is chrome
+   * — it never reaches `snapshot`. See `UserAvatarMode`.
+   */
+  userAvatar: UserAvatarMode;
+  /**
+   * Name shown in the rail's bottom profile row. Empty means "use the built-in label"
+   * (`UserAvatarMode`'s sibling decision: nothing to configure, nothing invented).
+   */
+  displayName: string;
+  /**
+   * The tool permission posture for chat turns (对话 mode), sent verbatim with every
+   * `chat_message`. The default is deliberately the most restrictive posture — broader
+   * access is an explicit user decision, made once, next to the thing it changes.
+   */
+  chatPolicy: ChatPolicy;
   window?: WindowGeometry;
 }
 
 export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   version: LOCAL_PREFS_VERSION,
   leftWidth: RAIL_LEFT_DEFAULT,
-  rightWidth: RAIL_RIGHT_DEFAULT,
   leftCollapsed: false,
-  rightCollapsed: true,
-  userSetRightRail: false,
   themeId: 'light',
   language: 'zh',
   topBar: 'pinned',
   motion: 'system',
   fontMono: '',
-  planApproval: 'always',
+  planApproval: 'auto',
   preferredMode: DEFAULT_MODE,
   showAvatars: true,
+  userAvatar: 'mascot',
+  displayName: '',
+  chatPolicy: 'readonly-sandbox',
 };
 
 const THEME_IDS: readonly ThemeId[] = ['warm-dark', 'cool-dark', 'light', 'high-contrast'];
 const LANGS: readonly LanguagePref[] = ['en', 'zh'];
 const TOP_BAR_MODES: readonly TopBarMode[] = ['auto', 'pinned', 'hidden'];
 const MOTION_PREFS: readonly MotionPref[] = ['system', 'reduce'];
+const USER_AVATAR_MODES: readonly UserAvatarMode[] = ['mascot', 'letter'];
+const CHAT_POLICIES: readonly ChatPolicy[] = ['readonly-sandbox', 'ask', 'full'];
 
-export function clampRail(side: 'left' | 'right', width: number): number {
-  const min = side === 'left' ? RAIL_LEFT_MIN : RAIL_RIGHT_MIN;
-  const max = side === 'left' ? RAIL_LEFT_MAX : RAIL_RIGHT_MAX;
-  if (!Number.isFinite(width)) return side === 'left' ? RAIL_LEFT_DEFAULT : RAIL_RIGHT_DEFAULT;
-  return Math.round(Math.min(max, Math.max(min, width)));
+/**
+ * Clamp a session-column width to the resizable range.
+ *
+ * No `side` argument any more: the right rail was removed, so the only thing that can be
+ * clamped is the session column. A one-valued discriminator would be a knob that cannot
+ * turn.
+ */
+export function clampRail(width: number): number {
+  if (!Number.isFinite(width)) return RAIL_LEFT_DEFAULT;
+  return Math.round(Math.min(RAIL_LEFT_MAX, Math.max(RAIL_LEFT_MIN, width)));
 }
 
-export function railWidth(prefs: LocalPrefs, side: 'left' | 'right'): number {
-  if (side === 'left') return prefs.leftCollapsed ? RAIL_COLLAPSED : prefs.leftWidth;
-  return prefs.rightCollapsed ? RAIL_COLLAPSED : prefs.rightWidth;
-}
-
-/** Patch used by chrome toggles so expanded state is remembered across boots. */
-export function rightRailUserPatch(collapsed: boolean): Pick<LocalPrefs, 'rightCollapsed' | 'userSetRightRail'> {
-  return { rightCollapsed: collapsed, userSetRightRail: true };
+/**
+ * Width of the session column, in px. Collapsed reads as 0 rather than as a strip.
+ *
+ * The permanent icon rail already occupies that position and carries the re-open control,
+ * so keeping a 48px session strip as well would draw two expand buttons for one panel,
+ * side by side.
+ */
+export function railWidth(prefs: LocalPrefs): number {
+  return prefs.leftCollapsed ? 0 : prefs.leftWidth;
 }
 
 function storageOf(storage?: Storage): Storage | undefined {
@@ -129,20 +182,20 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
   const topBar = TOP_BAR_MODES.includes(raw?.topBar as TopBarMode) ? (raw?.topBar as TopBarMode) : DEFAULT_LOCAL_PREFS.topBar;
   const motion = MOTION_PREFS.includes(raw?.motion as MotionPref) ? (raw?.motion as MotionPref) : DEFAULT_LOCAL_PREFS.motion;
   const fontMono = typeof raw?.fontMono === 'string' ? raw.fontMono.slice(0, 200) : '';
-  const planApproval = raw?.planApproval === 'auto' ? 'auto' : 'always';
   const window = sanitizeWindow(raw?.window);
   const rawVersion = prefsVersionOf(raw);
-  // Keep sanitize permissive for in-session expand (userSetRightRail + false).
-  // Boot policy lives in loadLocalPrefs — sticky expand must not survive restart.
-  const userSetRightRail = rawVersion >= 4 && raw?.userSetRightRail === true;
-  const rightCollapsed = userSetRightRail ? raw?.rightCollapsed === true : true;
+  // Only `always` is treated as an opt-in; anything missing or unrecognised takes the
+  // default. Reading it the other way round would turn a corrupt value into a nag.
+  //
+  // The version guard matters: before v5 this key defaulted to `always`, so every install
+  // has it stored whether or not the user ever opened the control. A pre-v5 `always` is
+  // therefore not evidence of intent, and is dropped exactly once.
+  const planApproval =
+    rawVersion >= 5 && raw?.planApproval === 'always' ? 'always' : DEFAULT_LOCAL_PREFS.planApproval;
   return {
     version: LOCAL_PREFS_VERSION,
-    leftWidth: clampRail('left', raw?.leftWidth ?? RAIL_LEFT_DEFAULT),
-    rightWidth: clampRail('right', raw?.rightWidth ?? RAIL_RIGHT_DEFAULT),
+    leftWidth: clampRail(raw?.leftWidth ?? RAIL_LEFT_DEFAULT),
     leftCollapsed: raw?.leftCollapsed === true,
-    rightCollapsed,
-    userSetRightRail,
     themeId,
     language,
     topBar,
@@ -153,6 +206,14 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     preferredMode: isAppModeId(raw?.preferredMode) ? raw.preferredMode : DEFAULT_LOCAL_PREFS.preferredMode,
     // Only an explicit `false` disables avatars; absent (older install) means on.
     showAvatars: raw?.showAvatars !== false,
+    // Same permissive rule: an older install has no opinion, so it gets the mascot.
+    userAvatar: USER_AVATAR_MODES.includes(raw?.userAvatar as UserAvatarMode)
+      ? (raw?.userAvatar as UserAvatarMode)
+      : DEFAULT_LOCAL_PREFS.userAvatar,
+    displayName: typeof raw?.displayName === 'string' ? raw.displayName.slice(0, 48) : '',
+    chatPolicy: CHAT_POLICIES.includes(raw?.chatPolicy as ChatPolicy)
+      ? (raw?.chatPolicy as ChatPolicy)
+      : DEFAULT_LOCAL_PREFS.chatPolicy,
     ...(window ? { window } : {}),
   };
 }
@@ -175,22 +236,11 @@ export function loadLocalPrefs(storage?: Storage): LocalPrefs {
     const raw = bin.getItem(LOCAL_PREFS_KEY);
     if (!raw) return { ...DEFAULT_LOCAL_PREFS };
     const parsedRaw = JSON.parse(raw) as Partial<LocalPrefs>;
-    const parsed = sanitizeLocalPrefs(parsedRaw);
-    // Wireframe v2 product rule: right data rail ALWAYS boots collapsed.
-    // Expand is session-only. Persisted userSetRightRail+expanded (seen in
-    // WebView localStorage after smoke clicks) fought v2/v3 migrations.
-    const boot: LocalPrefs = {
-      ...parsed,
-      version: LOCAL_PREFS_VERSION,
-      rightCollapsed: true,
-      userSetRightRail: false,
-    };
-    if (
-      prefsVersionOf(parsedRaw) < LOCAL_PREFS_VERSION ||
-      parsedRaw.rightCollapsed !== true ||
-      parsedRaw.userSetRightRail === true ||
-      parsedRaw.userSetRightRail !== boot.userSetRightRail
-    ) {
+    // A stored blob is rewritten whenever it does not already equal the sanitized form.
+    // That covers schema bumps (v6 dropped the right-rail knobs) and silently repairs a
+    // corrupt key, so the next boot never has to reason about what used to be there.
+    const boot = sanitizeLocalPrefs(parsedRaw);
+    if (prefsVersionOf(parsedRaw) < LOCAL_PREFS_VERSION || JSON.stringify(parsedRaw) !== JSON.stringify(boot)) {
       bin.setItem(LOCAL_PREFS_KEY, JSON.stringify(boot));
     }
     return boot;

@@ -1,11 +1,32 @@
 /**
- * Right rail — the engineering view of the run.
+ * Run panels — the engineering view of a run, as horizontal panels in the work area.
  *
- * Every architecture-layer checklist item that is *not* about the conversation lives
- * here: weighted progress, the step list, context-window usage with the compaction log,
- * sub-agent runs, and the raw event trail. Nothing here is decorative; if a panel has no
- * data it says so rather than disappearing, so the user always knows the capability
- * exists.
+ * ## Where these used to live
+ *
+ * All six of these were tabs in a fourth column — the right rail. It was removed: the user
+ * had already called its buttons "摆设" (decorative), and the reason was accurate. Four of
+ * the six (`run`, `context`, `sub`, and the model view's live half) can only show
+ * something once a task exists, so on an idle window the column was a 360px strip of tabs
+ * leading to four empty panels. It was also the widest thing on screen competing with the
+ * thing the user came for.
+ *
+ * ## What replaced it
+ *
+ * The six entries are now icons in `ModeHeader`'s trailing slot (see `PanelIcons`), which
+ * is the row that never scrolls away and is present in all three modes. The bodies live
+ * here, laid out **horizontally** across the work area (`PanelDeck`) rather than stacked
+ * in a narrow column — the user asked for 横着放, and it is also the better fit: a wide row
+ * suits the event trail and the step list, both of which were being truncated at 360px.
+ *
+ * Nothing is deleted and nothing is simplified. The panel bodies are the same components
+ * that rendered in the rail, moved wholesale — a rewrite would risk the run record and the
+ * compaction inspector, and there is no reason for either to change shape.
+ *
+ * ## The `run` panel keeps three sections
+ *
+ * Progress, the step list and checkpoints stay together under one icon, because they are
+ * three views of the same thing: what the run is doing now. Splitting them across three
+ * icons would mean the header claiming more of the row than the information warrants.
  * @module
  */
 
@@ -18,9 +39,9 @@ import { contextUsage } from '@camelia/agent/view';
 import { clock, count, ms, pct } from '../lib/format.js';
 import { STEP_META, TONE_BG, TONE_TEXT, type Tone } from '../lib/status.js';
 import { useUiStore } from '../state/UiProvider.js';
-import { rightRailUserPatch } from '../state/local-prefs.js';
 import { localizePlanText } from '../i18n/plan-copy.js';
 import { t } from '../i18n/strings.js';
+import type { PanelId } from '../panels.js';
 import { MemoryPanel } from './MemoryPanel.js';
 import { Chip, Icon, ProgressBar, SectionHeader, StatusDot } from './primitives.js';
 
@@ -29,7 +50,7 @@ function useTr() {
   return (k: Parameters<typeof t>[1]) => t(lang, k);
 }
 
-function RunIdentity(): ReactNode {
+export function RunIdentity(): ReactNode {
   const tr = useTr();
   const snapshot = useUiStore((s) => s.snapshot);
   const status = useUiStore((s) => s.status);
@@ -38,7 +59,7 @@ function RunIdentity(): ReactNode {
   const fallbacks = snapshot.provider.fallbacks;
   return (
     <div className="px-3 py-2.5">
-      <p className="truncate text-[12px] font-medium text-ink">{snapshot.session?.title ?? tr('right.noSession')}</p>
+      <p className="truncate text-[12px] font-medium text-ink">{snapshot.session?.title ?? tr('panel.noSession')}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {snapshot.provider.activeProvider ? (
           <Chip
@@ -56,7 +77,7 @@ function RunIdentity(): ReactNode {
           </Chip>
         ) : (
           <span className="text-[11px] text-ink-3">
-            {status === 'connecting' ? tr('provider.connecting') : tr('right.noProvider')}
+            {status === 'connecting' ? tr('provider.connecting') : tr('panel.noProvider')}
           </span>
         )}
         {task ? (
@@ -74,7 +95,7 @@ function RunIdentity(): ReactNode {
 // run / progress
 // ---------------------------------------------------------------------------
 
-function RunSection({ task }: { task: TaskView }): ReactNode {
+export function RunSection({ task }: { task: TaskView }): ReactNode {
   const tr = useTr();
   const usage = contextUsage(task.context);
   return (
@@ -131,7 +152,7 @@ function RunSection({ task }: { task: TaskView }): ReactNode {
 // steps
 // ---------------------------------------------------------------------------
 
-function StepsSection({ task }: { task: TaskView }): ReactNode {
+export function StepsSection({ task }: { task: TaskView }): ReactNode {
   const tr = useTr();
   const lang = useUiStore((s) => s.localPrefs.language);
   return (
@@ -230,7 +251,7 @@ function DroppedOriginal({ message }: { message: DroppedMessage }): ReactNode {
   );
 }
 
-function ContextSection({ task }: { task: TaskView }): ReactNode {
+export function ContextSection({ task }: { task: TaskView }): ReactNode {
   const tr = useTr();
   const [openIdx, setOpenIdx] = useState<number | null>(task.context.compactions.length ? task.context.compactions.length - 1 : null);
   const ctx = task.context;
@@ -383,7 +404,7 @@ function SubAgentCard({ agent }: { agent: SubAgentView }): ReactNode {
  * across both would create two places a variable can be changed, with no way to tell which
  * one the solver saw — so the rail shows and the workspace edits.
  */
-function ModelSection(): ReactNode {
+export function ModelSection(): ReactNode {
   const tr = useTr();
   const mathDemo = useUiStore((s) => s.mathDemo);
   const task = useUiStore((s) => s.snapshot.task);
@@ -398,7 +419,7 @@ function ModelSection(): ReactNode {
     <section className="border-b border-line" data-rail-model>
       <SectionHeader
         icon="sigma"
-        title={tr('right.tab.model')}
+        title={tr('panel.model')}
         right={
           mathDemo ? (
             <span className="rounded border border-warn/50 bg-warn/10 px-1.5 py-[1px] text-[10px] text-warn">
@@ -446,13 +467,13 @@ function ModelSection(): ReactNode {
           </div>
         ) : null}
 
-        <p className="text-[10.5px] leading-4 text-ink-3">{tr('right.model.hint')}</p>
+        <p className="text-[10.5px] leading-4 text-ink-3">{tr('panel.model.hint')}</p>
       </div>
     </section>
   );
 }
 
-function SubAgentsSection({ task }: { task: TaskView }): ReactNode {  const tr = useTr();
+export function SubAgentsSection({ task }: { task: TaskView }): ReactNode {  const tr = useTr();
   return (
     <section className="border-b border-line">
       <SectionHeader
@@ -477,7 +498,7 @@ function SubAgentsSection({ task }: { task: TaskView }): ReactNode {  const tr =
 // checkpoints
 // ---------------------------------------------------------------------------
 
-function CheckpointSection({ task }: { task: TaskView }): ReactNode {
+export function CheckpointSection({ task }: { task: TaskView }): ReactNode {
   const tr = useTr();
   return (
     <section className="border-b border-line" data-checkpoint-section>
@@ -512,7 +533,7 @@ function CheckpointSection({ task }: { task: TaskView }): ReactNode {
 // event trail
 // ---------------------------------------------------------------------------
 
-function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; taskId?: string }): ReactNode {
+export function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; taskId?: string }): ReactNode {
   const tr = useTr();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -609,97 +630,52 @@ function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; taskId?
 
 // ---------------------------------------------------------------------------
 
-export function RightRail(): ReactNode {
-  const tr = useTr();
+// ---------------------------------------------------------------------------
+// dispatch
+// ---------------------------------------------------------------------------
+
+/**
+ * Render one panel by id.
+ *
+ * The switch is exhaustive over `PanelId`, and the default arm is unreachable by
+ * construction — adding a seventh panel to `panels.ts` makes this function a type error
+ * until it is handled. That is the point of routing through one dispatcher: the icon row
+ * and the deck read the same table, so an icon can never open a body that does not exist.
+ */
+export function PanelBody({ id }: { id: PanelId }): ReactNode {
   const task = useUiStore((s) => s.snapshot.task);
   const timeline = useUiStore((s) => s.snapshot.timeline);
-  const collapsed = useUiStore((s) => s.localPrefs.rightCollapsed);
-  const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
-  const status = useUiStore((s) => s.status);
-  const mode = useUiStore((s) => s.mode);
-  const [tab, setTab] = useState<'memory' | 'events' | 'run' | 'context' | 'sub' | 'model'>('memory');
 
-  if (collapsed) {
-    return (
-      <aside data-rail="right" data-rail-collapsed="true" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-l border-line bg-base py-3">
-        <button
-          type="button"
-          data-open-right-rail
-          title={tr('right.expand')}
-          aria-label={tr('right.expand')}
-          className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
-          onClick={() => setLocalPrefs(rightRailUserPatch(false))}
-        >
-          <Icon name="expand" size={16} className="rotate-180" />
-          <span className="pointer-events-none absolute right-full top-1/2 z-50 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
-            {tr('right.expand')}
-          </span>
-        </button>
-        <StatusDot tone={status === 'live' ? 'accent' : status === 'offline' ? 'muted' : 'warn'} />
-        <Icon name="gauge" size={14} className="text-ink-3" />
-        <Icon name="terminal" size={14} className="text-ink-3" />
-      </aside>
-    );
-  }
-
-  return (
-    <aside data-rail="right" data-rail-collapsed="false" className="camelia-right-rail flex h-full w-full min-w-0 flex-col overflow-y-auto border-l border-line bg-base">
-      <div className="flex items-center justify-between gap-2 border-b border-line px-2 pt-2">
-        <div role="tablist" className="flex items-center gap-3">
-          {([
-            ['memory', tr('right.tab.memory')],
-            ['events', tr('right.tab.events')],
-            ['run', tr('right.tab.run')],
-            ['context', tr('right.tab.context')],
-            ['sub', tr('right.tab.sub')],
-            // The model tab is a read-only view of the math model. It only appears in math
-            // mode: in chat it would be a permanently empty column, and the detail rail is
-            // the wrong place to *edit* a model (editing lives in the workspace).
-            ...(mode === 'math' ? ([['model', tr('right.tab.model')]] as const) : []),
-          ] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => setTab(id)}
-              className={`relative pb-1.5 text-[12px] ${
-                tab === id ? 'font-medium text-accent after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-accent' : 'text-ink-3 hover:text-ink-2'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          aria-label={tr('right.collapse')}
-          title={tr('right.collapse')}
-          className="mr-1 mb-1 grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
-          onClick={() => setLocalPrefs(rightRailUserPatch(true))}
-        >
-          <Icon name="collapse" size={13} className="rotate-180" />
-        </button>
-      </div>
-
-      <div className="flex items-center justify-between px-3 pt-2">
-        <RunIdentity />
-      </div>
-
-      {tab === 'memory' ? <MemoryPanel /> : null}
-      {tab === 'events' ? <EventSection timeline={timeline} taskId={task?.id} /> : null}
-      {tab === 'run' && task ? (
+  switch (id) {
+    case 'memory':
+      return <MemoryPanel />;
+    case 'events':
+      return <EventSection timeline={timeline} taskId={task?.id} />;
+    case 'run':
+      // Three sections, one icon: progress, the step list and checkpoints are three views
+      // of what the run is doing right now.
+      return task ? (
         <>
           <RunSection task={task} />
           <StepsSection task={task} />
           <CheckpointSection task={task} />
         </>
-      ) : null}
-      {tab === 'context' && task ? <ContextSection task={task} /> : null}
-      {tab === 'sub' && task ? <SubAgentsSection task={task} /> : null}
-      {tab === 'model' ? <ModelSection /> : null}      {!task && tab !== 'memory' && tab !== 'events' ? (
-        <div className="border-b border-line px-3 py-4 text-[11.5px] text-ink-3">{tr('events.hint')}</div>
-      ) : null}
-    </aside>
-  );
+      ) : null;
+    case 'context':
+      return task ? <ContextSection task={task} /> : null;
+    case 'sub':
+      return task ? <SubAgentsSection task={task} /> : null;
+    case 'model':
+      return <ModelSection />;
+    default:
+      return null;
+  }
 }
+
+/**
+ * `PANELS` / `panelsForMode` / `PanelId` are deliberately **not** re-exported here.
+ *
+ * They live in `src/panels.ts` because the store needs `PanelId` and the store cannot
+ * import this file — this file imports the store. Re-exporting would give two paths to the
+ * same table, and the only question then worth asking is which one a new file imports.
+ */

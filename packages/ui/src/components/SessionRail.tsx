@@ -4,7 +4,16 @@
  * The column is the session list: search, a pinned group, then recent rows.
  * A row is a title plus a one-line preview. Pin, favorite and delete sit in the
  * trailing slot and only appear on hover, so the title does not grow a toolbar.
- * Workspace, provider, checkpoints and metrics stay behind the bottom disclosure.
+ *
+ * There is deliberately no footer. This column used to close with a profile row — the user's
+ * mark, their name, a version line — and the icon rail outside carried a matching mark for
+ * the closed state, so an open column showed the same avatar twice. The account entry now
+ * lives only in the rail (`IconRail`), where it cannot be duplicated by a layout the reader
+ * did not ask for; the column ends with its list.
+ *
+ * Everything above the list is the reserved slot for a nav strip — it is deliberately left
+ * to the header for now, so the list keeps the full height instead of sharing it with
+ * placeholder chrome.
  * @module
  */
 
@@ -22,16 +31,19 @@ import {
   togglePinned,
   type SessionMarks,
 } from '../state/session-marks.js';
+import { useNewSession } from '../state/new-session.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
-import { Avatar, Chip, Icon, SectionHeader } from './primitives.js';
+import { Chip, Icon, SectionHeader } from './primitives.js';
 
 export function SessionRail(): ReactNode {
-  const { snapshot, sessions, activeSessionId, status, dispatch, query: queryEngine, setActiveSession } = useUiState();
+  const { snapshot, sessions, activeSessionId, status, dispatch, setActiveSession } = useUiState();
   const collapsed = useUiStore((s) => s.localPrefs.leftCollapsed);
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  /** Shared with the icon rail, so both entry points start a chat the same way. */
+  const newSession = useNewSession();
   const [marks, setMarks] = useState<SessionMarks>(() => loadSessionMarks());
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -62,24 +74,34 @@ export function SessionRail(): ReactNode {
           dispatch(makeCommand('select_session', { sessionId: session.id }));
           setActiveSession(session.id);
         }}
-        className={`group relative rounded-lg border px-2.5 py-2 ${
+        className={`group relative flex items-center gap-1.5 rounded-md border px-2 py-1 ${
           active
             ? 'border-accent bg-accent/[0.04] shadow-[0_0_0_1px_var(--color-accent)]'
             : 'cursor-pointer border-transparent hover:border-line hover:bg-hover/60'
         }`}
+        title={`${session.title} · ${session.model}`}
       >
+        {/*
+          One line per session. The old row stacked title / model / 运行中 into three
+          lines, which at a 260px rail made every entry ~75px tall — a list of eight
+          sessions filled the column and pushed the rest off-screen.
+          The model moved into the row's tooltip rather than sharing the line: it is
+          usually the same string on every row (it is the active provider's model, not a
+          per-session choice), and spending 45% of the width on it truncated titles to
+          nine characters. Selection is the accent ring plus the leading dot; "is
+          something running" is the activity bar and the top bar's progress rail.
+        */}
+        {active ? <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" /> : null}
         <p
           data-session-title
-          className={`flex min-w-0 items-center gap-1 truncate text-[13px] leading-5 ${active ? 'font-medium text-ink' : 'text-ink-2'}`}
+          className={`flex min-w-0 flex-1 items-center gap-1 text-[12.5px] leading-[18px] ${active ? 'font-medium text-ink' : 'text-ink-2'}`}
         >
           {pinned ? <Icon name="pin" size={11} strokeWidth={1.6} className="shrink-0 text-accent" /> : null}
           {favorite ? <Icon name="star" size={11} strokeWidth={1.6} filled className="shrink-0 text-warn" /> : null}
           <span className="min-w-0 flex-1 truncate">{session.title}</span>
         </p>
-        <p className="mt-0.5 truncate pr-2 text-[11px] leading-4 text-ink-3">{session.model}</p>
-        {active ? <span className="mt-1 inline-block rounded bg-accent/10 px-1.5 py-[1px] text-[10px] text-accent">运行中</span> : null}
         {confirming ? (
-          <div className="absolute right-1 top-1 flex items-center gap-1 rounded-md bg-elevated px-1">
+          <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-md bg-elevated px-1">
             <button
               type="button"
               className="text-[11px] text-bad hover:underline"
@@ -95,7 +117,7 @@ export function SessionRail(): ReactNode {
             </button>
           </div>
         ) : (
-          <div className="pointer-events-none absolute right-1 top-1 flex items-center rounded bg-elevated pl-1 opacity-0 group-hover:pointer-events-auto group-hover:bg-hover group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+          <div className="pointer-events-none absolute right-1 top-1/2 flex -translate-y-1/2 items-center rounded bg-elevated pl-1 opacity-0 group-hover:pointer-events-auto group-hover:bg-hover group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
             <button
               type="button"
               aria-label={pinned ? tr('sessions.unpin') : tr('sessions.pin')}
@@ -131,59 +153,45 @@ export function SessionRail(): ReactNode {
   const task = snapshot.task;
   const metrics = Object.entries(snapshot.metrics);
 
-  if (collapsed) {
-    return (
-      <aside data-rail="left" className="flex h-full w-full flex-col items-center gap-3 overflow-hidden border-r border-line bg-elevated/30 py-3">
-        <button
-          type="button"
-          title={tr('sessions.expand')}
-          aria-label={tr('sessions.expand')}
-          className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
-          onClick={() => setLocalPrefs({ leftCollapsed: false })}
-        >
-          <Icon name="expand" size={16} />
-          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink group-hover:block">
-            {tr('sessions.expand')}
-          </span>
-        </button>
-        <span className="font-mono text-[10px] text-ink-3" title={`${listed.length} sessions`}>
-          {listed.length}
-        </span>
-        <div className="mt-auto">
-          <button
-            type="button"
-            aria-label={tr('settings.title')}
-            title={tr('settings.title')}
-            className="group relative grid h-8 w-8 place-items-center rounded-md text-ink-2 hover:bg-hover hover:text-ink"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Avatar kind="user" size={22} />
-          </button>
-        </div>
-      </aside>
-    );
-  }
-
+  /*
+    There is no collapsed branch here any more. This column now closes to zero width and
+    the permanent `IconRail` outside it owns re-opening, searching and the account entry —
+    so keeping a 48px strip here as well would have put two re-open controls side by side
+    for one panel. See `railWidth`.
+  */
   return (
-    <aside data-rail="left" className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-line bg-base">
+    <aside
+      data-rail="left"
+      /*
+        The column keeps its cell in the grid when closed — dropping the element would
+        shuffle the remaining children into the wrong columns — so it collapses to zero
+        width instead. Zero width still leaves its buttons in the tab order, which is a
+        keyboard user tabbing into nothing; `inert` takes the subtree out of both the tab
+        order and the accessibility tree, and the icon rail outside is what re-opens it.
+      */
+      inert={collapsed || undefined}
+      // The border goes with the column. At zero width a 1px right border still paints, so
+      // a closed column would draw a hairline beside the icon rail's own — two rules 1px
+      // apart, reading as one heavy line.
+      className={`flex h-full w-full min-w-0 flex-col overflow-hidden bg-base ${
+        collapsed ? '' : 'border-r border-line'
+      }`}
+    >
+      {/*
+        Reserved: Hermes puts a nav strip (new / search / connections / agents / models)
+        above the conversation list here. It is not built yet on purpose — the list gets
+        the whole column instead of sharing it with placeholder chrome. When the strip
+        lands it goes directly below this line, and the header below it becomes its
+        trailing action group.
+      */}
       <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-        <span className="text-[13px] font-semibold text-ink">{tr('sessions.title')}</span>
+        <span className="text-[13px] font-semibold text-ink">{tr('sessions.history')}</span>
         <div className="flex items-center gap-1">
           <button
             type="button"
             data-new-session
-            className="inline-flex items-center gap-0.5 rounded-md bg-accent px-1.5 py-[2px] text-[11px] font-medium leading-4 text-white hover:bg-accent-2"
-            onClick={() => {
-              queryEngine<{ sessionId: string }>(makeCommand('new_session', {}))
-                .then((res) => {
-                  if (res?.sessionId) setActiveSession(res.sessionId);
-                })
-                .catch(() => {
-                  // Fallback: still focus the composer so the user can type.
-                });
-              const ta = document.querySelector<HTMLTextAreaElement>('[data-composer] textarea');
-              ta?.focus();
-            }}
+            className="inline-flex items-center gap-0.5 rounded-md bg-accent px-1.5 py-[2px] text-[11px] font-medium leading-4 text-base hover:bg-accent-2"
+            onClick={newSession}
           >
             <span className="text-[13px] leading-none">+</span>
             新建
@@ -204,6 +212,7 @@ export function SessionRail(): ReactNode {
         <div className="flex items-center gap-1.5 rounded-md border border-line bg-elevated px-2 py-1.5">
           <Icon name="search" size={12} className="shrink-0 text-ink-3" />
           <input
+            data-session-search
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={tr('sessions.search')}
@@ -211,7 +220,7 @@ export function SessionRail(): ReactNode {
           />
         </div>
       </label>
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2">
+      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
         {listed.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-line px-3 py-6 text-center text-[11.5px] leading-5 text-ink-3">
             {tr('sessions.empty')}
@@ -351,25 +360,6 @@ export function SessionRail(): ReactNode {
         </div>
       </section>
       </details>
-
-      <div className="border-t border-line p-2">
-        <button
-          type="button"
-          data-account-entry
-          aria-label={tr('settings.title')}
-          title={tr('settings.title')}
-          className="flex w-full items-center gap-2 rounded-lg border border-line px-2.5 py-2 text-left hover:border-accent/40 hover:bg-hover"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-current text-[12px] font-semibold">工</span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[12px] font-medium text-ink">默认工作区</span>
-            <span className="block truncate text-[10.5px] text-ink-3">打开设置… 连接 / 语言 / 日志</span>
-          </span>
-          <Icon name="chevron" size={12} className="shrink-0 text-ink-3" />
-        </button>
-        <p className="mt-1.5 px-1 font-mono text-[10px] text-ink-3">~/.camelia · Apache-2.0</p>
-      </div>
     </aside>
   );
 }
