@@ -39,7 +39,7 @@ export function useNewSession(): (options?: NewSessionOptions) => void {
   const { query: queryEngine, setActiveSession, dispatch, snapshot, activeSessionId } = useUiState();
   const { mode } = useMode();
   return useCallback((options?: NewSessionOptions) => {
-    // `onClick={newSession}` passes the click event. Only a real id opts out of reuse.
+    // Callers pass `{ excludeId }` or nothing. A click event is not an options bag.
     const excludeId = typeof options?.excludeId === 'string' && options.excludeId ? options.excludeId : undefined;
     const kind = mode === 'math' ? 'math' : mode === 'term' ? 'term' : 'work';
     // Already on an unused blank — do not pile another row in the rail; land the caret

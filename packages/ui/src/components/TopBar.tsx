@@ -43,12 +43,9 @@ import { openEngineLog, readEngineTrust } from '../window/engine.js';
 import { relaunchDesktop } from '../window/model-settings.js';
 import { t } from '../i18n/strings.js';
 import { Icon, Mascot, StatusDot } from './primitives.js';
-import { ModeTabs } from '../mode/ModeTabs.js';
-import { useMode } from '../mode/useMode.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
   const { status, localPrefs, setSettingsOpen } = useUiState();
-  const { mode, setMode } = useMode();
   const connection = CONNECTION_META[status];
   const desktop = isTauri();
   const tr = (k: Parameters<typeof t>[1]) => t(localPrefs.language, k);
@@ -95,24 +92,12 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
       onMouseDown={onMouseDown}
       aria-hidden={revealed ? undefined : true}
     >
-      {/* Brand slot — transitional. The name is not final; see the plan book §10. */}
-      <span
-        data-brand-slot
-        className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-[3px] text-[11.5px] font-medium text-ink"
-        title={tr('brand.placeholder.hint')}
-      >
-        <Mascot size={16} />
-        {tr('brand.transition')}
+      {/* Mark only. The wordmark left this bar; Work / Math / Term sit above the session list. */}
+      <span data-brand-slot className="flex shrink-0 items-center" title={tr('brand.placeholder.hint')}>
+        <Mascot size={28} alt={tr('avatar.agent')} />
       </span>
 
-      <ModeTabs mode={mode} language={localPrefs.language} onSelect={setMode} />
-
-      {/*
-        The gap that used to hold the mode selector and the progress rail. Brand on the
-        left, window controls on the right, nothing between: a drag region that says
-        nothing is what a title bar is for, and the middle of this one was the most
-        contested real estate in the shell.
-      */}
+      {/* Chrome only: Live, window controls, and the drag region. */}
       <div className="min-w-0 flex-1" />
 
       {/* Engine connection — opens the existing trust panel. */}

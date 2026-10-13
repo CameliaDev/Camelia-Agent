@@ -11,7 +11,7 @@
  */
 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/App.js';
 import { createUiStore } from '../src/state/store.js';
@@ -86,7 +86,7 @@ describe('App — layout contract', () => {
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
     // The permanent icon rail outside the left column. Its width is not draggable, so it
     // is asserted here as a constant rather than as a stored preference.
-    expect(shell.style.getPropertyValue('--rail-icon-w')).toBe('48px');
+    expect(shell.style.getPropertyValue('--rail-icon-w')).toBe('148px');
     expect(container.querySelector('[data-rail="icon"]')).not.toBeNull();
     expect(container.querySelector('[data-rail="left"]')).not.toBeNull();
     // one resizable column, so one divider
@@ -134,6 +134,8 @@ describe('App — layout contract', () => {
     }
     // No button, no link, no role that implies an action.
     expect(bar.querySelectorAll('button, a, [role="button"]')).toHaveLength(0);
+    // The workspace row is the folder and the name. The green status pip used to sit in front of them.
+    expect(bar.querySelector('.h-2')).toBeNull();
     // A ratio, not a percentage — the weighting behind `progress` is not re-explained here.
     // `count()` abbreviates (`9.7k`), so the separator is what matters, not the digits.
     expect(container.querySelector('[data-status-item="steps"]')!.textContent).toMatch(/\d+\/\d+/);
@@ -607,20 +609,75 @@ describe('App — empty scene', () => {
     expect(transport.sent.some((c) => c.type === 'submit_task')).toBe(false);
   });
 
-  it('puts the mode selector in the top bar, not the composer (F6)', () => {
+  it('puts the mode selector above the session list, not in the top bar or the composer', () => {
     const { container } = renderScene('empty');
     const top = container.querySelector('.camelia-topbar') as HTMLElement;
-    expect(top.querySelector('[data-mode-tabs]')).not.toBeNull();
-    expect(top.querySelector('[data-mode-tab="work"]')).not.toBeNull();
-    expect(top.querySelector('[data-mode-tab="math"]')).not.toBeNull();
-    // Composer keeps the permission picker, not ModeTabs.
+    expect(top.querySelector('[data-mode-tabs]')).toBeNull();
+    expect(top.querySelector('[data-brand-slot]')?.textContent ?? '').not.toMatch(/Camelia/);
+    const column = container.querySelector('[data-rail="left"]') as HTMLElement;
+    expect(column.querySelector('[data-mode-tabs]')).not.toBeNull();
+    expect(column.querySelector('[data-mode-tab="work"]')).not.toBeNull();
+    expect(column.querySelector('[data-mode-tab="math"]')).not.toBeNull();
+    expect(column.querySelector('[data-mode-tab="term"]')).not.toBeNull();
     expect(container.querySelector('[data-composer] [data-mode-tabs]')).toBeNull();
   });
 
-  it('keeps the model chip clickable in the composer (mode tabs live in the top bar)', () => {
+  it('keeps the model chip, effort, and attach control inside the composer card', () => {
     const { container } = renderScene('empty');
-    expect(container.querySelector('[data-composer-model]')).not.toBeNull();
-    expect(container.querySelector('.camelia-topbar [data-mode-tabs]')).not.toBeNull();
+    const card = container.querySelector('[data-composer]') as HTMLElement;
+    const toolbar = card.querySelector('[data-composer-toolbar]') as HTMLElement;
+    expect(toolbar.querySelector('[data-composer-attach]')).not.toBeNull();
+    expect(toolbar.querySelector('[data-composer-attach-input]')).not.toBeNull();
+    expect(toolbar.querySelector('[data-composer-policy]')).not.toBeNull();
+    expect(toolbar.querySelector('[data-composer-model]')).not.toBeNull();
+    expect(toolbar.querySelector('[data-composer-effort]')).not.toBeNull();
+    expect(toolbar.querySelector('[data-run]')).not.toBeNull();
+    expect(toolbar.querySelector('[data-composer-mic]')).toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-mode-tabs]')).toBeNull();
+  });
+
+  it('opens a plugins sidebar from the left nav without enable switches', () => {
+    const { container } = renderScene('empty');
+    fireEvent.click(screen.getByRole('button', { name: '插件' }));
+    const panel = container.querySelector('[data-extensions-panel]') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(within(panel).getByText('还没有插件。')).toBeInTheDocument();
+    expect(panel.querySelector('[role="switch"], input')).toBeNull();
+    fireEvent.click(within(panel).getByRole('button', { name: '如何安装' }));
+    expect(panel.textContent).toMatch(/camelia\.plugin\.json/);
+    expect(panel.textContent).toMatch(/~\/\.camelia\/plugins/);
+  });
+
+  it('checks GitHub releases from About and does not download outside the desktop shell', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        tag_name: 'v0.2.0',
+        body: 'release notes',
+        html_url: 'https://github.com/CameliaDev/Camelia-Agent/releases/tag/v0.2.0',
+        assets: [
+          {
+            name: 'Camelia_0.2.0_x64-setup.exe',
+            browser_download_url:
+              'https://github.com/CameliaDev/Camelia-Agent/releases/download/v0.2.0/Camelia_0.2.0_x64-setup.exe',
+            size: 12,
+          },
+        ],
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { container } = renderScene('empty');
+      fireEvent.click(container.querySelector('[data-rail-settings]') as HTMLElement);
+      fireEvent.click(screen.getByRole('button', { name: '关于' }));
+      fireEvent.click(screen.getByRole('button', { name: '检查更新' }));
+      expect(await screen.findByText(/0\.2\.0/)).toBeInTheDocument();
+      expect(screen.getByText('release notes')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: '下载并安装' }));
+      expect(await screen.findByText(/桌面端/)).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('offers connection presets in multi-section settings', () => {

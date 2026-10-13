@@ -57,6 +57,7 @@ import { SessionRail } from './components/SessionRail.js';
 import { SettingsDrawer } from './components/SettingsDrawer.js';
 import { StatusBar, STATUS_BAR_H } from './components/StatusBar.js';
 import { SteeringForm } from './components/SteeringForm.js';
+import { Mascot } from './components/primitives.js';
 import { TopBar } from './components/TopBar.js';
 import { WindowEdges } from './components/WindowEdges.js';
 import { RAIL_ICON_WIDTH, railWidth } from './state/local-prefs.js';
@@ -219,9 +220,10 @@ export function App(): ReactNode {
             }
           >
             {fresh ? (
-              <div className="mb-5 max-w-md text-center" data-chat-empty-hero>
-                <p className="text-[15px] font-medium text-ink">{tr('welcome.title')}</p>
-                <p className="mt-1.5 text-[12.5px] leading-5 text-ink-3">{tr('chat.empty')}</p>
+              <div className="mb-6 flex max-w-md flex-col items-center text-center" data-chat-empty-hero>
+                <Mascot size={88} />
+                <p className="mt-4 text-[18px] font-medium tracking-tight text-ink">{tr('welcome.title')}</p>
+                <p className="mt-1.5 text-[13px] leading-5 text-ink-3">{tr('chat.empty')}</p>
               </div>
             ) : null}
             <div className={fresh ? 'w-full max-w-3xl' : undefined}>

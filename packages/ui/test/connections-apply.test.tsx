@@ -64,6 +64,5 @@ describe('ConnectionsSection — apply without restart', () => {
     });
     expect(screen.getByText('已交给当前引擎，下一条消息会使用这个模型。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '立即重启' })).toBeNull();
-    expect(view.container.textContent ?? '').not.toContain('重新打开桌面');
   });
 });

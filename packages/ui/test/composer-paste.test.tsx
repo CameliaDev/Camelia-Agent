@@ -106,4 +106,16 @@ describe('composer image paste', () => {
     });
     expect(container.querySelector('[data-composer-images]')).toBeNull();
   });
+
+  it('attaches an image from the in-card file button', async () => {
+    const { container } = renderEmpty();
+    const input = container.querySelector('[data-composer-attach-input]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(container.querySelector('[data-composer] [data-composer-attach]')).not.toBeNull();
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [tinyPngFile()] } });
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(container.querySelector('[data-composer-images]')).not.toBeNull();
+  });
 });

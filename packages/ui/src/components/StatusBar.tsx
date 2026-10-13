@@ -49,7 +49,7 @@ import type { ReactNode } from 'react';
 import { basename, count } from '../lib/format.js';
 import { t } from '../i18n/strings.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
-import { Icon, StatusDot } from './primitives.js';
+import { Icon } from './primitives.js';
 
 /**
  * Strip height in px. Shared with `App`'s `--status-bar-h` so the grid padding and the
@@ -89,7 +89,7 @@ function Cell({
 }
 
 export function StatusBar(): ReactNode {
-  const { snapshot, status } = useUiState();
+  const { snapshot } = useUiState();
   const language = useUiStore((s) => s.localPrefs.language);
   // Two shapes, because two callers: plain lookups take one argument, the two interpolated
   // tooltips below need their substitutions forwarded. Narrowing `tr` to one parameter is
@@ -112,7 +112,6 @@ export function StatusBar(): ReactNode {
     >
       {/* Left: where this run is pointed. */}
       <div className="flex min-w-0 shrink items-center">
-        <StatusDot tone={status === 'live' ? 'ok' : status === 'connecting' ? 'warn' : 'muted'} />
         <Cell testId="workspace" title={workspace ?? tr('statusBar.noWorkspace')}>
           <Icon name="folder" size={13} className="shrink-0 text-ink-3" />
           {/* The tail is what identifies a workspace; the full path is in the tooltip,

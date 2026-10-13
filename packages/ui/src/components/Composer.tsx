@@ -7,7 +7,7 @@
  *
  * | state   | control                        | sends            |
  * |---------|--------------------------------|------------------|
- * | idle    | accent disc, arrow up          | `submit_task`    |
+ * | idle    | rounded send, arrow up         | `submit_task`    |
  * | running | labelled pill, 「引导」/「Steer」| `intervene_goal` |
  *
  * The idle form is a bare icon on purpose: it is the shape every chat app has already
@@ -23,30 +23,17 @@
  * control read as broken instead of unavailable. A specified neutral fill states
  * "unavailable" once, and keeps the label legible while it does.
  *
- * ## What is deliberately *not* in this bar
+ * ## What is in this bar
  *
- * Clipboard image paste is supported (Ctrl+V). Mic / file-picker / access-level
- * controls stay out of this bar — paste is the ChatGPT-style path.
+ * Clipboard paste still attaches images. The `+` button uses the same path. There is
+ * no microphone and no plugin cluster: those would be controls that cannot act.
  *
- * The model chip *is* here, and it switches the model in place. It used to be a read-only
- * label that opened Settings, which meant the one place a reader looks to change the model
- * could not change it. The rule it broke is worth keeping: a control that cannot act is
- * worse than a missing one — so when the provider advertises a single model the chip falls
- * back to opening Settings rather than showing a one-item list that does nothing.
+ * The model chip switches the model in place. When the provider advertises a single
+ * model the chip opens Settings rather than a one-item list. Switching model must not
+ * silently switch vendor, so re-homing stays in Settings.
  *
- * The scope is the **active provider's** models, on purpose: switching model must not
- * silently switch vendor, so re-homing is a separate, deliberate act in Settings.
- *
- * ## The mode selector lives here
- *
- * `ModeTabs` renders in this bar, not in the top bar. The mode decides what a keystroke in
- * the box *means* — chat submits a task, plan reviews one, math runs a workspace — so the
- * switch belongs next to the thing it changes, not 40px above it in a strip the user has to
- * look away from to find. It sits in the same row as the model chip: both answer "what will
- * happen when I press enter", and they are the two facts about the pending submission.
- *
- * It also means the top bar no longer needs to know whether a task is running. It did only to
- * dim the reserved-modes affordance, and that is a composer-side concern now.
+ * Effort sits next to the model. Work mode also has the permission chip. Work, Math,
+ * and Term live above the session list, not in this card.
  * @module
  */
 
@@ -106,6 +93,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [imageNotice, setImageNotice] = useState<string | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const imageIdPrefix = useId();
   const task = snapshot.task;
   const running = task !== undefined && task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled';
@@ -296,7 +284,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       >
         <div
           data-composer
-          className="flex flex-col gap-1.5 rounded-2xl border border-line/40 bg-panel/40 p-2.5 shadow-sm transition-colors focus-within:border-line/70 focus-within:shadow-md"
+          className="flex flex-col gap-1.5 rounded-2xl border border-line/60 bg-elevated p-2.5 shadow-sm transition-colors focus-within:border-line"
         >
           {pendingImages.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-0.5" data-composer-images>
@@ -348,14 +336,30 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
             className="max-h-60 min-h-[56px] w-full resize-none bg-transparent px-1.5 py-1 text-[14px] leading-6 text-ink outline-none placeholder:text-ink-3"
           />
 
-          <div className="flex items-center gap-1.5 px-0.5">
-            {/*
-              Mode first, then the model. Reading left to right that is "which workspace am
-              I in" then "what will run in it", which is the order the two questions get
-              asked. The tablist is `shrink-0` and the chip below is the only thing that
-              truncates, so a narrow window loses the model name rather than the mode name —
-              the mode is the one that changes what Enter does.
-            */}
+          <div className="flex flex-wrap items-center gap-1.5 px-0.5" data-composer-toolbar>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              className="hidden"
+              data-composer-attach-input
+              onChange={(event) => {
+                const files = [...(event.target.files ?? [])];
+                event.target.value = '';
+                void addImageFiles(files);
+              }}
+            />
+            <button
+              type="button"
+              data-composer-attach
+              aria-label={tr('composer.attach')}
+              title={tr('composer.attach')}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-2 hover:bg-hover hover:text-ink"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Icon name="plus" size={15} />
+            </button>
             {/*
               The chat permission picker, only in 对话 mode: it decides what a tool call
               inside a chat turn may do. Same listbox shape as the model chip, same
@@ -413,29 +417,10 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 ) : null}
               </div>
             ) : null}
-            {mode === 'work' ? (
-              <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-line/70 bg-base/40 p-[2px]" data-composer-effort role="group" aria-label={tr('composer.effort')}>
-                {(['max', 'high', 'low'] as const).map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    data-effort-option={level}
-                    aria-pressed={effort === level}
-                    title={tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
-                    onClick={() => setLocalPrefs({ effort: level })}
-                    className={`rounded-full px-2 py-[3px] text-[10.5px] font-medium ${
-                      effort === level ? 'bg-info/15 text-info' : 'text-ink-3 hover:text-ink'
-                    }`}
-                  >
-                    {tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
-                  </button>
-                ))}
-              </div>
-            ) : null}
 
-            <span className="h-4 w-px shrink-0 bg-line" />
+            <span className="flex-1" />
 
-            <div ref={pickerRef} className="relative min-w-0 max-w-[38%]">
+            <div ref={pickerRef} className="relative min-w-0 max-w-[42%]">
               <button
                 type="button"
                 data-composer-model
@@ -451,7 +436,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                     snapshot.provider.connected === true ? 'bg-ok' : status === 'connecting' ? 'bg-warn' : 'bg-ink-3'
                   }`}
                 />
-                <span className="min-w-0 truncate font-mono">{providerLine}</span>
+                <span className="min-w-[4.5rem] truncate font-mono">{providerLine}</span>
                 <Icon
                   name="chevron"
                   size={11}
@@ -518,7 +503,28 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               ) : null}
             </div>
 
-            <span className="flex-1" />
+            <div
+              className="flex shrink-0 items-center gap-0.5 rounded-full bg-base/70 p-[2px]"
+              data-composer-effort
+              role="group"
+              aria-label={tr('composer.effort')}
+            >
+              {(['max', 'high', 'low'] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  data-effort-option={level}
+                  aria-pressed={effort === level}
+                  title={tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
+                  onClick={() => setLocalPrefs({ effort: level })}
+                  className={`rounded-full px-2 py-[3px] text-[10.5px] font-medium ${
+                    effort === level ? 'bg-elevated text-ink shadow-sm' : 'text-ink-3 hover:text-ink'
+                  }`}
+                >
+                  {tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
+                </button>
+              ))}
+            </div>
 
             {running && mode !== 'work' ? (
               <button
@@ -537,7 +543,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 disabled={!value.trim() && !(mode === 'work' && pendingImages.length > 0)}
                 aria-label={tr('composer.run')}
                 title={tr('composer.run')}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-base transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-2"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent text-base text-white transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-2"
               >
                 <Icon name="arrowUp" size={15} />
               </button>

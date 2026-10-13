@@ -1092,6 +1092,200 @@ fn write_provider_key(provider: String, api_key: String) -> Result<(), String> {
     write_keys_map(map)
 }
 
+/// Which hop of an update download this URL is.
+///
+/// The first URL must be this repo's GitHub Release asset. Later hops may be the
+/// GitHub CDN that `releases/download` redirects to. A CDN URL is not accepted as
+/// the URL the webview asks for.
+#[derive(Clone, Copy)]
+enum UpdateHop {
+    Start,
+    Redirect,
+}
+
+fn update_url_allowed(url: &str, hop: UpdateHop) -> Result<(), String> {
+    let url = url.trim();
+    if url.is_empty()
+        || url.chars().any(|ch| ch.is_control() || ch.is_whitespace() || matches!(ch, '\\' | '"' | '\'' | '<' | '>' | '`' | '#'))
+    {
+        return Err("update URL contains illegal characters".into());
+    }
+    let rest = url
+        .strip_prefix("https://")
+        .ok_or_else(|| "update URL must be https".to_string())?;
+    if rest.contains('@') {
+        return Err("update URL must not include credentials".into());
+    }
+    let (host_port, path_q) = rest
+        .split_once('/')
+        .ok_or_else(|| "update URL is missing a path".to_string())?;
+    let host = if let Some((host, port)) = host_port.rsplit_once(':') {
+        if port != "443" {
+            return Err("update URL port is not allowed".into());
+        }
+        host
+    } else {
+        host_port
+    };
+    let host = host.to_ascii_lowercase();
+    let path = path_q.split('?').next().unwrap_or("");
+    if path.is_empty() || path.contains("..") {
+        return Err("update URL path is not allowed".into());
+    }
+    let release_prefix = "/CameliaDev/Camelia-Agent/releases/download/";
+    let github_installer = host == "github.com"
+        && path.starts_with(release_prefix)
+        && path.to_ascii_lowercase().ends_with(".exe")
+        && !path.to_ascii_lowercase().ends_with(".exe.blockmap");
+    let cdn = matches!(
+        host.as_str(),
+        "objects.githubusercontent.com"
+            | "release-assets.githubusercontent.com"
+            | "github-releases.githubusercontent.com"
+    );
+    match hop {
+        UpdateHop::Start if github_installer => Ok(()),
+        UpdateHop::Redirect if github_installer || cdn => Ok(()),
+        _ => Err("update URL is not a Camelia release installer".into()),
+    }
+}
+
+/// Download the NSIS setup exe and start it.
+///
+/// `curl` is invoked with a fixed argument list — the URL is one argument, never
+/// interpolated into a shell. Redirects are followed one hop at a time and each
+/// target is checked again. This does not change `installMode: currentUser`.
+/// Silent signed updates still need a Tauri updater key and `latest.json`.
+#[tauri::command]
+fn download_update(url: String) -> Result<(), String> {
+    let url = url.trim();
+    update_url_allowed(url, UpdateHop::Start)?;
+    #[cfg(not(windows))]
+    {
+        let _ = url;
+        Err("installer download is only available on Windows".into())
+    }
+    #[cfg(windows)]
+    {
+        let final_url = follow_update_redirects(url)?;
+        let dest = installer_dest_path(&final_url);
+        curl_download(&final_url, &dest)?;
+        std::process::Command::new(&dest)
+            .spawn()
+            .map(|_| ())
+            .map_err(|err| format!("failed to start installer: {err}"))
+    }
+}
+
+#[cfg(windows)]
+fn follow_update_redirects(start: &str) -> Result<String, String> {
+    let mut current = start.to_string();
+    for hop in 0..5 {
+        let kind = if hop == 0 { UpdateHop::Start } else { UpdateHop::Redirect };
+        update_url_allowed(&current, kind)?;
+        let output = hidden_command("curl")
+            .args([
+                "-sS",
+                "-I",
+                "--proto",
+                "=https",
+                "--proto-redir",
+                "=https",
+                "--max-redirs",
+                "0",
+                "--max-time",
+                "30",
+                &current,
+            ])
+            .output()
+            .map_err(|err| format!("curl failed to start: {err}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("curl exit {}: {stderr}", output.status));
+        }
+        let headers = String::from_utf8_lossy(&output.stdout);
+        let (status, location) = http_status_and_location(&headers)?;
+        if (300..400).contains(&status) {
+            let next = location.ok_or_else(|| "redirect without a location".to_string())?;
+            if !next.starts_with("https://") {
+                return Err("update redirect must be an absolute https URL".into());
+            }
+            current = next;
+            continue;
+        }
+        if (200..300).contains(&status) {
+            return Ok(current);
+        }
+        return Err(format!("download answered {status}"));
+    }
+    Err("too many redirects".into())
+}
+
+#[cfg(windows)]
+fn http_status_and_location(raw: &str) -> Result<(u16, Option<String>), String> {
+    let mut status = None;
+    let mut location = None;
+    for line in raw.lines() {
+        if let Some(rest) = line.strip_prefix("HTTP/") {
+            if let Some(code) = rest.split_whitespace().nth(1).and_then(|part| part.parse().ok()) {
+                status = Some(code);
+                location = None;
+            }
+        } else if let Some((name, value)) = line.split_once(':') {
+            if name.eq_ignore_ascii_case("location") {
+                location = Some(value.trim().to_string());
+            }
+        }
+    }
+    status
+        .ok_or_else(|| "no HTTP status from curl".to_string())
+        .map(|code| (code, location))
+}
+
+#[cfg(windows)]
+fn installer_dest_path(url: &str) -> std::path::PathBuf {
+    let path = url.split('?').next().unwrap_or(url);
+    let raw = path.rsplit('/').next().unwrap_or("Camelia-setup.exe");
+    let mut name = String::new();
+    for ch in raw.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
+            name.push(ch);
+        }
+    }
+    if !name.to_ascii_lowercase().ends_with(".exe") || name.len() > 80 {
+        name = "Camelia-setup.exe".into();
+    }
+    std::env::temp_dir().join(name)
+}
+
+#[cfg(windows)]
+fn curl_download(url: &str, dest: &std::path::Path) -> Result<(), String> {
+    let dest_str = dest.to_str().ok_or_else(|| "installer path is not utf-8".to_string())?;
+    let output = hidden_command("curl")
+        .args([
+            "-fsSL",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
+            "--max-redirs",
+            "0",
+            "--max-time",
+            "600",
+            "-o",
+            dest_str,
+            url,
+        ])
+        .output()
+        .map_err(|err| format!("curl failed to start: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let _ = std::fs::remove_file(dest);
+        return Err(format!("download failed: {stderr}"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn relaunch_app(app: tauri::AppHandle) {
     app.restart();
@@ -1189,7 +1383,8 @@ fn main() {
             delete_provider_preset,
             read_key_status,
             write_provider_key,
-            relaunch_app
+            relaunch_app,
+            download_update
         ])
         .run(tauri::generate_context!())
         .expect("failed to run the Camelia desktop shell");
@@ -1197,7 +1392,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{clean_plan_approval, strip_utf8_bom};
+    use super::{clean_plan_approval, strip_utf8_bom, update_url_allowed, UpdateHop};
 
     #[test]
     fn clean_plan_approval_accepts_both_modes_and_normalises_case() {
@@ -1217,6 +1412,48 @@ mod tests {
     fn strip_utf8_bom_removes_bom_only() {
         assert_eq!(strip_utf8_bom("{\"a\":1}"), "{\"a\":1}");
         assert_eq!(strip_utf8_bom("\u{feff}{\"cli\":\"x\"}"), "{\"cli\":\"x\"}");
+    }
+
+    #[test]
+    fn update_url_allows_this_repos_setup_exe() {
+        let url = "https://github.com/CameliaDev/Camelia-Agent/releases/download/v0.2.0/Camelia_0.2.0_x64-setup.exe";
+        assert!(update_url_allowed(url, UpdateHop::Start).is_ok());
+        assert!(update_url_allowed(url, UpdateHop::Redirect).is_ok());
+    }
+
+    #[test]
+    fn update_url_rejects_other_hosts_and_assets_as_the_start() {
+        assert!(update_url_allowed(
+            "https://objects.githubusercontent.com/github-production-release-asset-2e65be/x",
+            UpdateHop::Start
+        )
+        .is_err());
+        assert!(update_url_allowed(
+            "https://github.com/CameliaDev/Camelia-Agent/releases/download/v0.2.0/notes.txt",
+            UpdateHop::Start
+        )
+        .is_err());
+        assert!(update_url_allowed("https://evil.example/Camelia_0.2.0_x64-setup.exe", UpdateHop::Start).is_err());
+        assert!(update_url_allowed(
+            "https://github.com.evil.test/CameliaDev/Camelia-Agent/releases/download/v0.2.0/Camelia_0.2.0_x64-setup.exe",
+            UpdateHop::Start
+        )
+        .is_err());
+        assert!(update_url_allowed(
+            "https://user:pass@github.com/CameliaDev/Camelia-Agent/releases/download/v0.2.0/Camelia_0.2.0_x64-setup.exe",
+            UpdateHop::Start
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn update_url_allows_github_cdn_only_after_a_redirect() {
+        let cdn = "https://release-assets.githubusercontent.com/github-production-release-asset/abc";
+        assert!(update_url_allowed(cdn, UpdateHop::Start).is_err());
+        assert!(update_url_allowed(cdn, UpdateHop::Redirect).is_ok());
+        assert!(update_url_allowed("https://objects.githubusercontent.com/a/b", UpdateHop::Redirect).is_ok());
+        assert!(update_url_allowed("https://github-releases.githubusercontent.com/a", UpdateHop::Redirect).is_ok());
+        assert!(update_url_allowed("http://github.com/CameliaDev/Camelia-Agent/releases/download/v/a.exe", UpdateHop::Redirect).is_err());
     }
 
     #[test]

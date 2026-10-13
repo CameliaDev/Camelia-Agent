@@ -129,6 +129,9 @@ export interface UiState {
   panelId?: PanelId;
   /** Section to restore the next time the drawer opens. */
   lastPanelId?: PanelId;
+  /** Which left sidebar the activity bar is showing. */
+  sidebarView: 'sessions' | 'extensions';
+  setSidebarView: (view: 'sessions' | 'extensions') => void;
   /**
    * Whether the steering form is open. Ephemeral chrome, like the settings drawer.
    *
@@ -224,6 +227,7 @@ export function createUiStore(transport: Transport): UiStore {
     localPrefs: bootPrefs,
     settingsOpen: false,
     panelId: undefined,
+    sidebarView: 'sessions',
     settingsSection: 'connections',
     steeringOpen: false,
     mode: normalizeModeId(bootPrefs.preferredMode),
@@ -239,6 +243,7 @@ export function createUiStore(transport: Transport): UiStore {
       })),
     setSettingsSection: (settingsSection) => set({ settingsSection }),
     setSteeringOpen: (steeringOpen) => set({ steeringOpen }),
+    setSidebarView: (sidebarView) => set({ sidebarView }),
     setPanelId: (panelId) =>
       set((state) => ({
         panelId,

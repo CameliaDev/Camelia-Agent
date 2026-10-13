@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-download-update"
+description = "Download a Camelia GitHub Release NSIS installer and start it. The URL is allowlisted."
+commands.allow = ["download_update"]
