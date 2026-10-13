@@ -41,8 +41,9 @@
  *
  * ## Width
  *
- * `RAIL_ICON_WIDTH` is the same 48px as a collapsed rail, so the icons sit on the same
- * grid line whether the column beside them is open or shut.
+ * `RAIL_ICON_WIDTH` fits an icon and a short label. Sessions, plugins, and settings
+ * are labeled rows. Search and new chat stay icon actions under them — they act on
+ * the session list, they are not destinations.
  * @module
  */
 
@@ -74,10 +75,12 @@ function focusSessionSearch(): void {
   find();
 }
 
-/** Shared by every button in the strip, so a new entry cannot look unlike its neighbours. */
-const ITEM = 'group relative grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors';
+/** Labeled destination. Icon and word share one quiet row. */
+const NAV = 'group relative flex h-8 w-full shrink-0 items-center gap-2 rounded-lg px-2 text-left text-[12px] transition-colors';
+/** Icon-only action that belongs to the session list, not a destination of its own. */
+const ACTION = 'group relative grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors';
 const ITEM_IDLE = 'text-ink-2 hover:bg-hover hover:text-ink';
-const ITEM_ACTIVE = 'bg-accent/10 text-accent';
+const ITEM_ACTIVE = 'bg-hover text-ink';
 
 /** Tooltip, opening to the right: this strip is against the window edge. */
 function Tip({ children }: { children: ReactNode }): ReactNode {
@@ -94,6 +97,8 @@ function Tip({ children }: { children: ReactNode }): ReactNode {
 export function IconRail(): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const leftCollapsed = useUiStore((s) => s.localPrefs.leftCollapsed);
+  const sidebarView = useUiStore((s) => s.sidebarView);
+  const setSidebarView = useUiStore((s) => s.setSidebarView);
   const userAvatar = useUiStore((s) => s.localPrefs.userAvatar);
   const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
   const displayNamePref = useUiStore((s) => s.localPrefs.displayName);
@@ -118,60 +123,83 @@ export function IconRail(): ReactNode {
       data-rail="icon"
       aria-label={tr('rail.label')}
       /*
-        No `overflow-hidden`. It used to be here, and it silently ate every tooltip in the
-        strip: `Tip` opens to the right, and clipping at the 48px boundary meant hovering an
-        icon produced only the hover background, never the label. Nothing overflows this
-        strip in practice — the buttons are 32px in a 48px column, and the vertical slack is
-        the flex spacer — so the clip bought nothing and cost the only visible affordance
-        these icons have.
+        No `overflow-hidden`. Tooltips on the icon actions open to the right, and a clip
+        on this nav would hide them. The labeled rows do not overflow the column.
       */
-      className="relative flex h-full w-full flex-col items-center gap-1 border-r border-line bg-base py-2"
+      className="relative flex h-full w-full flex-col gap-0.5 border-r border-line bg-base px-2 py-2"
     >
       {/*
-        The view toggle. Clicking the open view closes it, which is what every activity
-        bar does — and it means the strip alone is enough to drive the column, so the
-        column's own collapse button is a convenience rather than the only way out.
+        Labeled destinations. Clicking the open view closes the column, the same
+        contract as an activity bar, so this nav can drive the sidebar alone.
       */}
       <button
         type="button"
         data-rail-view="sessions"
-        aria-pressed={!leftCollapsed}
-        title={tr('rail.sessions')}
+        aria-pressed={!leftCollapsed && sidebarView === 'sessions'}
+        title={tr('sessions.history')}
         aria-label={tr('rail.sessions')}
-        className={`${ITEM} ${leftCollapsed ? ITEM_IDLE : ITEM_ACTIVE}`}
-        onClick={() => setLocalPrefs({ leftCollapsed: !leftCollapsed })}
-      >
-        <Icon name="chat" size={16} />
-        <Tip>{tr('rail.sessions')}</Tip>
-      </button>
-
-      {/* An action on that column, so it lives beside the view it acts on. */}
-      <button
-        type="button"
-        data-rail-action="search"
-        title={tr('rail.search')}
-        aria-label={tr('rail.search')}
-        className={`${ITEM} ${ITEM_IDLE}`}
+        className={`${NAV} ${!leftCollapsed && sidebarView === 'sessions' ? ITEM_ACTIVE : ITEM_IDLE}`}
         onClick={() => {
+          if (!leftCollapsed && sidebarView === 'sessions') {
+            setLocalPrefs({ leftCollapsed: true });
+            return;
+          }
+          setSidebarView('sessions');
           setLocalPrefs({ leftCollapsed: false });
-          focusSessionSearch();
         }}
       >
-        <Icon name="search" size={16} />
-        <Tip>{tr('rail.search')}</Tip>
+        <Icon name="chat" size={16} />
+        <span className="min-w-0 truncate">{tr('sessions.history')}</span>
       </button>
 
       <button
         type="button"
-        data-rail-action="new"
-        title={tr('rail.new')}
-        aria-label={tr('rail.new')}
-        className={`${ITEM} ${ITEM_IDLE}`}
-        onClick={newSession}
+        data-rail-view="extensions"
+        aria-pressed={!leftCollapsed && sidebarView === 'extensions'}
+        title={tr('extensions.title')}
+        aria-label={tr('rail.extensions')}
+        className={`${NAV} ${!leftCollapsed && sidebarView === 'extensions' ? ITEM_ACTIVE : ITEM_IDLE}`}
+        onClick={() => {
+          if (!leftCollapsed && sidebarView === 'extensions') {
+            setLocalPrefs({ leftCollapsed: true });
+            return;
+          }
+          setSidebarView('extensions');
+          setLocalPrefs({ leftCollapsed: false });
+        }}
       >
-        <Icon name="plus" size={16} />
-        <Tip>{tr('rail.new')}</Tip>
+        <Icon name="extensions" size={16} />
+        <span className="min-w-0 truncate">{tr('extensions.title')}</span>
       </button>
+
+      <div className="mt-1 flex items-center gap-0.5 px-0.5">
+        <button
+          type="button"
+          data-rail-action="search"
+          title={tr('rail.search')}
+          aria-label={tr('rail.search')}
+          className={`${ACTION} ${ITEM_IDLE}`}
+          onClick={() => {
+            setSidebarView('sessions');
+            setLocalPrefs({ leftCollapsed: false });
+            focusSessionSearch();
+          }}
+        >
+          <Icon name="search" size={15} />
+          <Tip>{tr('rail.search')}</Tip>
+        </button>
+        <button
+          type="button"
+          data-rail-action="new"
+          title={tr('rail.new')}
+          aria-label={tr('rail.new')}
+          className={`${ACTION} ${ITEM_IDLE}`}
+          onClick={() => newSession()}
+        >
+          <Icon name="plus" size={15} />
+          <Tip>{tr('rail.new')}</Tip>
+        </button>
+      </div>
 
       <span className="flex-1" />
 
@@ -186,10 +214,11 @@ export function IconRail(): ReactNode {
           aria-label={tr('account.profile')}
           aria-haspopup="menu"
           aria-expanded={accountMenuOpen}
-          className={`${ITEM} ${accountMenuOpen ? ITEM_ACTIVE : ITEM_IDLE}`}
+          className={`${NAV} ${accountMenuOpen ? ITEM_ACTIVE : ITEM_IDLE}`}
           onClick={() => setAccountMenuOpen((open) => !open)}
         >
-          <Avatar kind="user" size={22} src={userAvatarSrc(userAvatar, githubAccount)} />
+          <Avatar kind="user" size={18} src={userAvatarSrc(userAvatar, githubAccount)} />
+          <span className="min-w-0 flex-1 truncate text-[12px]">{displayName || tr('account.profile')}</span>
           {!accountMenuOpen ? (
             <Tip>
               {displayName ? (
@@ -213,14 +242,14 @@ export function IconRail(): ReactNode {
         type="button"
         data-rail-settings
         aria-label={tr('settings.title')}
-        className={`${ITEM} ${ITEM_IDLE} mt-1`}
+        className={`${NAV} ${ITEM_IDLE} mt-0.5`}
         onClick={() => {
           setAccountMenuOpen(false);
           setSettingsOpen(true);
         }}
       >
         <Icon name="settings" size={16} />
-        <Tip>{tr('settings.title')}</Tip>
+        <span className="min-w-0 truncate">{tr('settings.title')}</span>
       </button>
     </aside>
   );

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   hideSession,
   orderSessions,
+  sessionKeepIds,
   toggleFavorite,
   togglePinned,
   unhideSession,
@@ -23,6 +24,13 @@ describe('session marks', () => {
     const marked = hideSession(hideSession(empty, 'a'), 'c');
     expect(orderSessions(rows, marked).map((row) => row.id)).toEqual(['b']);
     expect(orderSessions(rows, marked, { keepIds: ['a'] }).map((row) => row.id)).toEqual(['a', 'b']);
+  });
+
+  it('drops keepIds while the active session is the one being deleted', () => {
+    expect(sessionKeepIds('a', 'a')).toEqual([]);
+    expect(sessionKeepIds('a', null)).toEqual(['a']);
+    expect(sessionKeepIds(undefined)).toEqual([]);
+    expect(sessionKeepIds('a', 'b')).toEqual(['a']);
   });
 
   it('unhideSession clears a hide mark', () => {

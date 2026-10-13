@@ -254,11 +254,14 @@ export class FixtureTransport implements Transport {
       case 'new_session': {
         // One blank at a time: reuse a stable id per kind so tests and the rail
         // do not accumulate empty rows when 「新建」 is clicked repeatedly.
+        // Deleting that blank passes excludeId so the same row is not handed back.
         const rawKind = command.payload?.kind;
         const kind: 'work' | 'math' | 'term' =
           rawKind === 'math' ? 'math' : rawKind === 'term' ? 'term' : 'work';
-        const sessionId =
+        const excludeId = command.payload?.excludeId;
+        let sessionId =
           kind === 'math' ? 'ses_blank_math' : kind === 'term' ? 'ses_blank_term' : 'ses_blank_work';
+        if (excludeId && sessionId === excludeId) sessionId = `${sessionId}_next`;
         const blank = {
           id: sessionId,
           title: '新会话',
@@ -287,6 +290,18 @@ export class FixtureTransport implements Transport {
           providerId: command.payload.providerId,
           model: command.payload.model ?? 'default',
           reason: 'user selection',
+        });
+        return;
+      case 'apply_provider':
+        this.push('provider.selected', {
+          providerId: command.payload.providerId ?? BOOTSTRAP_PROVIDER.activeProvider,
+          model: command.payload.model ?? BOOTSTRAP_PROVIDER.activeModel,
+          reason: 'config-reloaded',
+        });
+        this.answer(command.commandId, {
+          ok: true,
+          providerId: command.payload.providerId,
+          model: command.payload.model,
         });
         return;
       // ---- chat (对话 mode): the same chat.* events a live engine emits -----

@@ -29,6 +29,7 @@
     "allow-delete-provider-preset",
     "allow-read-key-status",
     "allow-write-provider-key",
-    "allow-relaunch-app"
+    "allow-relaunch-app",
+    "allow-download-update"
   ]
 }

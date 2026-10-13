@@ -32,7 +32,7 @@ export class FallbackLLMPort implements LLMPort {
   private index = 0;
 
   constructor(
-    private readonly handles: ProviderHandle[],
+    private handles: ProviderHandle[],
     private readonly hooks: FallbackHooks = {},
   ) {
     if (handles.length === 0) {
@@ -70,6 +70,28 @@ export class FallbackLLMPort implements LLMPort {
     if (idx < 0) return false;
     this.index = idx;
     return true;
+  }
+
+  /**
+   * Swap the chain after config is re-read. The same port object stays wired into
+   * ChatLoop, so the next turn uses the new clients without spawning a process.
+   */
+  replaceHandles(handles: ProviderHandle[]): void {
+    if (handles.length === 0) throw new Error('FallbackLLMPort requires at least one provider');
+    this.handles = handles;
+    this.index = 0;
+  }
+
+  /**
+   * Make `model` the one this provider will send. A picker choice that was not in the
+   * list captured at spawn must not be rewritten back to `handle.model`.
+   */
+  pinModel(model: string): void {
+    const trimmed = model.trim();
+    if (!trimmed) return;
+    const handle = this.active;
+    if (!handle.models.includes(trimmed)) handle.models = [...handle.models, trimmed];
+    handle.model = trimmed;
   }
 
   capabilities(): ProviderCapabilities {

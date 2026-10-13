@@ -12,7 +12,7 @@
  */
 
 import type { Command, DomainEvent } from '@camelia/core';
-import { ENGINE_ROUTES, SSE_FRAME, type CommandAck, type EngineHealth } from '@camelia/agent/view';
+import { ENGINE_ROUTES, SSE_FRAME, type CommandAck, type EngineHealth, type ProviderStatus } from '@camelia/agent/view';
 
 import type { BootstrapPayload, ConnectionStatus, Transport, TransportHandlers } from './types.js';
 
@@ -79,6 +79,14 @@ export class SseTransport implements Transport {
         handlers.onStatus('live');
       } catch (error) {
         handlers.onError?.(`malformed bootstrap frame: ${String(error)}`);
+      }
+    });
+
+    source.addEventListener(SSE_FRAME.provider, (event) => {
+      try {
+        handlers.onProviderStatus?.(JSON.parse(event.data) as ProviderStatus);
+      } catch (error) {
+        handlers.onError?.(`malformed provider frame: ${String(error)}`);
       }
     });
 

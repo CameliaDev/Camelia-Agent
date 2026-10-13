@@ -268,6 +268,12 @@ export class EngineServer {
     return toProviderStatus(this.options.runtime.providerChain(), this.options.runtime.modelInfo.model);
   }
 
+  /** Tell attached webviews the chain changed, so the composer list matches the next send. */
+  private pushProviderStatus(): void {
+    const frame = sseFrame(SSE_FRAME.provider, this.providerStatus());
+    for (const client of this.clients) this.write(client.res, frame);
+  }
+
   private async bootstrap(): Promise<{
     session: ReturnType<typeof toSessionView>;
     sessions: ReturnType<typeof toSessionView>[];
@@ -386,9 +392,20 @@ export class EngineServer {
       }
       case 'select_provider': {
         const ok = this.options.runtime.selectProvider(command.payload.providerId, command.payload.model);
-        return ok
-          ? { ok: true }
-          : { ok: false, error: `模型不在链中: ${String(command.payload.providerId)}` };
+        if (!ok) return { ok: false, error: `模型不在链中: ${String(command.payload.providerId)}` };
+        this.pushProviderStatus();
+        return { ok: true };
+      }
+      case 'apply_provider': {
+        const payload = command.payload ?? {};
+        const ok = this.options.runtime.applyProviderConfig({
+          ...(typeof payload.providerId === 'string' ? { providerId: payload.providerId } : {}),
+          ...(typeof payload.model === 'string' ? { model: payload.model } : {}),
+          ...(typeof payload.gruntModel === 'string' ? { gruntModel: payload.gruntModel } : {}),
+        });
+        if (!ok) return { ok: false, error: '无法在当前引擎上切换模型' };
+        this.pushProviderStatus();
+        return { ok: true, data: this.providerStatus() };
       }
       case 'new_session': {
         const kind =
@@ -397,7 +414,11 @@ export class EngineServer {
             : command.payload?.kind === 'term'
               ? 'term'
               : 'work';
-        const created = await this.options.runtime.newSession(kind);
+        const excludeId =
+          typeof command.payload?.excludeId === 'string' && command.payload.excludeId
+            ? command.payload.excludeId
+            : undefined;
+        const created = await this.options.runtime.newSession(kind, excludeId ? { excludeId } : undefined);
         return { ok: true, data: created };
       }
       case 'select_session': {

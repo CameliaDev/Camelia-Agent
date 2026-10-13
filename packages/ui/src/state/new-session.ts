@@ -27,18 +27,29 @@ function focusComposerSoon(): void {
   window.setTimeout(() => focusComposer(), 0);
 }
 
-export function useNewSession(): () => void {
+export interface NewSessionOptions {
+  /**
+   * Do not reuse this session. Deleting the last blank must not be handed the
+   * same id back — that is what made the row reappear.
+   */
+  excludeId?: string;
+}
+
+export function useNewSession(): (options?: NewSessionOptions) => void {
   const { query: queryEngine, setActiveSession, dispatch, snapshot, activeSessionId } = useUiState();
   const { mode } = useMode();
-  return useCallback(() => {
+  return useCallback((options?: NewSessionOptions) => {
+    // Callers pass `{ excludeId }` or nothing. A click event is not an options bag.
+    const excludeId = typeof options?.excludeId === 'string' && options.excludeId ? options.excludeId : undefined;
     const kind = mode === 'math' ? 'math' : mode === 'term' ? 'term' : 'work';
     // Already on an unused blank — do not pile another row in the rail; land the caret
     // in the centred composer so "new chat" still feels like arriving at a clean slate.
-    if (activeSessionId && isFreshChatSession(snapshot)) {
+    // A delete of that blank passes excludeId and must not take this shortcut.
+    if (!excludeId && activeSessionId && isFreshChatSession(snapshot)) {
       focusComposerSoon();
       return;
     }
-    queryEngine<{ sessionId: string }>(makeCommand('new_session', { kind }))
+    queryEngine<{ sessionId: string }>(makeCommand('new_session', { kind, ...(excludeId ? { excludeId } : {}) }))
       .then((res) => {
         if (!res?.sessionId) return;
         setActiveSession(res.sessionId);

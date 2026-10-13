@@ -1,5 +1,5 @@
 /**
- * Work | Math segmented control — lives in the TopBar beside the brand (F6).
+ * Work | Math | Term segmented control — sits above the session list, not in the title bar.
  * @module
  */
 

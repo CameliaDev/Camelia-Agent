@@ -36,14 +36,13 @@ export const LOCAL_PREFS_VERSION = 9;
 export const RAIL_LEFT_DEFAULT = 260;
 export const RAIL_COLLAPSED = 48;
 /**
- * Width of the permanent icon rail that sits outside the left column.
+ * Width of the permanent left nav that sits outside the session column.
  *
- * Deliberately the same number as `RAIL_COLLAPSED`: the rail is the left column's own
- * collapsed strip promoted to a permanent fixture, so a window with the session column
- * closed shows one 48px strip there rather than two of different widths. Same width means
- * the icons line up whether the column beside them is open or shut.
+ * Wide enough for an icon and a short label (聊天记录 / 插件 / 设置). The session
+ * column still closes to 0 — this nav is what reopens it — so the old 48px icon
+ * strip is not a second collapsed column.
  */
-export const RAIL_ICON_WIDTH = RAIL_COLLAPSED;
+export const RAIL_ICON_WIDTH = 148;
 export const RAIL_LEFT_MIN = 200;
 export const RAIL_LEFT_MAX = 420;
 export const RAIL_RIGHT_DEFAULT = 320;

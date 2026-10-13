@@ -19,6 +19,7 @@ import { t } from '../i18n/strings.js';
 import { THEME_PRESETS, type ThemeId } from '../theme/presets.js';
 import { relaunchDesktop, writePlanApproval } from '../window/model-settings.js';
 import { ConnectionsSection } from './ConnectionsSection.js';
+import { UpdateCheck } from './UpdateCheck.js';
 import { FeedbackForm } from './FeedbackForm.js';
 import { MODE_REGISTRY } from '../mode/ModeRegistry.js';
 import type { AppModeId } from '../mode/types.js';
@@ -382,6 +383,7 @@ function AccountSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }
         />
         <p className="text-[10.5px] leading-4 text-ink-3">{tr('settings.appearance.displayName.hint')}</p>
       </section>
+      <UpdateCheck tr={tr} />
     </div>
   );
 }
@@ -692,6 +694,7 @@ function AboutSection({ tr }: { tr: (key: Parameters<typeof t>[1]) => string }):
       <p className="font-mono text-[12px] text-ink-2">~/.camelia</p>
       <p className="text-[12px] text-ink-3">{tr('settings.about.preface')}</p>
       <p className="text-[12px] text-ink-3">{tr('settings.about.license')}</p>
+      <UpdateCheck tr={tr} />
     </section>
   );
 }

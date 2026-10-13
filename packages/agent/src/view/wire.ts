@@ -32,6 +32,8 @@ export const SSE_FRAME = {
   domain: 'domain',
   /** `{ status: ConnectionStatus }` — the engine's view of the link. */
   status: 'status',
+  /** `ProviderStatus` — pushed after a live model/provider switch. */
+  provider: 'provider',
 } as const;
 
 export type SseFrameName = (typeof SSE_FRAME)[keyof typeof SSE_FRAME];

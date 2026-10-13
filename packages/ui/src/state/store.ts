@@ -43,7 +43,7 @@ import { create, type UseBoundStore, type StoreApi } from 'zustand';
 import type { ConnectionStatus, Transport } from '../transport/types.js';
 import { normalizeModeId, type AppModeId } from '../mode/types.js';
 import type { MathDemoSnapshot } from '../modes/math/mathDemoFixture.js';
-import type { PanelId } from '../panels.js';
+import { defaultPanelForMode, panelsForMode, type PanelId } from '../panels.js';
 import {
   RAIL_LEFT_DEFAULT,
   applySavedTheme,
@@ -121,13 +121,17 @@ export interface UiState {
    */
   settingsSection: SettingsSection;
   /**
-   * Which run panel is open in the work-area deck, or `undefined` when none is.
+   * Which section the right drawer is showing, or `undefined` when the drawer is closed.
    *
-   * On the store, like `steeringOpen`, for the same reason: the icons that open it live in
-   * `ModeHeader` — a shared row drawn by all three modes — while the deck that shows it is
-   * drawn by `App`. A local `useState` in either would give the two ends different answers.
+   * On the store, like `steeringOpen`: the toggle lives in `ModeHeader` and the drawer
+   * is drawn by `App`. A local `useState` in either would give the two ends different answers.
    */
   panelId?: PanelId;
+  /** Section to restore the next time the drawer opens. */
+  lastPanelId?: PanelId;
+  /** Which left sidebar the activity bar is showing. */
+  sidebarView: 'sessions' | 'extensions';
+  setSidebarView: (view: 'sessions' | 'extensions') => void;
   /**
    * Whether the steering form is open. Ephemeral chrome, like the settings drawer.
    *
@@ -169,6 +173,8 @@ export interface UiState {
   setSettingsSection: (section: SettingsSection) => void;
   setSteeringOpen: (open: boolean) => void;
   setPanelId: (id: PanelId | undefined) => void;
+  /** Open the right drawer, or close it. Restores the last section. */
+  togglePanelDrawer: () => void;
   /** Switch the active session id locally (after new_session / select_session ack). */
   setActiveSession: (id: Id) => void;
   restoreDefaultLayout: () => void;
@@ -221,6 +227,7 @@ export function createUiStore(transport: Transport): UiStore {
     localPrefs: bootPrefs,
     settingsOpen: false,
     panelId: undefined,
+    sidebarView: 'sessions',
     settingsSection: 'connections',
     steeringOpen: false,
     mode: normalizeModeId(bootPrefs.preferredMode),
@@ -236,7 +243,23 @@ export function createUiStore(transport: Transport): UiStore {
       })),
     setSettingsSection: (settingsSection) => set({ settingsSection }),
     setSteeringOpen: (steeringOpen) => set({ steeringOpen }),
-    setPanelId: (panelId) => set({ panelId }),
+    setSidebarView: (sidebarView) => set({ sidebarView }),
+    setPanelId: (panelId) =>
+      set((state) => ({
+        panelId,
+        lastPanelId: panelId ?? state.lastPanelId,
+      })),
+    togglePanelDrawer: () =>
+      set((state) => {
+        if (state.panelId) return { panelId: undefined, lastPanelId: state.panelId };
+        const available = panelsForMode(state.mode);
+        const remembered =
+          state.lastPanelId && available.some((panel) => panel.id === state.lastPanelId)
+            ? state.lastPanelId
+            : undefined;
+        const next = remembered ?? defaultPanelForMode(state.mode);
+        return next ? { panelId: next, lastPanelId: next } : { panelId: undefined };
+      }),
     setMode: (mode) => set({ mode: normalizeModeId(mode) }),
     setMathDemo: (mathDemo) => set({ mathDemo }),
     setActiveSession: (id) => set({ activeSessionId: id }),

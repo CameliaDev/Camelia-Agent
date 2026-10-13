@@ -86,6 +86,32 @@ describe('loadConfig', () => {
     expect(config.preferredProvider).toBe('ollama');
   });
 
+  it('uses lastSelectedProvider when model and preferredProvider are absent', () => {
+    const home = tempHome();
+    fs.writeFileSync(
+      path.join(home, 'config.json'),
+      JSON.stringify({ lastSelectedProvider: { providerId: 'ollama', model: 'remembered-model' } }),
+    );
+    const config = loadConfig();
+    expect(config.model).toBe('remembered-model');
+    expect(config.preferredProvider).toBe('ollama');
+  });
+
+  it('lets an explicit model win over lastSelectedProvider', () => {
+    const home = tempHome();
+    fs.writeFileSync(
+      path.join(home, 'config.json'),
+      JSON.stringify({
+        model: 'explicit-model',
+        preferredProvider: 'openrouter',
+        lastSelectedProvider: { providerId: 'ollama', model: 'remembered-model' },
+      }),
+    );
+    const config = loadConfig();
+    expect(config.model).toBe('explicit-model');
+    expect(config.preferredProvider).toBe('openrouter');
+  });
+
   it('never throws on malformed JSON on disk', () => {
     const home = tempHome();
     fs.writeFileSync(path.join(home, 'keys.json'), '{ not json');

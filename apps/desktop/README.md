@@ -77,6 +77,18 @@ pnpm --filter @camelia/desktop desktop:check    # cargo check
 
 卸载：`"%LOCALAPPDATA%\Camelia\uninstall.exe" /S`。
 
+## 应用内检查更新
+
+设置 → 账户 / 关于里的「检查更新」请求 `GET https://api.github.com/repos/CameliaDev/Camelia-Agent/releases/latest`，展示说明，并在 Windows 桌面上下载 `*-setup.exe` 后启动安装程序。安装模式仍是 `currentUser` 覆盖安装，这里不改它。
+
+下载命令是 `download_update`。它只用参数列表调用 `curl`（不经 shell），起始 URL 必须是 `https://github.com/CameliaDev/Camelia-Agent/releases/download/…/*.exe`。重定向只允许落到 `objects.githubusercontent.com`、`release-assets.githubusercontent.com`、`github-releases.githubusercontent.com`，或同一条 Release 路径。非 Windows 直接拒绝。
+
+静默签名更新还没做。那条路需要：Release 上的 `*-setup.exe`、Tauri updater 私钥、以及打进安装包的公钥和 `latest.json`。当前没有 `tauri-plugin-updater`。
+
+## 插件
+
+引擎在进程启动时扫描 `~/.camelia/plugins` 下带 `camelia.plugin.json` 的目录。左侧「插件」只打开这个说明，没有启用开关，也没有应用内安装。放入目录后重新启动桌面才会加载。
+
 ## 截图
 
 ```powershell

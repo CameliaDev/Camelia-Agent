@@ -27,44 +27,61 @@ import {
   loadSessionMarks,
   orderSessions,
   saveSessionMarks,
+  sessionKeepIds,
   toggleFavorite,
   togglePinned,
   unhideSession,
   type SessionMarks,
 } from '../state/session-marks.js';
 import { useNewSession } from '../state/new-session.js';
+import { ModeTabs } from '../mode/ModeTabs.js';
 import { useMode } from '../mode/useMode.js';
+import { MODE_HEADER_H } from '../modes/ModeHeader.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
+import { ExtensionsPanel } from './ExtensionsPanel.js';
 import { Chip, Icon, SectionHeader } from './primitives.js';
 
 export function SessionRail(): ReactNode {
   const { snapshot, sessions, activeSessionId, status, dispatch, setActiveSession } = useUiState();
   const collapsed = useUiStore((s) => s.localPrefs.leftCollapsed);
+  const sidebarView = useUiStore((s) => s.sidebarView);
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   /** Shared with the icon rail, so both entry points start a chat the same way. */
   const newSession = useNewSession();
-  const { mode } = useMode();
+  const { mode, setMode } = useMode();
   const [marks, setMarks] = useState<SessionMarks>(() => loadSessionMarks());
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  /**
+   * The session the user just deleted while it was still the active one and
+   * nothing else was listed. keepIds must not pin it, and the resume-unhide
+   * effect must not clear the hide before we have switched away.
+   */
+  const [leavingId, setLeavingId] = useState<string | null>(null);
   const applyMarks = (next: SessionMarks): void => {
     saveSessionMarks(next);
     setMarks(next);
   };
   // Hide is rail chrome, not a tombstone. If the engine resumed a "deleted" session,
   // clear the hide mark so history matches what the user is looking at.
-    useEffect(() => {
+  // Skip the id we are in the middle of leaving — that unhide is what made the
+  // last remaining row impossible to delete.
+  useEffect(() => {
     if (!activeSessionId) return;
+    if (leavingId && leavingId === activeSessionId) return;
     setMarks((prev) => {
       if (!prev.hidden.includes(activeSessionId)) return prev;
       const next = unhideSession(prev, activeSessionId);
       saveSessionMarks(next);
       return next;
     });
-  }, [activeSessionId]);
+  }, [activeSessionId, leavingId]);
+  useEffect(() => {
+    if (leavingId && activeSessionId && activeSessionId !== leavingId) setLeavingId(null);
+  }, [activeSessionId, leavingId]);
 
   const needle = query.trim().toLowerCase();
   const railSessions = useMemo(() => {
@@ -91,7 +108,7 @@ export function SessionRail(): ReactNode {
         )
       : kindFiltered,
     marks,
-    { keepIds: [activeSessionId] },
+    { keepIds: sessionKeepIds(activeSessionId, leavingId) },
   );
   const pinnedRows = listed.filter((session) => marks.pinned.includes(session.id));
   const recentRows = listed.filter((session) => !marks.pinned.includes(session.id));
@@ -147,18 +164,20 @@ export function SessionRail(): ReactNode {
               onClick={(event) => {
                 event.stopPropagation();
                 const hidingId = session.id;
+                const fallback = listed.find((row) => row.id !== hidingId);
                 applyMarks(hideSession(marks, hidingId));
                 setConfirmId(null);
-                if (hidingId === activeSessionId) {
-                  const fallback = listed.find((row) => row.id !== hidingId);
-                  if (fallback) {
-                    dispatch(makeCommand('select_session', { sessionId: fallback.id }));
-                    setActiveSession(fallback.id);
-                  } else {
-                    newSession();
-                  }
+                if (hidingId !== activeSessionId) return;
+                if (fallback) {
+                  dispatch(makeCommand('select_session', { sessionId: fallback.id }));
+                  setActiveSession(fallback.id);
+                  return;
                 }
-                }}
+                // Last visible row. Drop it from keepIds immediately and ask for a
+                // blank that is not this id, so the centred empty chat can show.
+                setLeavingId(hidingId);
+                newSession({ excludeId: hidingId });
+              }}
             >
               {tr('sessions.confirmDelete')}
             </button>
@@ -227,34 +246,39 @@ export function SessionRail(): ReactNode {
         collapsed ? '' : 'border-r border-line'
       }`}
     >
-      {/*
-        Reserved: Hermes puts a nav strip (new / search / connections / agents / models)
-        above the conversation list here. It is not built yet on purpose — the list gets
-        the whole column instead of sharing it with placeholder chrome. When the strip
-        lands it goes directly below this line, and the header below it becomes its
-        trailing action group.
-      */}
-      <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-        <span className="text-[13px] font-semibold text-ink">{tr('sessions.history')}</span>
-        <div className="flex items-center gap-1">
+      {sidebarView === 'extensions' ? (
+        <ExtensionsPanel onCollapse={() => setLocalPrefs({ leftCollapsed: true })} />
+      ) : (
+        <>
+      <div className="shrink-0 px-2.5 pt-2 pb-1.5">
+        <ModeTabs mode={mode} language={lang} onSelect={setMode} />
+      </div>
+      <div
+        data-session-header
+        className="flex shrink-0 items-center justify-between border-b border-line/70 px-3"
+        style={{ height: MODE_HEADER_H }}
+      >
+        <span className="text-[12.5px] font-medium text-ink-2">{tr('sessions.history')}</span>
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             data-new-session
             aria-label={tr('rail.new')}
             title={tr('rail.new')}
-            className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
-            onClick={newSession}
-            >
-              <Icon name="plus" size={13} strokeWidth={1.6} />
-            </button>
+            className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
+            onClick={() => newSession()}
+          >
+            <Icon name="plus" size={14} strokeWidth={1.6} />
+          </button>
           <button
             type="button"
+            data-session-collapse
             aria-label={tr('sessions.collapse')}
             title={tr('sessions.collapse')}
-            className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
+            className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-hover hover:text-ink"
             onClick={() => setLocalPrefs({ leftCollapsed: true })}
           >
-            <Icon name="collapse" size={13} />
+            <Icon name="collapse" size={14} />
           </button>
         </div>
       </div>
@@ -411,6 +435,8 @@ export function SessionRail(): ReactNode {
         </div>
       </section>
       </details>
+        </>
+      )}
     </aside>
   );
 }
