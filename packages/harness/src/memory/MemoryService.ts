@@ -422,8 +422,26 @@ export class MemoryService {
     return { strength: this.valueOf(item, now), recency };
   }
 
-  /** List memories, optionally restricted to one layer (memory panel query). */
-  async listByLayer(layer?: MemoryLayer): Promise<MemoryItem[]> {
+  /**
+   * List memories, optionally restricted to one layer and/or to a single session
+   * (memory panel query).
+   *
+   * When `sessionId` is given the result is scoped to `scope = 'session'` for that
+   * session. This is intentionally narrower than the recall path, which ORs in
+   * `scope = 'global'`: the panel is answering "what did *this task* learn?", and
+   * folding cross-session memories into that list is what made the panel
+   * unreadable — the reader could not tell which rows belonged to the task in
+   * front of them.
+   */
+  async listByLayer(layer?: MemoryLayer, sessionId?: Id): Promise<MemoryItem[]> {
+    if (sessionId) {
+      return this.store.searchMemories({
+        scope: 'session',
+        sessionId,
+        ...(layer ? { layer } : {}),
+        limit: 5_000,
+      });
+    }
     if (layer) return this.store.searchMemories({ layer, limit: 5_000 });
     return this.store.listAllMemories(5_000);
   }

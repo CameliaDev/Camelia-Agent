@@ -44,6 +44,19 @@ export interface DroppedMessage {
   truncated: boolean;
 }
 
+/**
+ * Tool-use posture for the chat path (对话 mode), chosen by the user per session.
+ *
+ * The default is deliberately the most restrictive: a chat that reads the
+ * workspace and *explains* what it would need for anything else is useful and
+ * safe out of the box; broader postures are an explicit user decision.
+ * - `readonly-sandbox` — read tools run; write/exec/network tools are denied
+ *   (the denial is fed back to the model so it can say so in plain language).
+ * - `ask` — read tools run; everything else opens the usual approval gate.
+ * - `full` — everything runs directly.
+ */
+export type ChatPolicy = 'readonly-sandbox' | 'ask' | 'full';
+
 /** Envelope shared by every event travelling through the bus. */
 export interface EventEnvelope<TType extends string, TPayload> {
   type: TType;
@@ -178,6 +191,25 @@ export interface DomainEventMap {
   // ---- Tools (Iteration 20 — three-layer tool knowledge) -------------------
   'tool.usage_injected': { name: string; chars: number };
 
+  // ---- Chat (direct conversation path — no task state machine) --------------
+  /**
+   * The chat path has its own event family, deliberately parallel to (not inside)
+   * the task lifecycle: a chat turn never creates a task, so plan machinery
+   * (clarify → plan → gate → verify) cannot leak into a plain conversation.
+   * Every event carries `turnId`; the projection folds them into `snapshot.chat`.
+   */
+  'chat.received': { turnId: Id; text: string };
+  'chat.delta': { turnId: Id; delta: string };
+  'chat.message': { turnId: Id; role: 'user' | 'assistant'; text: string };
+  /** Tool-call progress for a chat turn. Emitted at every status transition. */
+  'chat.tool': { call: ToolCall };
+  /** The model asked the user a question with fixed options; UI renders a picker. */
+  'chat.ask_user': { askId: Id; question: string; options: string[] };
+  /** The user picked an option; the turn resumes. The option text becomes a user turn. */
+  'chat.answered': { askId: Id; optionIdx: number };
+  'chat.failed': { turnId: Id; error: string };
+  'chat.policy_changed': { policy: ChatPolicy };
+
   // ---- Observability passthrough -------------------------------------------
   'log': { level: 'debug' | 'info' | 'warn' | 'error'; message: string; meta?: JsonValue };
   'metric': { name: string; value: number; tags?: Record<string, string> };
@@ -238,8 +270,17 @@ export interface CommandMap {
   'select_session': { sessionId: Id };
 
   // ---- Memory panel (Iteration 22 — visible · usable · tunable) -----------
-  /** List memories, optionally filtered by layer. Response data: `MemoryView[]`. */
-  'list_memories': { layer?: MemoryLayer };
+  /**
+   * List memories, optionally filtered by layer and/or to one session.
+   *
+   * `sessionId` restricts the result to memories *learned in that session*
+   * (`scope = 'session' AND session_id = ?`). It deliberately does **not**
+   * OR-in `scope = 'global'` the way the recall-path query does: the panel
+   * answers "what did this task learn?", and cross-session memories are a
+   * different question with a different home (Settings). Response data:
+   * `MemoryView[]`.
+   */
+  'list_memories': { layer?: MemoryLayer; sessionId?: Id };
   /** Read one memory. Response data: `MemoryView | null`. */
   'get_memory': { memoryId: Id };
   /** Audit trail of every forgetting decision. Response data: `ForgetLogView[]`. */
@@ -264,6 +305,14 @@ export interface CommandMap {
    * optional; response data is `MemoryRecallView[]`, ascending by time.
    */
   'list_recall_history': { memoryId?: Id; sessionId?: Id; since?: number; limit?: number };
+
+  // ---- Chat (direct conversation path) -------------------------------------
+  /** Send one chat turn. Rejected while a task run is active (see EngineServer). */
+  'chat_message': { sessionId: Id; text: string; policy: ChatPolicy };
+  /** Answer a pending `chat.ask_user` picker. */
+  'chat_answer': { sessionId: Id; askId: Id; optionIdx: number };
+  /** Abort the in-flight chat turn (and clear any pending ask). */
+  'chat_cancel': { sessionId: Id };
 }
 
 export type CommandType = keyof CommandMap;

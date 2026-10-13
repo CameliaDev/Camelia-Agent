@@ -109,6 +109,16 @@ export interface SessionStore {
   createTask(input: CreateTaskInput): Promise<Task>;
   getTask(id: Id): Promise<Task | undefined>;
   listTasks(sessionId: Id): Promise<Task[]>;
+  /**
+   * Every task that is neither terminal nor `paused`.
+   *
+   * This shape means "no process is advancing this": a run that is still going lives in
+   * memory, and only its settled states are durable. The runtime repairs exactly this set
+   * at startup, so it must be a store-wide query — enumerating sessions and calling
+   * `listTasks` instead would make the repair silently depend on how many sessions happened
+   * to fit in the page.
+   */
+  listUnsettledTasks(): Promise<Task[]>;
   updateTask(id: Id, patch: TaskPatch): Promise<void>;
 
   // ---- steps --------------------------------------------------------------

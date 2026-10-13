@@ -14,7 +14,7 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-import type { Command, DomainEvent, Id, LoggerPort, MemoryLayer, StoredEvent } from '@camelia/core';
+import type { ChatPolicy, Command, DomainEvent, Id, LoggerPort, MemoryLayer, StoredEvent } from '@camelia/core';
 import type { CameliaRuntime } from '@camelia/agent';
 import {
   ENGINE_ROUTES,
@@ -32,6 +32,12 @@ const MEMORY_LAYERS = new Set<MemoryLayer>(['working', 'short', 'long', 'procedu
 
 function isMemoryLayer(value: unknown): value is MemoryLayer {
   return typeof value === 'string' && MEMORY_LAYERS.has(value as MemoryLayer);
+}
+
+const CHAT_POLICIES = new Set<string>(['readonly-sandbox', 'ask', 'full']);
+
+function isChatPolicy(value: unknown): value is ChatPolicy {
+  return typeof value === 'string' && CHAT_POLICIES.has(value);
 }
 
 export interface EngineServerOptions {
@@ -86,6 +92,8 @@ export class EngineServer {
   private server?: Server;
   private readonly clients = new Set<Client>();
   private activeRun?: Promise<unknown>;
+  /** In-flight chat turn (对话 mode) — at most one at a time. */
+  private activeChat?: Promise<void>;
   private autoRunDone = false;
   private address?: EngineAddress;
 
@@ -342,11 +350,15 @@ export class EngineServer {
         this.options.runtime.setPlanApproval(command.payload.mode);
         return { ok: true };
       case 'pause_task':
-        return this.options.runtime.pause(command.payload.reason)
+        // The taskId the UI sends is load-bearing: it is the only thing that ties the
+        // button on screen to the loop that is actually running. It used to be dropped
+        // here, so a user who switched sessions mid-run and pressed 暂停 stopped the
+        // task they could not see.
+        return this.options.runtime.pause(command.payload.taskId, command.payload.reason)
           ? { ok: true }
           : { ok: false, error: '当前没有运行中的任务' };
       case 'cancel_task':
-        return this.options.runtime.cancel(command.payload.reason)
+        return this.options.runtime.cancel(command.payload.taskId, command.payload.reason)
           ? { ok: true }
           : { ok: false, error: '当前没有运行中的任务' };
       case 'intervene_goal':
@@ -378,11 +390,17 @@ export class EngineServer {
 
       // ---- memory panel (Iteration 22) -----------------------------------
       case 'list_memories': {
-        const { layer } = command.payload;
+        const { layer, sessionId } = command.payload;
         if (layer !== undefined && !isMemoryLayer(layer)) {
           return { ok: false, error: `无效的记忆层: ${String(layer)}` };
         }
-        const items = await this.options.runtime.memoryPanel.list(layer);
+        if (sessionId !== undefined && typeof sessionId !== 'string') {
+          return { ok: false, error: 'sessionId 必须是字符串' };
+        }
+        const items = await this.options.runtime.memoryPanel.list({
+          ...(layer !== undefined ? { layer } : {}),
+          ...(sessionId !== undefined ? { sessionId } : {}),
+        });
         return { ok: true, data: items };
       }
       case 'get_memory': {
@@ -443,6 +461,34 @@ export class EngineServer {
           ...(limit !== undefined ? { limit } : {}),
         });
         return { ok: true, data: timeline };
+      }
+
+      // ---- chat (对话 mode): direct conversation, no task machinery --------
+      case 'chat_message': {
+        const { sessionId, text, policy } = command.payload;
+        if (this.activeRun) return { ok: false, error: '已有任务正在运行，聊天暂不可用' };
+        if (this.activeChat) return { ok: false, error: '已有对话正在处理，请稍候' };
+        if (typeof text !== 'string' || !text.trim()) return { ok: false, error: '消息不能为空' };
+        if (!isChatPolicy(policy)) return { ok: false, error: `无效的聊天权限策略: ${String(policy)}` };
+        const chatSessionId =
+          typeof sessionId === 'string' && sessionId ? sessionId : this.options.runtime.session.id;
+        this.activeChat = this.options.runtime
+          .chat(chatSessionId, text, policy)
+          .catch((error: unknown) => {
+            this.options.logger?.error('chat turn failed', { error: String(error) });
+          })
+          .finally(() => {
+            this.activeChat = undefined;
+          });
+        return { ok: true };
+      }
+      case 'chat_answer': {
+        const ok = this.options.runtime.answerChat(command.payload.askId, command.payload.optionIdx);
+        return ok ? { ok: true } : { ok: false, error: '没有待回答的问题' };
+      }
+      case 'chat_cancel': {
+        this.options.runtime.cancelChat();
+        return { ok: true };
       }
 
       default:

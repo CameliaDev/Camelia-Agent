@@ -79,6 +79,31 @@ describe('sessions and tasks', () => {
     expect(await store.getSession('nope')).toBeUndefined();
   });
 
+  it('lists every unsettled task across sessions, not just one session', async () => {
+    // The runtime repairs exactly this set at startup, so it has to be store-wide. A
+    // per-session scan would silently skip whatever fell outside the page.
+    const one = await store.createSession({ title: 'one', workspace: 'w', provider: 'p', model: 'm' });
+    const two = await store.createSession({ title: 'two', workspace: 'w', provider: 'p', model: 'm' });
+
+    const stuck = await store.createTask({ sessionId: one.id, intentRaw: 'stuck at the gate' });
+    await store.updateTask(stuck.id, { status: 'awaiting-approval', phase: 'awaiting-approval' });
+    const running = await store.createTask({ sessionId: two.id, intentRaw: 'still going' });
+    await store.updateTask(running.id, { status: 'executing', phase: 'executing' });
+
+    const finished = await store.createTask({ sessionId: one.id, intentRaw: 'finished' });
+    await store.updateTask(finished.id, { status: 'done', phase: 'delivering' });
+    const cancelled = await store.createTask({ sessionId: two.id, intentRaw: 'cancelled' });
+    await store.updateTask(cancelled.id, { status: 'cancelled', phase: 'delivering' });
+    const failed = await store.createTask({ sessionId: two.id, intentRaw: 'failed' });
+    await store.updateTask(failed.id, { status: 'failed', phase: 'delivering' });
+    // `paused` is already actionable — the user has a 继续 button — so it is not unsettled.
+    const paused = await store.createTask({ sessionId: one.id, intentRaw: 'user paused' });
+    await store.updateTask(paused.id, { status: 'paused', phase: 'paused' });
+
+    const unsettled = await store.listUnsettledTasks();
+    expect(unsettled.map((t) => t.id).sort()).toEqual([stuck.id, running.id].sort());
+  });
+
   it('creates a task with defaults and updates it', async () => {
     const session = await store.createSession({ title: 's', workspace: 'w', provider: 'p', model: 'm' });
     const task = await store.createTask({ sessionId: session.id, intentRaw: 'add a function' });

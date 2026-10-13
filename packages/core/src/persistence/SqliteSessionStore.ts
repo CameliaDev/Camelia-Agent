@@ -28,6 +28,7 @@ import type {
   Verdict,
 } from '../types/domain.js';
 import type { StoredEvent } from '../types/events.js';
+import { isTerminal } from '../state/TaskStateMachine.js';
 import { newId } from '../utils/id.js';
 import { migrate } from './schema.js';
 import type {
@@ -290,6 +291,18 @@ export class SqliteSessionStore implements SessionStore {
       .prepare('SELECT * FROM tasks WHERE session_id = ? ORDER BY created_at ASC')
       .all(sessionId) as TaskRow[];
     return rows.map(mapTask);
+  }
+
+  /**
+   * Tasks that no process can be advancing.
+   *
+   * Filtered in JS rather than in SQL on purpose: the definition of "terminal" lives in
+   * `isTerminal`, and a `NOT IN (...)` list here would be a second copy of it that nothing
+   * keeps in sync. The table is small and this runs once, at startup.
+   */
+  async listUnsettledTasks(): Promise<Task[]> {
+    const rows = this.db.prepare('SELECT * FROM tasks').all() as TaskRow[];
+    return rows.map(mapTask).filter((task) => !isTerminal(task.status) && task.status !== 'paused');
   }
 
   async updateTask(id: Id, patch: TaskPatch): Promise<void> {

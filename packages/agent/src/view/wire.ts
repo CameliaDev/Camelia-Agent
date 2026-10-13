@@ -51,6 +51,8 @@ export interface ProviderStatus {
   id?: string;
   /** Model the router picked for the next run. */
   model?: string;
+  /** Models the active provider advertises — what the composer may switch between in place. */
+  models?: string[];
   /** Ids of every provider along the configured fallback chain, in order. */
   chain: string[];
 }
@@ -96,6 +98,8 @@ export interface ProviderChainEntry {
   id: string;
   label: string;
   model: string;
+  /** Every model this provider advertises — the set the UI may switch between in place. */
+  models?: string[];
   active: boolean;
 }
 
@@ -110,6 +114,10 @@ export function toProviderStatus(chain: ProviderChainEntry[], model?: string): P
     state: active ? 'connected' : 'unavailable',
     ...(active ? { id: active.id } : {}),
     ...(active ? { model: model ?? active.model } : {}),
+    // The switchable set travels with the status so the composer can offer it without a
+    // second round-trip. Only the active provider's models: switching model must not
+    // silently switch vendor, and a provider with no advertised list gets no dropdown.
+    ...(active?.models?.length ? { models: active.models } : {}),
     chain: chain.map((entry) => entry.id),
   };
 }

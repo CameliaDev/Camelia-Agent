@@ -815,3 +815,115 @@ describe('toSessionView (Iteration 24)', () => {
     expect(view).toEqual({ id: 'sess-1', title: 't', workspace: 'C:/ws', provider: 'ollama', model: 'qwen2.5-coder:7b' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// chat — the direct conversation path folds into `snapshot.chat`, parallel to
+// the task projection and never inside it.
+// ---------------------------------------------------------------------------
+
+const TURN_USER = 'turn-user';
+const TURN_ASST = 'turn-asst';
+
+function chatTurnEvents(): DomainEvent[] {
+  return [
+    env('chat.received', { turnId: TURN_USER, text: 'hello' }, 100),
+    env('chat.delta', { turnId: TURN_ASST, delta: 'Hi ' }, 110),
+    env('chat.delta', { turnId: TURN_ASST, delta: 'there' }, 120),
+    env('chat.message', { turnId: TURN_ASST, role: 'assistant', text: 'Hi there' }, 130),
+  ];
+}
+
+describe('chat projection (对话 mode)', () => {
+  it('folds a direct reply into user + assistant turns, never into the task', () => {
+    const snapshot = reduceEvents(initialSnapshot(), chatTurnEvents());
+    expect(snapshot.chat.turns.map((t) => [t.role, t.text])).toEqual([
+      ['user', 'hello'],
+      ['assistant', 'Hi there'],
+    ]);
+    expect(snapshot.chat.turns[1]!.streaming).toBe(false);
+    expect(snapshot.task).toBeUndefined();
+    expect(snapshot.chat.pendingAsk).toBeUndefined();
+  });
+
+  it('lands tool cards on the turn the call names and keeps status transitions', () => {
+    const call: ToolCall = {
+      id: 'call-1',
+      stepId: TURN_ASST,
+      taskId: TURN_ASST,
+      name: 'fs.list',
+      input: { dir: '.' },
+      status: 'pending',
+      risk: 'read-only',
+      reversible: true,
+      traceId: 'trace',
+      createdAt: 115,
+    };
+    const run = (status: ToolCall['status'], extra: Partial<ToolCall> = {}): DomainEvent =>
+      env('chat.tool', { call: { ...call, status, ...extra } }, 140);
+    const snapshot = reduceEvents(initialSnapshot(), [
+      ...chatTurnEvents(),
+      run('pending'),
+      run('awaiting-approval'),
+      run('approved'),
+      run('running'),
+      run('ok', { output: { entries: ['a.txt'] }, durationMs: 12 }),
+    ]);
+    const cards = snapshot.chat.turns[1]!.toolCalls;
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.status).toBe('ok');
+    expect(cards[0]!.output).toEqual({ entries: ['a.txt'] });
+    expect(cards[0]!.durationMs).toBe(12);
+  });
+
+  it('shows the ask_user picker, then swaps it for the answered option as a user turn', () => {
+    const base = [
+      ...chatTurnEvents(),
+      env('chat.ask_user', { askId: 'ask-1', question: 'Which one?', options: ['A', 'B'] }, 140),
+    ];
+    const open = reduceEvents(initialSnapshot(), base);
+    expect(open.chat.pendingAsk).toMatchObject({ askId: 'ask-1', question: 'Which one?', options: ['A', 'B'] });
+
+    // A concrete answer clears the picker and adds the choice as a user turn.
+    const answered = reduceEvents(open, [env('chat.answered', { askId: 'ask-1', optionIdx: 1 }, 150)]);
+    expect(answered.chat.pendingAsk).toBeUndefined();
+    expect(answered.chat.turns.at(-1)).toMatchObject({ role: 'user', text: 'B' });
+
+    // A dismissal (optionIdx -1) clears the picker without inventing a turn.
+    const dismissed = reduceEvents(open, [env('chat.answered', { askId: 'ask-1', optionIdx: -1 }, 150)]);
+    expect(dismissed.chat.pendingAsk).toBeUndefined();
+    expect(dismissed.chat.turns).toEqual(open.chat.turns);
+  });
+
+  it('marks the assistant turn failed in place instead of dropping the partial text', () => {
+    const snapshot = reduceEvents(initialSnapshot(), [
+      env('chat.received', { turnId: TURN_USER, text: 'hello' }, 100),
+      env('chat.delta', { turnId: TURN_ASST, delta: 'partial' }, 110),
+      env('chat.failed', { turnId: TURN_ASST, error: 'provider down' }, 120),
+    ]);
+    expect(snapshot.chat.turns).toHaveLength(2);
+    expect(snapshot.chat.turns[1]).toMatchObject({ text: 'partial', streaming: false, error: 'provider down' });
+  });
+
+  it('ignores a chat.message whose turn was never opened (defensive fold)', () => {
+    const snapshot = reduceEvents(initialSnapshot(), [
+      env('chat.message', { turnId: 'ghost', role: 'assistant', text: 'nope' }, 100),
+    ]);
+    expect(snapshot.chat.turns).toEqual([]);
+  });
+
+  it('mirrors the permission posture and caps the transcript at 80 whole turns', () => {
+    expect(reduceEvents(initialSnapshot(), [env('chat.policy_changed', { policy: 'ask' }, 1)]).chat.policy).toBe('ask');
+
+    const many: DomainEvent[] = [];
+    for (let i = 0; i < 41; i += 1) {
+      many.push(env('chat.received', { turnId: `u${i}`, text: `q${i}` }, 10 * i));
+      many.push(env('chat.delta', { turnId: `a${i}`, delta: `r${i}` }, 10 * i + 1));
+      many.push(env('chat.message', { turnId: `a${i}`, role: 'assistant', text: `r${i}` }, 10 * i + 2));
+    }
+    const snapshot = reduceEvents(initialSnapshot(), many);
+    expect(snapshot.chat.turns).toHaveLength(80);
+    // The cap drops whole (user, assistant) pairs from the front — 82 folded, u0/a0 gone.
+    expect(snapshot.chat.turns[0]).toMatchObject({ id: 'u1', role: 'user' });
+    expect(snapshot.chat.turns.at(-1)).toMatchObject({ id: 'a40', role: 'assistant' });
+  });
+});

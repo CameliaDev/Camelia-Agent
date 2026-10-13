@@ -24,7 +24,7 @@ import {
   type ScriptedTaskSpec,
 } from '@camelia/agent';
 import { ENGINE_ROUTES, SSE_FRAME, type EngineHealth, type CommandAck } from '@camelia/agent/view';
-import type { Command } from '@camelia/core';
+import type { ChatChunk, ChatPolicy, Command, LLMPort } from '@camelia/core';
 
 import { ApprovalBroker } from '../src/server/ApprovalBroker.js';
 import { EngineServer } from '../src/server/EngineServer.js';
@@ -401,5 +401,180 @@ describe('ApprovalBroker', () => {
     const first = responder({ callId: 'c3', name: 'shell.exec', risk: 'privileged', input: {}, reason: 'test' });
     expect(broker.rejectAll()).toBe(1);
     expect(await first).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// chat (对话 mode) — the direct conversation path. It must answer over the same
+// SSE stream and never enter the task state machine, and it must refuse to run
+// while a task does.
+// ---------------------------------------------------------------------------
+
+/** A chat-only provider: streams a fixed two-delta answer, no tools. */
+function chatLLM(): ProviderHandle {
+  const port = {
+    id: 'chat-mock',
+    capabilities: () => ({}),
+    listModels: async () => [],
+    chat: async function* (): AsyncIterable<ChatChunk> {
+      yield { type: 'text-delta', text: '你好' };
+      yield { type: 'text-delta', text: '，直接回答。' };
+    },
+  } as unknown as LLMPort;
+  return { id: 'chat-mock', label: 'Chat mock', model: 'scripted', models: ['scripted'], port };
+}
+
+/** A chat provider that streams one delta and then blocks until aborted. */
+function blockingChatLLM(): ProviderHandle {
+  const port = {
+    id: 'chat-blocking',
+    capabilities: () => ({}),
+    listModels: async () => [],
+    chat: async function* (_request: unknown, signal?: AbortSignal): AsyncIterable<ChatChunk> {
+      yield { type: 'text-delta', text: 'partial' };
+      await new Promise<void>((resolve) => {
+        signal?.addEventListener('abort', () => resolve(), { once: true });
+      });
+    },
+  } as unknown as LLMPort;
+  return { id: 'chat-blocking', label: 'Blocking chat mock', model: 'scripted', models: ['scripted'], port };
+}
+
+async function makeChatServer(handle: ProviderHandle = chatLLM()) {
+  const workspace = tempDir('camelia-serve-chat-');
+  const broker = new ApprovalBroker({ timeoutMs: 5_000 });
+  const runtime = await CameliaRuntime.create({
+    workspace,
+    providerHandles: [handle],
+    approvalResponder: broker.responder(),
+    databaseFile: ':memory:',
+    logLevel: 'error',
+    logTo: () => undefined,
+    planApproval: 'auto',
+  });
+  const server = new EngineServer({ runtime, broker, port: 0, offlineClarify: true });
+  const address = await server.start();
+  return { server, runtime, broker, address, workspace };
+}
+
+describe('EngineServer — chat (对话 mode)', () => {
+  it('answers a chat_message over the same SSE stream without task machinery', async () => {
+    const { server, runtime, address } = await makeChatServer();
+    servers.push(server);
+    const reader = await SseReader.open(`${address.url}${ENGINE_ROUTES.events}`);
+    readers.push(reader);
+    await reader.waitFor((frames) => frames.some((f) => f.event === SSE_FRAME.bootstrap));
+
+    const ack = await postCommand(address.url, {
+      type: 'chat_message',
+      payload: { sessionId: runtime.session.id, text: 'hello', policy: 'ask' },
+      ...CMD,
+    });
+    expect(ack.status).toBe(200);
+    expect(ack.body.ok).toBe(true);
+
+    await reader.waitFor((frames) =>
+      frames.some((f) => f.event === SSE_FRAME.domain && JSON.parse(f.data).type === 'chat.message'),
+    );
+    const types = reader.domains().map((d) => d.type);
+    expect(types).toContain('chat.received');
+    expect(types).toContain('chat.delta');
+    expect(types).toContain('chat.message');
+    expect(types.some((t) => /^(task|plan|step|clarify)\./.test(t))).toBe(false);
+  }, 20_000);
+
+  it('refuses a second chat while one is in flight, and chat_cancel unwinds it', async () => {
+    const { server, runtime, address } = await makeChatServer(blockingChatLLM());
+    servers.push(server);
+    runtimes.push(runtime);
+    const reader = await SseReader.open(`${address.url}${ENGINE_ROUTES.events}`);
+    readers.push(reader);
+    await reader.waitFor((frames) => frames.some((f) => f.event === SSE_FRAME.bootstrap));
+
+    const first = await postCommand(address.url, {
+      type: 'chat_message',
+      payload: { sessionId: runtime.session.id, text: 'hello', policy: 'full' },
+      ...CMD,
+    });
+    expect(first.body.ok).toBe(true);
+    await reader.waitFor((frames) =>
+      frames.some((f) => f.event === SSE_FRAME.domain && JSON.parse(f.data).type === 'chat.delta'),
+    );
+
+    const second = await postCommand(address.url, {
+      type: 'chat_message',
+      payload: { sessionId: runtime.session.id, text: 'again', policy: 'full' },
+      ...CMD,
+    });
+    expect(second.status).toBe(409);
+    expect(second.body.error).toContain('已有对话正在处理');
+
+    const cancel = await postCommand(address.url, { type: 'chat_cancel', payload: { sessionId: runtime.session.id }, ...CMD });
+    expect(cancel.body.ok).toBe(true);
+
+    // Cancel is not a failure: the partial text lands, no chat.failed.
+    await reader.waitFor((frames) =>
+      frames.some((f) => f.event === SSE_FRAME.domain && JSON.parse(f.data).type === 'chat.message'),
+    );
+    expect(reader.domains().some((d) => d.type === 'chat.failed')).toBe(false);
+  }, 20_000);
+
+  it('refuses chat_message while a task run is active', async () => {
+    const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('chat-during-task') });
+    servers.push(server);
+    runtimes.push(runtime);
+    const reader = await SseReader.open(`${address.url}${ENGINE_ROUTES.events}`);
+    readers.push(reader);
+    await reader.waitFor((frames) => frames.some((f) => f.event === SSE_FRAME.bootstrap));
+
+    const submit = await postCommand(address.url, {
+      type: 'submit_task',
+      payload: { sessionId: runtime.session.id, intent: 'stream me', workspace: runtime.workspace },
+      ...CMD,
+    });
+    expect(submit.body.ok).toBe(true);
+    await reader.waitFor((frames) =>
+      frames.some((f) => f.event === SSE_FRAME.domain && JSON.parse(f.data).type.startsWith('task.')),
+    );
+
+    const ack = await postCommand(address.url, {
+      type: 'chat_message',
+      payload: { sessionId: runtime.session.id, text: 'hello', policy: 'ask' },
+      ...CMD,
+    });
+    expect(ack.status).toBe(409);
+    expect(ack.body.error).toContain('已有任务正在运行');
+  }, 20_000);
+
+  it('rejects an unknown policy, an empty message and an unknown ask id with 409', async () => {
+    const { server, runtime, address } = await makeChatServer();
+    servers.push(server);
+
+    const badPolicy = await postCommand(address.url, {
+      type: 'chat_message',
+      payload: { sessionId: runtime.session.id, text: 'hi', policy: 'sudo' as ChatPolicy },
+      ...CMD,
+    });
+    expect(badPolicy.status).toBe(409);
+
+    const empty = await postCommand(address.url, {
+      type: 'chat_message',
+      payload: { sessionId: runtime.session.id, text: '   ', policy: 'ask' },
+      ...CMD,
+    });
+    expect(empty.status).toBe(409);
+    expect(empty.body.error).toContain('消息不能为空');
+
+    const unknownAsk = await postCommand(address.url, {
+      type: 'chat_answer',
+      payload: { sessionId: runtime.session.id, askId: 'ask_missing', optionIdx: 0 },
+      ...CMD,
+    });
+    expect(unknownAsk.status).toBe(409);
+    expect(unknownAsk.body.error).toContain('没有待回答的问题');
+
+    // chat_cancel is idempotent — fine when nothing is running either.
+    const cancel = await postCommand(address.url, { type: 'chat_cancel', payload: { sessionId: runtime.session.id }, ...CMD });
+    expect(cancel.body.ok).toBe(true);
   });
 });

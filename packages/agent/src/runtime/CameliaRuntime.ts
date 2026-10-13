@@ -20,8 +20,10 @@ import {
   InMemoryMetrics,
   InMemoryTracer,
   SqliteSessionStore,
+  phaseOf,
   systemClock,
   type AgentPreset,
+  type ChatPolicy,
   type ClarifiedIntent,
   type DomainEvent,
   type Id,
@@ -33,9 +35,11 @@ import {
   type Plan,
   type PlanEdit,
   type Session,
+  type SessionStore,
   type Span,
   type StoredEvent,
   type Task,
+  type TaskStatus,
   type TokenBudget,
 } from '@camelia/core';
 import {
@@ -80,6 +84,7 @@ import { createLogger } from '../adapters/logger.js';
 import { loadConfig, type CameliaConfig } from '../config/load.js';
 import { ensureCameliaHome, paths } from '../config/paths.js';
 import { appendAbiMismatch, isAbiMismatchError, migrateAbiMismatch } from './abi.js';
+import { ChatLoop } from './ChatLoop.js';
 import { FallbackLLMPort } from '../FallbackLLMPort.js';
 import { ModelRouter } from '../ModelRouter.js';
 import { PluginLoader, type PluginLoadResult, type LoadedProviderPlugin } from '../plugins/PluginLoader.js';
@@ -219,7 +224,15 @@ interface SharedState {
  * faithful projection of the engine.
  */
 export interface MemoryPanelFacade {
-  list(layer?: MemoryLayer): Promise<MemoryView[]>;
+  /**
+   * List memories for the panel.
+   *
+   * `sessionId` scopes the list to what *that session* learned; without it the
+   * list is every memory the engine holds, which is the "all memories" view the
+   * Settings surface uses. The panel itself always passes the active session —
+   * see the scope note on the `list_memories` command.
+   */
+  list(query?: { layer?: MemoryLayer; sessionId?: Id }): Promise<MemoryView[]>;
   get(memoryId: Id): Promise<MemoryView | null>;
   forgetLog(limit?: number): Promise<ForgetLogView[]>;
   reactivationDue(limit?: number): Promise<MemoryView[]>;
@@ -232,6 +245,73 @@ export interface MemoryPanelFacade {
    * content snippet, matchedBy, noise and the later-downgrade annotation.
    */
   recallTimeline(query?: { memoryId?: Id; sessionId?: Id; since?: number; limit?: number }): Promise<MemoryRecallView[]>;
+}
+
+/**
+ * The session this engine should work in.
+ *
+ * A fresh engine used to create a session unconditionally, so every launch left another
+ * empty row titled after the workspace. One real install collected **26 of them** — all
+ * noise in the session rail, none containing work, and the title indistinguishable from
+ * real sessions because it is just `basename(workspace)`.
+ *
+ * Reopening this workspace's most recently touched session instead gives the continuity a
+ * chat surface implies: the user comes back to the conversation they left. `新建` is still
+ * there for anyone who wants a clean one, and the rail keeps every session it already has.
+ *
+ * A workspace with no history still gets a session — `run` needs one to attach the task to.
+ */
+async function openWorkspaceSession(
+  store: SqliteSessionStore,
+  workspace: string,
+  provider: string,
+  model: string,
+): Promise<Session> {
+  const recent = await store.listSessions();
+  const existing = recent.find((candidate) => candidate.workspace === workspace);
+  if (existing) return existing;
+  return store.createSession({
+    title: path.basename(workspace) || workspace,
+    workspace,
+    provider,
+    model,
+  });
+}
+
+/**
+ * Move tasks that a dead process left mid-flight into `paused`.
+ *
+ * A run lives in the process that started it: the plan gate is an in-memory promise, the
+ * loop owns the abort controller, and the store is only a record of what happened. When
+ * that process goes away — a restart, a crash, closing the window — the task keeps its
+ * mid-flight status in the database and nothing is left that can ever advance it.
+ *
+ * The visible symptom is `awaiting-approval`. The shell restores such a task, routes to
+ * plan mode, renders 批准, and the click fails with 「没有待审批的计划」 because the promise
+ * died with the old process. The user cannot continue and cannot dismiss it. One real
+ * install had seven of these, spread one per session, so the repair has to be store-wide:
+ * any session in the rail can be the next one the user opens.
+ *
+ * `paused` is the honest status rather than a guess at the truth: the work exists, it is
+ * not progressing, and the UI already renders it with a 继续 button that re-enters the loop
+ * through the documented resume path. Steps, tool calls and checkpoints are untouched —
+ * only the status is repaired.
+ *
+ * Assumes one engine per database. That is the supported configuration — the desktop shell
+ * is the only long-lived engine for its workspace — and two engines on one task is already
+ * broken by design. The failure mode if it happens is mild and self-healing: the other run
+ * keeps going in memory and its next status write wins.
+ */
+async function repairOrphanedTasks(store: SessionStore): Promise<number> {
+  const orphans = await store.listUnsettledTasks();
+  for (const task of orphans) {
+    await store.updateTask(task.id, {
+      status: 'paused',
+      phase: phaseOf('paused'),
+      resumeTarget: task.status,
+    });
+  }
+  return orphans.length;
 }
 
 export class CameliaRuntime {
@@ -285,6 +365,8 @@ export class CameliaRuntime {
   private readonly mcpClients: McpClient[] = [];
   private controller = new AbortController();
   private activeLoop?: AgentLoop;
+  /** The chat path (对话 mode): direct conversation, never a task. */
+  private readonly chatLoop: ChatLoop;
   private readonly planGate = new PlanGate();
   private closed = false;
 
@@ -351,8 +433,8 @@ export class CameliaRuntime {
       meta: { traceId: 'runtime-memory', sessionId: init.session.id },
     });
     this.memoryPanel = {
-      list: async (layer) => {
-        const items = await this.panelMemory.listByLayer(layer);
+      list: async (query) => {
+        const items = await this.panelMemory.listByLayer(query?.layer, query?.sessionId);
         return items.map((item) => toMemoryView(item, this.panelMemory.describe(item)));
       },
       get: async (memoryId) => {
@@ -396,6 +478,24 @@ export class CameliaRuntime {
       },
       recallTimeline: async (query = {}) => this.panelMemory.recallTimeline(query),
     };
+
+    // The chat loop (对话 mode) is runtime-scoped like the memory panel: it shares
+    // the tool engine, the approval responder and the LLM chain, but never creates
+    // a task, so plan machinery cannot leak into a plain conversation.
+    this.chatLoop = new ChatLoop({
+      workspace: init.workspace,
+      ports: init.ports,
+      tools: init.tools,
+      bus: init.bus,
+      store: init.store,
+      logger: init.logger,
+      metrics: init.metrics,
+      config: init.harnessConfig,
+      fallback: init.fallback,
+      model: init.decision.model,
+      responder: init.responder,
+      allowedTools: init.preset?.allowedTools,
+    });
   }
 
   static async create(options: CameliaRuntimeOptions): Promise<CameliaRuntime> {
@@ -567,12 +667,15 @@ export class CameliaRuntime {
       logger.warn('MCP server unavailable', { server: status.name, error: status.error ?? null });
     }
 
-    const session = await store.createSession({
-      title: path.basename(workspace) || workspace,
-      workspace,
-      provider: fallback.active.id,
-      model: decision.model,
-    });
+    const session = await openWorkspaceSession(store, workspace, fallback.active.id, decision.model);
+
+    // A previous process may have left tasks mid-flight (see `repairOrphanedTasks`).
+    // Repair before the UI replays anything, or the shell will offer buttons that cannot
+    // work — including in sessions this engine is not currently sitting in.
+    const repaired = await repairOrphanedTasks(store);
+    if (repaired > 0) {
+      logger.warn('repaired tasks the previous process left mid-flight', { repaired });
+    }
 
     const responder =
       options.approvalResponder ??
@@ -602,6 +705,27 @@ export class CameliaRuntime {
       mcp: mcpStatuses,
       mcpClients,
     });
+  }
+
+  // ---- Chat (对话 mode): the direct conversation path ------------------------
+
+  /**
+   * One chat turn. While a task run is active the chat is refused — one
+   * workspace-mutation stream at a time keeps both paths honest.
+   */
+  async chat(sessionId: Id, text: string, policy: ChatPolicy): Promise<void> {
+    if (this.activeLoop) throw new Error('a task run is active — chat is unavailable until it finishes');
+    await this.chatLoop.chat(sessionId, text, policy);
+  }
+
+  /** Answer an open `ask_user` picker from the chat path. */
+  answerChat(askId: Id, optionIdx: number): boolean {
+    return this.chatLoop.answer(askId, optionIdx);
+  }
+
+  /** Abort the in-flight chat turn, if any. */
+  cancelChat(): void {
+    this.chatLoop.cancel();
   }
 
   /** Run one task end to end. Never throws for task failure — inspect `outcome`. */
@@ -784,20 +908,47 @@ export class CameliaRuntime {
     this.harnessConfig.planApproval = mode;
   }
 
-  /** Ask the running task to pause at the next safe boundary. */
-  pause(reason = 'user requested'): boolean {
-    if (!this.activeLoop) return false;
-    this.activeLoop.pause(reason);
-    return true;
-  }
+/**
+ * The task currently being executed in this process, or `undefined` when idle.
+ *
+ * Public because `pause` / `cancel` now refuse a task id that is not the running one,
+ * and their natural callers — the tests that drive those two from inside a tool call,
+ * and any surface that wants to say which run a button belongs to — need to name it.
+ */
+get activeTaskId(): string | undefined {
+  return this.activeLoop?.currentTaskId;
+}
 
-  /** Cancel the running task. The loop unwinds and reports `cancelled`. */
-  cancel(reason = 'cancelled'): boolean {
-    this.controller.abort();
-    if (!this.activeLoop) return false;
-    this.activeLoop.cancel(reason);
-    return true;
-  }
+/**
+ * Ask the running task to pause at the next safe boundary.
+ *
+ * `taskId` is checked against the loop that is actually running, and the command is
+ * refused when they disagree. The session rail lets the user switch to a different
+ * session while a run is in flight, so a pause aimed at the task on screen would
+ * otherwise stop a task the user cannot even see — the last write wins is not a
+ * defensible reading of "stop this".
+ */
+pause(taskId: string, reason = 'user requested'): boolean {
+  if (!this.activeLoop) return false;
+  if (this.activeLoop.currentTaskId !== taskId) return false;
+  this.activeLoop.pause(reason);
+  return true;
+}
+
+/**
+ * Cancel the running task. The loop unwinds and reports `cancelled`.
+ *
+ * Same task-id guard as {@link pause}. The abort fires first, before the guard, exactly
+ * as before: a cancel means "nothing further from this process runs", which has to hold
+ * even for a task the user has navigated away from.
+ */
+cancel(taskId: string, reason = 'cancelled'): boolean {
+  this.controller.abort();
+  if (!this.activeLoop) return false;
+  if (this.activeLoop.currentTaskId !== taskId) return false;
+  this.activeLoop.cancel(reason);
+  return true;
+}
 
   /** Change the goal of the running task (metric M7). */
   intervene(instruction: string): boolean {
@@ -859,12 +1010,13 @@ export class CameliaRuntime {
   }
 
   /** The provider chain, in fallback order. */
-  providerChain(): { id: string; label: string; model: string; active: boolean }[] {
+  providerChain(): { id: string; label: string; model: string; models: string[]; active: boolean }[] {
     const activeId = this.fallback.active.id;
     return this.handles.map((handle) => ({
       id: handle.id,
       label: handle.label,
       model: handle.model,
+      models: handle.models,
       active: handle.id === activeId,
     }));
   }

@@ -53,6 +53,7 @@ export async function serveCommand(args: ParsedArgs, options: ServeCommandOption
 
   const mock = args.flags.has('mock') || args.options.has('spec');
   const autoApprove = args.flags.has('yes');
+  const autoApprovePlan = args.flags.has('auto-approve-plan');
   const timeoutSec = Number(option(args, 'approval-timeout', '300'));
   const autoRun = option(args, 'auto-run');
   const offlineClarify = mock || args.flags.has('offline');
@@ -71,7 +72,15 @@ export async function serveCommand(args: ParsedArgs, options: ServeCommandOption
     ...(option(args, 'db') ? { databaseFile: option(args, 'db')! } : {}),
     ...(option(args, 'test-command') ? { testCommand: option(args, 'test-command')! } : {}),
     approvalResponder: autoApprove ? autoApprover() : broker.responder(),
-    planApproval: autoApprove || args.flags.has('auto-approve-plan') ? 'auto' : 'always',
+    // `planApproval` is only forced when a flag actually asked for it.
+    //
+    // Passing it unconditionally shadowed `~/.camelia/config.json` on every launch:
+    // `options.planApproval` is the *first* link in `CameliaRuntime.create`'s `??` chain,
+    // so `config.planApproval` was never consulted. The desktop shell spawns
+    // `serve --port=0 --json` with no flags, which meant a persisted "auto" could never
+    // reach the runtime and every task stopped at the plan gate. Leaving the key out
+    // restores the documented precedence: flag > config.json > default.
+    ...(autoApprove || autoApprovePlan ? { planApproval: 'auto' as const } : {}),
     profileDir: paths.profiles(),
     runRecordDir: paths.runs(),
     logLevel: (option(args, 'log-level', 'warn') as 'debug' | 'info' | 'warn' | 'error') ?? 'warn',

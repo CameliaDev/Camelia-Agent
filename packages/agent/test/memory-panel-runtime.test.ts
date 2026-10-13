@@ -94,9 +94,32 @@ describe('CameliaRuntime.memoryPanel — queries (agent-internal, real store)', 
       expect(view.createdAt).toBeGreaterThan(0);
     }
 
-    const longs = await runtime.memoryPanel.list('long');
+    const longs = await runtime.memoryPanel.list({ layer: 'long' });
     expect(longs.map((m) => m.id)).toEqual(['mem_a']);
     expect(longs[0]!.layer).toBe('long');
+  });
+
+  it('scopes the list to one session and keeps cross-session memories out of it', async () => {
+    // The panel answers "what did *this task* learn?". Before the scope existed the list
+    // was every memory in the database, which is why the panel read as noise: the reader
+    // could not tell which rows belonged to the task in front of them. This pins the
+    // distinction between the panel's scoped view and Settings' unscoped one.
+    const runtime = await harness();
+    const otherSession = 'ses_somewhere_else';
+    await writeMemory(runtime, { id: 'mem_g', content: 'a global fact', scope: 'global', layer: 'long' });
+    await writeMemory(runtime, { id: 'mem_here', content: 'this task learned it', scope: 'session', sessionId: runtime.session.id, layer: 'short' });
+    await writeMemory(runtime, { id: 'mem_there', content: 'another task learned it', scope: 'session', sessionId: otherSession, layer: 'short' });
+
+    // Unscoped — the Settings view sees everything.
+    const all = await runtime.memoryPanel.list();
+    expect(all.map((m) => m.id).sort()).toEqual(['mem_g', 'mem_here', 'mem_there']);
+
+    // Scoped — only this session. The global row must NOT leak in; that is the point.
+    const here = await runtime.memoryPanel.list({ sessionId: runtime.session.id });
+    expect(here.map((m) => m.id)).toEqual(['mem_here']);
+
+    // Scope composes with the layer tab rather than overriding it.
+    expect(await runtime.memoryPanel.list({ sessionId: runtime.session.id, layer: 'long' })).toEqual([]);
   });
 
   it('gets one memory with evidence, and null for an unknown id', async () => {

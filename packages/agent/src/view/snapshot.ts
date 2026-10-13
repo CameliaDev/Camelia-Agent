@@ -14,6 +14,7 @@
 
 import type {
   Artifact,
+  ChatPolicy,
   DomainEvent,
   DroppedMessage,
   Id,
@@ -135,6 +136,41 @@ export interface NoticeView {
 }
 
 /**
+ * One chat turn — a user message or an assistant reply on the direct chat path.
+ *
+ * Tool calls made during the turn are folded inline (the UI renders them with the
+ * same `ToolCard` the task view uses), so a chat that reads a file shows *what it
+ * did* next to *what it said*, exactly like the task transcript does.
+ */
+export interface ChatTurnView {
+  id: Id;
+  role: 'user' | 'assistant';
+  text: string;
+  /** True while `chat.delta` chunks are still arriving (drives the caret). */
+  streaming: boolean;
+  toolCalls: ToolCallView[];
+  /** Why the turn ended abnormally, when it did (`chat.failed`). */
+  error?: string;
+  at: number;
+}
+
+/** A `chat.ask_user` the user has not answered yet. */
+export interface PendingAskView {
+  askId: Id;
+  question: string;
+  options: string[];
+  at: number;
+}
+
+/** The chat path's projection — parallel to `task`, never inside it. */
+export interface ChatView {
+  turns: ChatTurnView[];
+  pendingAsk?: PendingAskView;
+  /** The posture new turns are sent with; mirrored back via `chat.policy_changed`. */
+  policy: ChatPolicy;
+}
+
+/**
  * Assistant narration streamed from the model, grouped per step.
  *
  * The engine emits each streamed chunk as a `log` event with `meta.stream = true`
@@ -154,6 +190,21 @@ export interface NarrationView {
 export interface ProviderView {
   activeProvider?: string;
   activeModel?: string;
+  /**
+   * Models the active provider advertises. The composer offers these for in-place
+   * switching; absent (rather than empty) when the provider advertises none, so the UI
+   * can tell "no choice to offer" from "not yet known".
+   */
+  models?: string[];
+  /**
+   * Which provider the `models` list belongs to.
+   *
+   * A run's events can re-route the provider after bootstrap, so the list is only usable
+   * when this matches `activeProvider`. Tagging the list beats clearing it on every write:
+   * there is one place to get it right, and a reader that forgets the check fails visibly
+   * (no dropdown) rather than offering another vendor's models.
+   */
+  modelsFor?: string;
   /** Set when the active provider was chosen for a stated reason. */
   reason?: string;
   fallbacks: { from: string; to: string; reason: string; depth: number; at: number }[];
@@ -331,6 +382,8 @@ export interface TimelineEntry {
 export interface ProjectionSnapshot {
   session?: SessionView;
   task?: TaskView;
+  /** Direct-conversation path (对话 mode) — independent of `task`. */
+  chat: ChatView;
   provider: ProviderView;
   metrics: Record<string, number>;
   /** Raw event trail for the audit / replay drawer. */
@@ -342,7 +395,12 @@ export interface ProjectionSnapshot {
 // ---------------------------------------------------------------------------
 
 export function initialSnapshot(): ProjectionSnapshot {
-  return { provider: { fallbacks: [] }, metrics: {}, timeline: [] };
+  return {
+    chat: { turns: [], policy: 'readonly-sandbox' },
+    provider: { fallbacks: [] },
+    metrics: {},
+    timeline: [],
+  };
 }
 
 export function withSession(snapshot: ProjectionSnapshot, session: SessionView): ProjectionSnapshot {
@@ -369,6 +427,9 @@ export function withProviderStatus(
       ...snapshot.provider,
       connected,
       chain: status.chain,
+      // Tagged with the provider they came from, so a later re-route cannot silently
+      // present them under another provider's name.
+      ...(status.models?.length ? { models: status.models, modelsFor: status.id } : {}),
       // A known-connected engine that has no session yet should still name its provider;
       // one already set by a run's events wins (it reflects the routing actually taken).
       ...(connected && !snapshot.provider.activeProvider
@@ -627,6 +688,56 @@ function mutateTask(
   if (!snapshot.task) return withTimeline(snapshot, event);
   const task = patch(snapshot.task);
   return withTimeline({ ...snapshot, task: { ...task, updatedAt: event.ts } }, event);
+}
+
+const MAX_CHAT_TURNS = 80;
+const MAX_CHAT_CHARS = 8000;
+
+/** Fold one chat event: patch `snapshot.chat` and keep the audit trail. */
+function mutateChat(
+  snapshot: ProjectionSnapshot,
+  event: DomainEvent,
+  patch: (chat: ChatView) => ChatView,
+): ProjectionSnapshot {
+  return withTimeline({ ...snapshot, chat: patch(snapshot.chat) }, event);
+}
+
+/** Upsert a tool call into a turn by id, preserving already-folded output. */
+function upsertChatTool(turn: ChatTurnView, call: ToolCall, gate?: boolean): ChatTurnView {
+  const prev = turn.toolCalls.find((c) => c.id === call.id);
+  const merged = mergeToolCall(prev, call);
+  const view: ToolCallView = gate
+    ? { ...merged, approval: 'required', status: 'awaiting-approval' }
+    : merged;
+  const toolCalls = prev
+    ? turn.toolCalls.map((c) => (c.id === call.id ? view : c))
+    : [...turn.toolCalls, view];
+  return { ...turn, toolCalls };
+}
+
+/** Append a turn, capping the transcript so a long chat cannot bloat the snapshot. */
+function pushChatTurn(chat: ChatView, turn: ChatTurnView): ChatView {
+  const next = { ...chat, turns: [...chat.turns, turn] };
+  if (next.turns.length > MAX_CHAT_TURNS) next.turns = next.turns.slice(next.turns.length - MAX_CHAT_TURNS);
+  return next;
+}
+
+/** Fold a streamed chunk into the trailing assistant turn, opening one if needed. */
+function appendChatDelta(chat: ChatView, turnId: Id, delta: string, at: number): ChatView {
+  const last = chat.turns[chat.turns.length - 1];
+  if (last && last.id === turnId && last.role === 'assistant' && last.streaming) {
+    const turns = [...chat.turns];
+    turns[turns.length - 1] = { ...last, text: (last.text + delta).slice(0, MAX_CHAT_CHARS), at };
+    return { ...chat, turns };
+  }
+  return pushChatTurn(chat, {
+    id: turnId,
+    role: 'assistant',
+    text: delta.slice(0, MAX_CHAT_CHARS),
+    streaming: true,
+    toolCalls: [],
+    at,
+  });
 }
 
 /**
@@ -1150,6 +1261,11 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
             activeProvider: event.payload.providerId,
             activeModel: event.payload.model,
             reason: event.payload.reason,
+            // `models` is deliberately left alone. It is tagged with the provider it came
+            // from (`modelsFor`), so a reader compares the two instead of relying on every
+            // writer to remember to invalidate it — the scenario emits `provider.selected`
+            // during boot, and clearing here would erase the bootstrap list before the UI
+            // ever saw it.
           },
         },
         event,
@@ -1199,6 +1315,90 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
     case 'memory.critiqued':
     case 'tool.usage_injected':
       return withTimeline(snapshot, event);
+
+    // ---- Chat (direct conversation path) ---------------------------------
+    case 'chat.received':
+      return mutateChat(snapshot, event, (chat) =>
+        pushChatTurn(chat, {
+          id: event.payload.turnId,
+          role: 'user',
+          text: event.payload.text,
+          streaming: false,
+          toolCalls: [],
+          at: event.ts,
+        }),
+      );
+
+    case 'chat.delta':
+      return mutateChat(snapshot, event, (chat) =>
+        appendChatDelta(chat, event.payload.turnId, event.payload.delta, event.ts),
+      );
+
+    case 'chat.message':
+      return mutateChat(snapshot, event, (chat) => {
+        const last = chat.turns[chat.turns.length - 1];
+        if (!last || last.id !== event.payload.turnId || last.role !== 'assistant') return chat;
+        const turns = [...chat.turns];
+        turns[turns.length - 1] = {
+          ...last,
+          text: event.payload.text.slice(0, MAX_CHAT_CHARS) || last.text,
+          streaming: false,
+          at: event.ts,
+        };
+        return { ...chat, turns };
+      });
+
+    case 'chat.tool':
+      return mutateChat(snapshot, event, (chat) => {
+        const call = event.payload.call;
+        const turn = chat.turns.find((t) => t.id === call.taskId);
+        if (!turn) return chat;
+        const turns = chat.turns.map((t) =>
+          t.id === call.taskId
+            ? upsertChatTool(t, call, call.status === 'awaiting-approval')
+            : t,
+        );
+        return { ...chat, turns };
+      });
+
+    case 'chat.ask_user':
+      return mutateChat(snapshot, event, (chat) => ({
+        ...chat,
+        pendingAsk: {
+          askId: event.payload.askId,
+          question: event.payload.question,
+          options: event.payload.options,
+          at: event.ts,
+        },
+      }));
+
+    case 'chat.answered':
+      return mutateChat(snapshot, event, (chat) => {
+        const option = chat.pendingAsk?.options[event.payload.optionIdx];
+        const cleared = { ...chat, pendingAsk: undefined };
+        return option
+          ? pushChatTurn(cleared, {
+              id: `ans-${event.payload.askId}`,
+              role: 'user',
+              text: option,
+              streaming: false,
+              toolCalls: [],
+              at: event.ts,
+            })
+          : cleared;
+      });
+
+    case 'chat.failed':
+      return mutateChat(snapshot, event, (chat) => {
+        const last = chat.turns[chat.turns.length - 1];
+        if (!last || last.id !== event.payload.turnId || last.role !== 'assistant') return chat;
+        const turns = [...chat.turns];
+        turns[turns.length - 1] = { ...last, streaming: false, error: event.payload.error, at: event.ts };
+        return { ...chat, turns };
+      });
+
+    case 'chat.policy_changed':
+      return mutateChat(snapshot, event, (chat) => ({ ...chat, policy: event.payload.policy }));
 
     case 'metric':
       return withTimeline({ ...snapshot, metrics: { ...snapshot.metrics, [event.payload.name]: event.payload.value } }, event);

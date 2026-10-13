@@ -46,6 +46,7 @@ import {
   InMemoryMetrics,
   InMemoryTracer,
   estimateTokens,
+  isTerminal,
   newId,
 } from '@camelia/core';
 
@@ -270,6 +271,9 @@ export class MemoryStore implements SessionStore {
   }
   async listTasks(sessionId: Id): Promise<Task[]> {
     return [...this.tasks.values()].filter((t) => t.sessionId === sessionId);
+  }
+  async listUnsettledTasks(): Promise<Task[]> {
+    return [...this.tasks.values()].filter((t) => !isTerminal(t.status) && t.status !== 'paused');
   }
   async updateTask(id: Id, patch: Partial<Task>): Promise<void> {
     const task = this.tasks.get(id);
