@@ -12,6 +12,7 @@ import type {
   ChatRequest,
   Checkpoint,
   ClarifiedIntent,
+  CreateSessionInput,
   ClockPort,
   EventBus as EventBusType,
   FileStat,
@@ -98,7 +99,15 @@ export class ScriptedLLM implements LLMPort {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    return [{ id: 'scripted-1', providerId: 'scripted', label: 'Scripted', contextWindow: 128_000, supportsTools: true, supportsJson: true }];
+    return [{
+      id: 'scripted-1',
+      providerId: 'scripted',
+      label: 'Scripted',
+      contextWindow: 128_000,
+      supportsTools: true,
+      supportsJson: true,
+      supportsVision: this.caps.supportsVision === true,
+    }];
   }
 
   async *chat(request: ChatRequest, signal?: AbortSignal): AsyncIterable<ChatChunk> {
@@ -234,9 +243,9 @@ export class MemoryStore implements SessionStore {
   readonly failureModes: { kind: string; mechanism: string; workspace: string }[] = [];
   private seq = 0;
 
-  async createSession(input: { title: string; workspace: string; provider: string; model: string }): Promise<Session> {
+  async createSession(input: CreateSessionInput): Promise<Session> {
     const now = Date.now();
-    const session: Session = { id: newId(), ...input, createdAt: now, updatedAt: now };
+    const session: Session = { id: newId(), ...input, kind: input.kind ?? 'work', createdAt: now, updatedAt: now };
     this.sessions.set(session.id, session);
     return session;
   }

@@ -1,0 +1,13 @@
+{
+  "id": "quiet-activity-bar",
+  "label": "Quiet activity bar",
+  "tokens": {
+    "--color-accent": "#8d6b63",
+    "--color-accent-2": "#7a5c55",
+    "--color-accent-dim": "#e4d2cc",
+    "--color-line": "#e7e2dc",
+    "--color-ink-3": "#6b6560",
+    "--radius-md": "8px",
+    "--radius-lg": "8px"
+  }
+}

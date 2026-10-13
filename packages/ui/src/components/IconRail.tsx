@@ -4,8 +4,8 @@
  * The shell reads as four columns: this strip, the session column, the conversation, the
  * detail rail. The strip never collapses, and that is the whole point of it. When the
  * session column is shut its own chrome goes with it — the search box, the new-chat
- * button, the header — and this is what remains: reopen the list, search it, start a new
- * chat, reach settings, from anywhere.
+ * button, the header — and this is what remains: reopen the list and reach settings,
+ * from anywhere. Search and new chat live in the session column toolbar, not here.
  *
  * ## The foot of the strip: account, then settings
  *
@@ -41,46 +41,36 @@
  *
  * ## Width
  *
- * `RAIL_ICON_WIDTH` fits an icon and a short label. Sessions, plugins, and settings
- * are labeled rows. Search and new chat stay icon actions under them — they act on
- * the session list, they are not destinations.
+ * `RAIL_ICON_WIDTH` is 48px. This is an activity bar, not a labeled nav: every
+ * entry is an icon, and the word lives in the tooltip and the accessible name.
+ * The session list is the column to the right of this strip. Search and new
+ * chat live in that column's header toolbar, not on this strip.
  * @module
  */
 
 import { useState, type ReactNode } from 'react';
 
 import { t } from '../i18n/strings.js';
-import { useNewSession } from '../state/new-session.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { AccountMenu } from './AccountMenu.js';
 import { Avatar, Icon, userAvatarSrc } from './primitives.js';
 
-/**
- * Open the session column, then focus its search field.
- *
- * The input is not in the DOM while the column is closed, so this has to wait for React to
- * commit the width change. A macrotask is enough — React commits synchronously inside the
- * click handler, so by the time the timer runs the field exists — and unlike a paint frame
- * it is deterministic under jsdom, where the tests run.
- */
-function focusSessionSearch(): void {
-  const find = (attempt = 0): void => {
-    const input = document.querySelector<HTMLInputElement>('[data-session-search]');
-    if (input) {
-      input.focus();
-      return;
-    }
-    if (attempt < 10) window.setTimeout(() => find(attempt + 1), 0);
-  };
-  find();
-}
+/** One activity-bar cell. The glyph is the control; the word is the tooltip. */
+const CELL =
+  'group relative grid h-9 w-9 shrink-0 place-items-center rounded-md transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-ink/40';
+const ITEM_IDLE = 'text-ink-3 hover:bg-hover hover:text-ink';
+const ITEM_ACTIVE = 'text-ink';
 
-/** Labeled destination. Icon and word share one quiet row. */
-const NAV = 'group relative flex h-8 w-full shrink-0 items-center gap-2 rounded-lg px-2 text-left text-[12px] transition-colors';
-/** Icon-only action that belongs to the session list, not a destination of its own. */
-const ACTION = 'group relative grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors';
-const ITEM_IDLE = 'text-ink-2 hover:bg-hover hover:text-ink';
-const ITEM_ACTIVE = 'bg-hover text-ink';
+/** Left edge mark for the open activity-bar view. The glyph stays unboxed. */
+function ActiveMark(): ReactNode {
+  return (
+    <span
+      aria-hidden="true"
+      data-rail-active
+      className="pointer-events-none absolute -left-1.5 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent"
+    />
+  );
+}
 
 /** Tooltip, opening to the right: this strip is against the window edge. */
 function Tip({ children }: { children: ReactNode }): ReactNode {
@@ -104,7 +94,6 @@ export function IconRail(): ReactNode {
   const displayNamePref = useUiStore((s) => s.localPrefs.displayName);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  const newSession = useNewSession();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   /**
@@ -123,14 +112,15 @@ export function IconRail(): ReactNode {
       data-rail="icon"
       aria-label={tr('rail.label')}
       /*
-        No `overflow-hidden`. Tooltips on the icon actions open to the right, and a clip
-        on this nav would hide them. The labeled rows do not overflow the column.
+        No `overflow-hidden`. Tooltips open to the right, and a clip on this
+        nav would hide them. Icons stay inside the 48px track.
       */
-      className="relative flex h-full w-full flex-col gap-0.5 border-r border-line bg-base px-2 py-2"
+      className="relative flex h-full w-full flex-col items-center gap-0.5 border-r border-line/70 bg-base py-1.5"
     >
       {/*
-        Labeled destinations. Clicking the open view closes the column, the same
+        Icon destinations. Clicking the open view closes the column, the same
         contract as an activity bar, so this nav can drive the sidebar alone.
+        The word is a tooltip — the strip is too narrow to carry a label.
       */}
       <button
         type="button"
@@ -138,7 +128,7 @@ export function IconRail(): ReactNode {
         aria-pressed={!leftCollapsed && sidebarView === 'sessions'}
         title={tr('sessions.history')}
         aria-label={tr('rail.sessions')}
-        className={`${NAV} ${!leftCollapsed && sidebarView === 'sessions' ? ITEM_ACTIVE : ITEM_IDLE}`}
+        className={`${CELL} ${!leftCollapsed && sidebarView === 'sessions' ? ITEM_ACTIVE : ITEM_IDLE}`}
         onClick={() => {
           if (!leftCollapsed && sidebarView === 'sessions') {
             setLocalPrefs({ leftCollapsed: true });
@@ -148,8 +138,9 @@ export function IconRail(): ReactNode {
           setLocalPrefs({ leftCollapsed: false });
         }}
       >
-        <Icon name="chat" size={16} />
-        <span className="min-w-0 truncate">{tr('sessions.history')}</span>
+        {!leftCollapsed && sidebarView === 'sessions' ? <ActiveMark /> : null}
+        <Icon name="chat" size={22} />
+        <Tip>{tr('sessions.history')}</Tip>
       </button>
 
       <button
@@ -158,7 +149,7 @@ export function IconRail(): ReactNode {
         aria-pressed={!leftCollapsed && sidebarView === 'extensions'}
         title={tr('extensions.title')}
         aria-label={tr('rail.extensions')}
-        className={`${NAV} ${!leftCollapsed && sidebarView === 'extensions' ? ITEM_ACTIVE : ITEM_IDLE}`}
+        className={`${CELL} ${!leftCollapsed && sidebarView === 'extensions' ? ITEM_ACTIVE : ITEM_IDLE}`}
         onClick={() => {
           if (!leftCollapsed && sidebarView === 'extensions') {
             setLocalPrefs({ leftCollapsed: true });
@@ -168,38 +159,10 @@ export function IconRail(): ReactNode {
           setLocalPrefs({ leftCollapsed: false });
         }}
       >
-        <Icon name="extensions" size={16} />
-        <span className="min-w-0 truncate">{tr('extensions.title')}</span>
+        {!leftCollapsed && sidebarView === 'extensions' ? <ActiveMark /> : null}
+        <Icon name="extensions" size={22} />
+        <Tip>{tr('extensions.title')}</Tip>
       </button>
-
-      <div className="mt-1 flex items-center gap-0.5 px-0.5">
-        <button
-          type="button"
-          data-rail-action="search"
-          title={tr('rail.search')}
-          aria-label={tr('rail.search')}
-          className={`${ACTION} ${ITEM_IDLE}`}
-          onClick={() => {
-            setSidebarView('sessions');
-            setLocalPrefs({ leftCollapsed: false });
-            focusSessionSearch();
-          }}
-        >
-          <Icon name="search" size={15} />
-          <Tip>{tr('rail.search')}</Tip>
-        </button>
-        <button
-          type="button"
-          data-rail-action="new"
-          title={tr('rail.new')}
-          aria-label={tr('rail.new')}
-          className={`${ACTION} ${ITEM_IDLE}`}
-          onClick={() => newSession()}
-        >
-          <Icon name="plus" size={15} />
-          <Tip>{tr('rail.new')}</Tip>
-        </button>
-      </div>
 
       <span className="flex-1" />
 
@@ -214,11 +177,10 @@ export function IconRail(): ReactNode {
           aria-label={tr('account.profile')}
           aria-haspopup="menu"
           aria-expanded={accountMenuOpen}
-          className={`${NAV} ${accountMenuOpen ? ITEM_ACTIVE : ITEM_IDLE}`}
+          className={`${CELL} ${accountMenuOpen ? ITEM_ACTIVE : ITEM_IDLE}`}
           onClick={() => setAccountMenuOpen((open) => !open)}
         >
-          <Avatar kind="user" size={18} src={userAvatarSrc(userAvatar, githubAccount)} />
-          <span className="min-w-0 flex-1 truncate text-[12px]">{displayName || tr('account.profile')}</span>
+          <Avatar kind="user" size={20} src={userAvatarSrc(userAvatar, githubAccount)} />
           {!accountMenuOpen ? (
             <Tip>
               {displayName ? (
@@ -241,15 +203,16 @@ export function IconRail(): ReactNode {
       <button
         type="button"
         data-rail-settings
+        title={tr('settings.title')}
         aria-label={tr('settings.title')}
-        className={`${NAV} ${ITEM_IDLE} mt-0.5`}
+        className={`${CELL} ${ITEM_IDLE} mt-0.5`}
         onClick={() => {
           setAccountMenuOpen(false);
           setSettingsOpen(true);
         }}
       >
-        <Icon name="settings" size={16} />
-        <span className="min-w-0 truncate">{tr('settings.title')}</span>
+        <Icon name="settings" size={20} />
+        <Tip>{tr('settings.title')}</Tip>
       </button>
     </aside>
   );

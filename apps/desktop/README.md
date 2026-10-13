@@ -9,7 +9,7 @@ Camelia 的**桌面外壳**（Tauri 2.x，Rust + WebView2）。硬约束禁止 E
 - **开窗**：创建主窗口（1280×820，暗色主题，最小 1024×680）。
 - **注入启动参数**：在页面脚本执行前写入 `window.__CAMELIA_BOOT__`，让外壳（而非可被用户篡改的 URL）决定应用投影什么状态。同一条通道承载演示场景、真实引擎端点与要续接的会话。
 
-- **诊断通道**：向 WebView 暴露 `open_engine_log` / `read_engine_log` / `relaunch_app`（以及模型与密钥读写）。顶栏连接徽章与设置里的「诊断」可打开 `~/.camelia/logs/engine.log`，引擎断开时显示恢复横幅。
+- **诊断通道**：向 WebView 暴露 `open_engine_log` / `read_engine_log` / `relaunch_app`（以及模型与密钥读写）。状态栏上的连接状态打开设置里的「引擎与日志」，可查看 `~/.camelia/logs/engine.log`。引擎断开时显示恢复横幅。
 
 ## 边界
 
@@ -88,6 +88,8 @@ pnpm --filter @camelia/desktop desktop:check    # cargo check
 ## 插件
 
 引擎在进程启动时扫描 `~/.camelia/plugins` 下带 `camelia.plugin.json` 的目录。左侧「插件」只打开这个说明，没有启用开关，也没有应用内安装。放入目录后重新启动桌面才会加载。
+
+示例：把仓库里的 `plugins/quiet-activity-bar` 整夹复制到 `~/.camelia/plugins/quiet-activity-bar`，再启动桌面。这是主题存根（更安静的颜色记号），不是活动栏本身。48px 纯图标活动栏在应用里，不从插件里加载。
 
 ## 截图
 

@@ -23,6 +23,8 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { llmContentText } from '@camelia/core';
+
 import { FakeShell, ScriptedLLM, makeHarness, makeIntent, type Harness } from './helpers/context.js';
 import { buildEngine } from './helpers/engine.js';
 
@@ -103,7 +105,10 @@ describe('Stage 4.3 — s2 weak-model two-file breakdown', () => {
     // so the ladder escalates straight to the single replan — no fixup round is
     // burned, and the loop converges instead of looping.
     const fixupPrompts = llm.requests
-      .map((request) => request.messages.find((message) => message.role === 'system')?.content ?? '')
+      .map((request) => {
+        const content = request.messages.find((message) => message.role === 'system')?.content;
+        return content === undefined ? '' : llmContentText(content);
+      })
       .filter((text) => text.includes('FAILED verification'));
     expect(fixupPrompts).toHaveLength(0);
     expect(eventTypes(h)).toContain('plan.revised');
@@ -131,7 +136,10 @@ describe('Stage 4.3 — s2 weak-model two-file breakdown', () => {
     // Exactly one fixup execution: the fixup prompt appears once, not maxRetries
     // (3) times — the loop converged instead of repeating empty attempts.
     const fixupPrompts = llm.requests
-      .map((request) => request.messages.find((message) => message.role === 'system')?.content ?? '')
+      .map((request) => {
+        const content = request.messages.find((message) => message.role === 'system')?.content;
+        return content === undefined ? '' : llmContentText(content);
+      })
       .filter((text) => text.includes('FAILED verification'));
     expect(fixupPrompts).toHaveLength(1);
   });

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { Plan } from '@camelia/core';
+import { llmContentText, type Plan } from '@camelia/core';
 
 import { PlanGate } from '../src/planning/PlanGate.js';
 import { FakeShell, ScriptedLLM, acceptancePoint, makeHarness, makeIntent, type Harness } from './helpers/context.js';
@@ -189,9 +189,10 @@ describe('AgentLoop — recovery', () => {
 
     expect(outcome.status).toBe('done');
     expect(outcome.stepsCompleted).toBe(2);
-    const systems = llm.requests.map(
-      (request) => request.messages.find((message) => message.role === 'system')?.content ?? '',
-    );
+    const systems = llm.requests.map((request) => {
+      const content = request.messages.find((message) => message.role === 'system')?.content;
+      return content === undefined ? '' : llmContentText(content);
+    });
     const step1 = systems.find((text) => text.includes('Step 1/2: Write a.txt'));
     const step2 = systems.find((text) => text.includes('Step 2/2: Run check'));
     const fixup = systems.find((text) => text.includes('FAILED verification') && text.includes('Run check'));

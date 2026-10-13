@@ -98,6 +98,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const task = snapshot.task;
   const running = task !== undefined && task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled';
   const { mode } = useMode();
+  const conversational = mode === 'work' || mode === 'math';
   const chatPolicy = useUiStore((s) => s.localPrefs.chatPolicy);
   const effort = useUiStore((s) => s.localPrefs.effort);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
@@ -236,11 +237,11 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const submit = (): void => {
     const intent = value.trim();
     const images =
-      mode === 'work' && pendingImages.length > 0
+      conversational && pendingImages.length > 0
         ? pendingImages.map((img) => ({ mimeType: img.mimeType, dataBase64: img.dataBase64 }))
         : undefined;
     if (!intent && !(images && images.length)) return;
-    if (mode === 'work') {
+    if (conversational) {
       // 对话 mode: multimodal when images are pasted — OpenAI-compatible vision parts.
       dispatch(
         makeCommand('chat_message', {
@@ -267,7 +268,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     }
     setValue('');
     setPendingImages([]);
-    setImageNotice(mode !== 'work' && pendingImages.length > 0 ? 'composer.imagesWorkOnly' : null);
+    setImageNotice(!conversational && pendingImages.length > 0 ? 'composer.imagesWorkOnly' : null);
   };
 
   return (
@@ -327,11 +328,13 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               }
             }}
             placeholder={tr(
-              mode === 'work'
-                ? 'composer.chatPlaceholder'
-                : running
-                  ? 'composer.steerPlaceholder'
-                  : 'composer.placeholder',
+              mode === 'math'
+                ? 'math.composer.placeholder'
+                : mode === 'work'
+                  ? 'composer.chatPlaceholder'
+                  : running
+                    ? 'composer.steerPlaceholder'
+                    : 'composer.placeholder',
             )}
             className="max-h-60 min-h-[56px] w-full resize-none bg-transparent px-1.5 py-1 text-[14px] leading-6 text-ink outline-none placeholder:text-ink-3"
           />
@@ -365,7 +368,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               inside a chat turn may do. Same listbox shape as the model chip, same
               outside-click contract, and the choice persists window-locally.
             */}
-            {mode === 'work' ? (
+            {conversational ? (
               <div ref={policyRef} className="relative shrink-0">
                 <button
                   type="button"
@@ -503,28 +506,20 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               ) : null}
             </div>
 
-            <div
-              className="flex shrink-0 items-center gap-0.5 rounded-full bg-base/70 p-[2px]"
+            <button
+              type="button"
               data-composer-effort
-              role="group"
-              aria-label={tr('composer.effort')}
+              data-effort-option={effort}
+              title={tr('composer.effort')}
+              aria-label={`${tr('composer.effort')}: ${tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}`}
+              onClick={() => {
+                const next = effort === 'max' ? 'high' : effort === 'high' ? 'low' : 'max';
+                setLocalPrefs({ effort: next });
+              }}
+              className="shrink-0 rounded-full px-2 py-[3px] text-[10.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink"
             >
-              {(['max', 'high', 'low'] as const).map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  data-effort-option={level}
-                  aria-pressed={effort === level}
-                  title={tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
-                  onClick={() => setLocalPrefs({ effort: level })}
-                  className={`rounded-full px-2 py-[3px] text-[10.5px] font-medium ${
-                    effort === level ? 'bg-elevated text-ink shadow-sm' : 'text-ink-3 hover:text-ink'
-                  }`}
-                >
-                  {tr(`composer.effort.${level}` as Parameters<typeof t>[1])}
-                </button>
-              ))}
-            </div>
+              {tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}
+            </button>
 
             {running && mode !== 'work' ? (
               <button
@@ -540,7 +535,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               <button
                 type="submit"
                 data-run
-                disabled={!value.trim() && !(mode === 'work' && pendingImages.length > 0)}
+                disabled={!value.trim() && !(conversational && pendingImages.length > 0)}
                 aria-label={tr('composer.run')}
                 title={tr('composer.run')}
                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent text-base text-white transition-colors hover:bg-accent-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-ink-2"

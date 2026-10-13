@@ -43,7 +43,7 @@ import { create, type UseBoundStore, type StoreApi } from 'zustand';
 import type { ConnectionStatus, Transport } from '../transport/types.js';
 import { normalizeModeId, type AppModeId } from '../mode/types.js';
 import type { MathDemoSnapshot } from '../modes/math/mathDemoFixture.js';
-import { defaultPanelForMode, panelsForMode, type PanelId } from '../panels.js';
+import { defaultPanelForMode, type PanelId } from '../panels.js';
 import {
   RAIL_LEFT_DEFAULT,
   applySavedTheme,
@@ -252,13 +252,10 @@ export function createUiStore(transport: Transport): UiStore {
     togglePanelDrawer: () =>
       set((state) => {
         if (state.panelId) return { panelId: undefined, lastPanelId: state.panelId };
-        const available = panelsForMode(state.mode);
-        const remembered =
-          state.lastPanelId && available.some((panel) => panel.id === state.lastPanelId)
-            ? state.lastPanelId
-            : undefined;
-        const next = remembered ?? defaultPanelForMode(state.mode);
-        return next ? { panelId: next, lastPanelId: next } : { panelId: undefined };
+        // The drawer is an artifacts shelf. Reopening always lands on 产物;
+        // run / memory / context stay a secondary menu inside the open drawer.
+        const home = defaultPanelForMode(state.mode);
+        return home ? { panelId: home, lastPanelId: home } : { panelId: undefined };
       }),
     setMode: (mode) => set({ mode: normalizeModeId(mode) }),
     setMathDemo: (mathDemo) => set({ mathDemo }),
@@ -433,10 +430,11 @@ export function createUiStore(transport: Transport): UiStore {
         // user's chosen default on every fresh start.
         store.setState((state) => {
           const nextId = payload.session?.id ?? payload.sessions[0]?.id;
-          // Switching sessions must drop the previous projection — otherwise a
-          // blank 「新建」 row keeps showing the last task and the centred empty
-          // state never appears.
-          const switched = nextId !== undefined && nextId !== state.activeSessionId;
+          // Compare the projected session, not activeSessionId. 「新建」 sets
+          // activeSessionId before the SSE bootstrap arrives, so a check against
+          // activeSessionId keeps the previous chat under the new title.
+          const projectedId = state.snapshot.session?.id;
+          const switched = nextId !== undefined && nextId !== projectedId;
           const base = switched ? initialSnapshot() : state.snapshot;
                     let sessions = payload.sessions ?? [];
           if (payload.session && !sessions.some((row) => row.id === payload.session!.id)) {

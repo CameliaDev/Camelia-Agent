@@ -212,7 +212,6 @@ type StringKey =
   | 'step.pass'
   | 'step.fail'
   | 'step.unknown'
-  | 'brand.placeholder'
   | 'account.defaultUser'
   | 'account.profile'
 | 'account.menu.signedOut'
@@ -286,6 +285,7 @@ type StringKey =
   | 'panels.open'
   | 'panels.toggleOpen'
   | 'panels.toggleClose'
+  | 'panels.more'
   | 'statusBar.label'
   | 'statusBar.noWorkspace'
   | 'statusBar.stepsHint'
@@ -454,7 +454,6 @@ type StringKey =
   | 'settings.topbar.alwaysOnTask.hint'
   // ---- Brand (transitional placeholder) -------------------------------------
   | 'brand.transition'
-  | 'brand.placeholder.hint'
   // ---- Right rail tabs (labelled via i18n rather than hard-coded zh) ---------
   | 'panel.memory'
   | 'panel.artifacts'
@@ -464,6 +463,7 @@ type StringKey =
   | 'panel.sub'
   | 'panel.model'
   | 'panel.artifacts.hint'
+  | 'panel.artifacts.empty'
   | 'panel.model.hint'
   | 'activity.running';
 
@@ -493,7 +493,7 @@ const en: Record<StringKey, string> = {
   'extensions.empty': 'No plugins installed.',
   'extensions.empty.hint': 'On startup the engine reads directories under ~/.camelia/plugins that contain camelia.plugin.json. In-app install is not wired yet.',
   'extensions.installStub': 'How to install',
-  'extensions.installBody': 'Create one folder per plugin under ~/.camelia/plugins and add camelia.plugin.json. There is no in-app download or enable switch — the engine loads plugins only when the process starts. A marketplace and signed packages are not part of this build.',
+  'extensions.installBody': 'Create one folder per plugin under ~/.camelia/plugins and add camelia.plugin.json, then restart. There is no in-app download or enable switch — the engine loads plugins only when the process starts. The repo sample plugins/quiet-activity-bar is a theme stub for the quieter activity-bar direction; copy that folder in and restart. It does not replace the icon rail, which ships in the app. A marketplace and signed packages are not part of this build.',
   'workspace.title': 'Workspace',
   'provider.title': 'Provider path',
   'provider.primary': 'primary',
@@ -666,7 +666,6 @@ const en: Record<StringKey, string> = {
   'step.pass': 'PASS',
   'step.fail': 'FAIL',
   'step.unknown': 'UNKNOWN',
-  'brand.placeholder': 'Name & mascot TBD',
   'account.defaultUser': 'Local user',
   // The rail's account mark. Not "account & settings": that entry was split in two.
   'account.profile': 'Account',
@@ -712,6 +711,7 @@ const en: Record<StringKey, string> = {
   'panels.open': 'Open run panel',
   'panels.toggleOpen': 'Open side panel',
   'panels.toggleClose': 'Close side panel',
+  'panels.more': 'More',
   'statusBar.label': 'Status',
   'statusBar.noWorkspace': 'No workspace',
   'statusBar.stepsHint': '{done} of {total} steps done',
@@ -901,7 +901,6 @@ const en: Record<StringKey, string> = {
   'settings.topbar.alwaysOnTask': 'Keep the top bar visible while a task runs',
   'settings.topbar.alwaysOnTask.hint': 'The top bar carries the progress rail, so it stays put while work is in flight even if you set it to auto-hide.',
   'brand.transition': 'Camelia',
-  'brand.placeholder.hint': 'Final name and mascot pending product decision.',
   'panel.memory': 'Memory',
   'panel.artifacts': 'Artifacts',
   'panel.events': 'Events',
@@ -910,6 +909,7 @@ const en: Record<StringKey, string> = {
   'panel.sub': 'Sub-agents',
   'panel.model': 'Model',
   'panel.artifacts.hint': 'Deliverables from the current run — files, diffs, stdout.',
+  'panel.artifacts.empty': 'No artifacts yet.',
   'panel.model.hint': 'Read-only model view. Editing lives in the math workspace.',
   'activity.running': 'Running',
 };
@@ -941,7 +941,7 @@ const zh: Record<StringKey, string> = {
   'extensions.empty': '还没有插件。',
   'extensions.empty.hint': '引擎启动时会读取 ~/.camelia/plugins 下带 camelia.plugin.json 的目录。应用内安装尚未接通。',
   'extensions.installStub': '如何安装',
-  'extensions.installBody': '在 ~/.camelia/plugins 下为每个插件建一个目录，放入 camelia.plugin.json。当前没有应用内下载或启用开关，引擎只在进程启动时加载。签名与插件市场尚未接入。',
+  'extensions.installBody': '在 ~/.camelia/plugins 下为每个插件建一个目录，放入 camelia.plugin.json，然后重新启动。当前没有应用内下载或启用开关，引擎只在进程启动时加载。仓库里的 plugins/quiet-activity-bar 是更安静活动栏方向的主题示例：复制该文件夹后重启。它不代替应用内的窄图标栏。签名与插件市场尚未接入。',
   'workspace.title': '工作区',
   'provider.title': '模型链路',
   'provider.primary': '主',
@@ -1114,7 +1114,6 @@ const zh: Record<StringKey, string> = {
   'step.pass': '通过',
   'step.fail': '失败',
   'step.unknown': '未知',
-  'brand.placeholder': '待定：名字 / 吉祥物',
   'account.defaultUser': '本地用户',
   'account.profile': '账户',
   'account.menu.signedOut': '未登录',
@@ -1159,6 +1158,7 @@ const zh: Record<StringKey, string> = {
   'panels.open': '打开运行面板',
   'panels.toggleOpen': '打开侧栏',
   'panels.toggleClose': '关闭侧栏',
+  'panels.more': '更多',
   'statusBar.label': '状态栏',
   'statusBar.noWorkspace': '未设置工作区',
   'statusBar.stepsHint': '{total} 步中已完成 {done} 步',
@@ -1348,7 +1348,6 @@ const zh: Record<StringKey, string> = {
   'settings.topbar.alwaysOnTask': '任务运行期间保持顶栏常显',
   'settings.topbar.alwaysOnTask.hint': '顶栏承载进度条，因此即使设为自动隐藏，任务运行期间也会保持常显。',
   'brand.transition': 'Camelia',
-  'brand.placeholder.hint': '最终名称与吉祥物待产品决策。',
   'panel.memory': '记忆',
   'panel.artifacts': '产物',
   'panel.events': '事件',
@@ -1357,6 +1356,7 @@ const zh: Record<StringKey, string> = {
   'panel.sub': '子代理',
   'panel.model': '模型',
   'panel.artifacts.hint': '当前运行的产物 — 文件、diff、stdout。',
+  'panel.artifacts.empty': '还没有产物。',
   'panel.model.hint': '模型只读视图。编辑在主工作区进行。',
   'activity.running': '运行中',
 };

@@ -25,7 +25,7 @@ export function ModeTabs({
 
   return (
     <div
-      className="inline-flex shrink-0 items-center rounded-lg border border-line bg-elevated/60 p-[2px]"
+      className="inline-flex shrink-0 items-center gap-0.5"
       role="tablist"
       aria-label={tr('mode.work')}
       data-mode-tabs
@@ -42,8 +42,8 @@ export function ModeTabs({
             aria-selected={active}
             title={tr(def.descriptionKey as Parameters<typeof t>[1])}
             onClick={() => onSelect(def.id)}
-            className={`rounded-md px-2.5 py-[3px] text-[11.5px] font-medium transition-colors ${
-              active ? 'bg-accent/15 text-accent shadow-sm' : 'text-ink-2 hover:text-ink'
+            className={`rounded-md px-2 py-[3px] text-[11.5px] transition-colors ${
+              active ? 'bg-hover font-medium text-ink' : 'text-ink-3 hover:text-ink'
             }`}
           >
             {tr(def.labelKey as Parameters<typeof t>[1])}

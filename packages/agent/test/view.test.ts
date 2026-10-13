@@ -809,10 +809,18 @@ describe('toSessionView (Iteration 24)', () => {
       workspace: 'C:/ws',
       provider: 'ollama',
       model: 'qwen2.5-coder:7b',
+      kind: 'work',
       createdAt: 0,
       updatedAt: 0,
     });
-    expect(view).toEqual({ id: 'sess-1', title: 't', workspace: 'C:/ws', provider: 'ollama', model: 'qwen2.5-coder:7b' });
+    expect(view).toEqual({
+      id: 'sess-1',
+      title: 't',
+      workspace: 'C:/ws',
+      provider: 'ollama',
+      model: 'qwen2.5-coder:7b',
+      kind: 'work',
+    });
   });
 });
 

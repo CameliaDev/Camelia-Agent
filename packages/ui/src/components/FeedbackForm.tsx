@@ -9,6 +9,7 @@ import { t } from '../i18n/strings.js';
 import { useMode } from '../mode/useMode.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { openExternalUrl } from '../window/github-auth.js';
+import { productVersion } from '../transport/boot.js';
 import { DEFAULT_FEEDBACK_REPO, submitFeedback, type FeedbackType } from '../window/feedback.js';
 
 export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): ReactNode {
@@ -39,7 +40,7 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
         title,
         body,
         repro,
-        appVersion: '0.1.0',
+        appVersion: productVersion(),
         mode,
         os: typeof navigator !== 'undefined' ? navigator.platform || navigator.userAgent : 'unknown',
       });
@@ -62,19 +63,19 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
     }
   }
 
+  const field = 'mt-1 w-full rounded-md border border-line/80 bg-base px-2 py-1.5 text-[12.5px] text-ink outline-none focus:border-ink-3/40';
+
   return (
-    <div className="space-y-3" data-feedback-form>
-      <p className="text-[11.5px] text-ink-3">
-        {tr('feedback.repo')}: <span className="font-mono">{DEFAULT_FEEDBACK_REPO}</span>
-      </p>
-      <div className="flex gap-1.5">
+    <div className="mx-auto max-w-lg space-y-3" data-feedback-form>
+      <div className="flex gap-1" role="group" aria-label={tr('feedback.type')}>
         {(['bug', 'idea'] as const).map((id) => (
           <button
             key={id}
             type="button"
             data-feedback-type={id}
-            className={`rounded-full border px-2.5 py-1 text-[11.5px] ${
-              type === id ? 'border-accent/50 bg-accent/10 text-accent' : 'border-line text-ink-2'
+            aria-pressed={type === id}
+            className={`rounded-md px-2.5 py-1 text-[12px] ${
+              type === id ? 'bg-hover font-medium text-ink' : 'text-ink-3 hover:text-ink'
             }`}
             onClick={() => setType(id)}
           >
@@ -82,46 +83,51 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
           </button>
         ))}
       </div>
-      <label className="block text-[12px] text-ink-2">
+      <label className="block text-[11px] font-medium text-ink-2">
         {tr('feedback.title')}
         <input
-          className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 text-[12px] text-ink"
+          className={field}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           data-feedback-title
         />
       </label>
-      <label className="block text-[12px] text-ink-2">
+      <label className="block text-[11px] font-medium text-ink-2">
         {tr('feedback.body')}
         <textarea
           rows={4}
-          className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 text-[12px] text-ink"
+          className={field}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           data-feedback-body
         />
       </label>
-      <label className="block text-[12px] text-ink-2">
+      <label className="block text-[11px] text-ink-3">
         {tr('feedback.repro')}
         <textarea
           rows={2}
-          className="mt-1 w-full rounded-md border border-line bg-elevated px-2 py-1.5 text-[12px] text-ink"
+          className={field}
           value={repro}
           onChange={(e) => setRepro(e.target.value)}
           data-feedback-repro
         />
       </label>
-      <button
-        type="button"
-        disabled={busy || !title.trim() || !body.trim()}
-        data-feedback-submit
-        className="rounded-md border border-accent/40 bg-accent/10 px-3 py-1.5 text-[12px] text-accent hover:bg-accent/15 disabled:opacity-40"
-        onClick={() => {
-          void submit();
-        }}
-      >
-        {tr('feedback.submit')}
-      </button>
+      <div className="flex items-center gap-3 pt-1">
+        <button
+          type="button"
+          disabled={busy || !title.trim() || !body.trim()}
+          data-feedback-submit
+          className="rounded-md bg-accent px-3.5 py-1.5 text-[12.5px] font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => {
+            void submit();
+          }}
+        >
+          {tr('feedback.submit')}
+        </button>
+        <p className="min-w-0 truncate text-[11px] text-ink-3">
+          {tr('feedback.repo')} <span className="font-mono">{DEFAULT_FEEDBACK_REPO}</span>
+        </p>
+      </div>
       {note ? <p className="text-[11.5px] text-ink-2" data-feedback-note>{note}</p> : null}
       {issueUrl ? (
         <button

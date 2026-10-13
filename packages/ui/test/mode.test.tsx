@@ -238,35 +238,21 @@ describe('math workspace', () => {
     expect(container.querySelector('[data-math-current="true"]')?.getAttribute('data-math-stage')).toBe('modeling');
   });
 
-  it('offers the model panel as read-only, and only in math mode', () => {
+  it('keeps math outputs in the artifacts drawer, not a separate model room', () => {
     const { container } = renderScene('empty');
-    // Chat and plan: no model icon at all. `mathOnly` is the rule — a read-only model
-    // readout in the other two modes would be a second place showing the same numbers the
-    // composer already shows in its own chip.
-    for (const mode of ['work'] as const) {
-      act(() => {
-        fireEvent.click(modeTab(container, mode));
-      });
-      if (!container.querySelector('[data-panel-deck]')) {
-        fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
-      }
-      expect(container.querySelector('[data-panel-tab="model"]')).toBeNull();
-      fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
-    }
-
     act(() => {
       fireEvent.click(modeTab(container, 'math'));
     });
-    fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
-    const tab = container.querySelector('[data-panel-tab="model"]') as HTMLElement;
-    expect(tab, 'math mode gets the model tab inside the drawer').not.toBeNull();
-    expect(tab.closest('[data-mode-header]'), 'the tab is not a header icon').toBeNull();
     act(() => {
-      fireEvent.click(tab);
+      fireEvent.click(container.querySelector('[data-math-demo-load]') as HTMLElement);
     });
-    const deck = container.querySelector('[data-panel-deck="model"]');
+    const deck = container.querySelector('[data-panel-deck="artifacts"]');
     expect(deck).not.toBeNull();
-    // Read-only: no inputs anywhere in the body. Editing lives in the math workspace.
+    expect(deck!.querySelector('[data-math-panel="assumptions"]')).not.toBeNull();
+    expect(deck!.querySelector('[data-math-panel="solver"]')).not.toBeNull();
+    expect(deck!.querySelector('[data-math-panel="results"]')).not.toBeNull();
+    expect(container.querySelector('[data-math-workspace] [data-math-panel]')).toBeNull();
+    expect(container.querySelector('[data-panel-tab="model"]')).toBeNull();
     expect(deck!.querySelectorAll('input, textarea, select')).toHaveLength(0);
   });
 });
@@ -288,11 +274,8 @@ describe('run controls are reachable from every mode', () => {
       // Exactly one dock, and the header is not where it lives — that strip keeps only
       // the session title and the panel icons.
       expect(container.querySelectorAll('[data-run-dock]')).toHaveLength(1);
-      const header = container.querySelector(`[data-mode-shell="${mode}"] [data-mode-header]`);
-      expect(header).not.toBeNull();
-      expect(header!.querySelector('[data-run-dock]')).toBeNull();
-      expect(header!.querySelector('[data-run-controls]')).toBeNull();
-      expect(header!.querySelector('[data-plan-lifecycle]')).toBeNull();
+      expect(container.querySelector(`[data-mode-shell="${mode}"] [data-mode-header]`)).toBeNull();
+      expect(container.querySelector('[data-topbar-title]')?.textContent).toContain('Add --json output');
 
       // Stepper centred, controls right: both inside the dock, stepper before the group.
       const dock = container.querySelector('[data-run-dock]')!;
@@ -311,8 +294,6 @@ describe('run controls are reachable from every mode', () => {
       const composer = container.querySelector('[data-composer]')!;
       expect(composer.contains(dock)).toBe(false);
 
-      // The header centres the session's project name, not the run's own text.
-      expect(header!.querySelector('[data-session-title]')).not.toBeNull();
       unmount();
     }
   });
