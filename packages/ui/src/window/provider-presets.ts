@@ -18,6 +18,7 @@ export interface ProviderPresetRecord {
   baseUrl: string;
   models: string[];
   defaultModel?: string;
+  modelCapabilities?: Record<string, { contextWindow?: number; supportsVision?: boolean; supportsTools?: boolean; supportsJson?: boolean; label?: string }>;
 }
 
 export interface ConnectionPresetCard {
@@ -34,7 +35,7 @@ export interface ConnectionPresetCard {
 }
 
 export const PRESET_TEMPLATES: PresetTemplate[] = [
-  { id: 'aliyun', label: '阿里云兼容', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-plus', 'qwen-turbo', 'qwen-max'] },
+  { id: 'aliyun', label: '阿里云兼容', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen-vl-plus', 'qwen-vl-max'] },
   { id: 'openrouter', label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', models: ['deepseek/deepseek-chat-v3.1:free', 'qwen/qwen3-coder:free'] },
   { id: 'opencode-zen', label: 'Zen', baseUrl: 'https://opencode.ai/zen/v1', models: ['claude-3-5-haiku', 'qwen2.5-coder-32b'] },
   { id: 'ollama', label: 'Ollama', baseUrl: 'http://127.0.0.1:11434/v1', models: ['qwen2.5-coder:7b', 'llama3.2:3b'] },

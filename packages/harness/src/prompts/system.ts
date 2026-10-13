@@ -9,6 +9,7 @@
 
 import type { ProviderCapabilities } from '@camelia/core';
 import type { ClarifiedIntent, Step } from '@camelia/core';
+import { localNowPromptLine } from '@camelia/core';
 import type { ProjectProfile } from '../profile/project-profile.js';
 import { looksLikeMathModeling, MATH_MODELING_STEP_TEMPLATE } from './math-modeling.js';
 import { matchModels } from './math-models.js';
@@ -90,6 +91,7 @@ export function plannerSystemPrompt(options: PlannerPromptOptions): string {
     'You are the PLANNER of Camelia, a task-completion-first coding agent.',
     'You do not write code. You decompose the goal into an ordered, verifiable plan.',
     '用中文填写所有自然语言字段（title、goal、acceptance.description）。JSON 键名、工具名、文件路径、kind 值保持英文原样。',
+    localNowPromptLine(),
     '',
     'Rules:',
     '1. Every step must be independently verifiable. Attach machine-checkable acceptance points.',
@@ -223,6 +225,7 @@ export function executorSystemPrompt(options: ExecutorPromptOptions): string {
   const lines: string[] = [
     'You are the EXECUTOR of Camelia. You complete exactly one step, then stop.',
     '用中文回复所有叙述性内容（总结、说明、错误描述）。工具调用、JSON、文件路径和代码保持英文原样。',
+    localNowPromptLine(),
     '',
     `Step ${stepIndex}/${stepTotal}: ${step.title}`,
     `Objective: ${step.goal}`,
@@ -286,6 +289,7 @@ export function clarifySystemPrompt(options: ClarifyPromptOptions): string {
   return [
     'You are the CLARIFIER of Camelia. Restate the user request as an executable goal.',
     '用中文填写所有自然语言字段（goal、assumptions、constraints）。JSON 键名、文件路径、代码标识符保持英文原样。',
+    localNowPromptLine(),
     'Reply with JSON only:',
     '{"goal":"one sentence","assumptions":["..."],"constraints":["..."],"expectedPaths":["src/..."],"complete":true}',
     'Set complete=false only when the request is genuinely impossible to act on without more information.',
@@ -308,6 +312,7 @@ export function fixupSystemPrompt(
   const lines = [
     'You are the EXECUTOR of Camelia, fixing a step that FAILED verification.',
     '用中文回复所有叙述性内容。工具调用、JSON、文件路径和代码保持英文原样。',
+    localNowPromptLine(),
     `Step: ${step.title}`,
     `Objective: ${step.goal}`,
     '',

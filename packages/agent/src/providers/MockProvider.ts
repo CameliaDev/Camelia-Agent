@@ -89,6 +89,7 @@ export class MockProvider implements LLMPort {
       contextWindow: this.capabilitiesValue.maxContextWindow,
       supportsTools: this.capabilitiesValue.supportsTools,
       supportsJson: this.capabilitiesValue.supportsJson,
+      supportsVision: this.capabilitiesValue.supportsVision === true,
     }));
   }
 

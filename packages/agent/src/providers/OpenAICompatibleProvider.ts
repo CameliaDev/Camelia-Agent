@@ -13,9 +13,11 @@ import type {
   ChatRequest,
   LLMPort,
   LLMToolCall,
+  ModelCapabilitySpec,
   ModelInfo,
   ProviderCapabilities,
 } from '@camelia/core';
+import { resolveModelInfo } from '@camelia/core';
 
 export interface OpenAICompatibleConfig {
   /** Stable provider id, e.g. `openrouter`. */
@@ -29,6 +31,8 @@ export interface OpenAICompatibleConfig {
   /** Default model when the request does not pin one. */
   defaultModel?: string;
   capabilities?: Partial<ProviderCapabilities>;
+  /** Per-model capability overrides from config. */
+  modelCapabilities?: Record<string, ModelCapabilitySpec>;
   /** Extra headers (e.g. OpenRouter's `HTTP-Referer`). */
   headers?: Record<string, string>;
   /** Request timeout in ms. */
@@ -80,14 +84,14 @@ export class OpenAICompatibleProvider implements LLMPort {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    return this.config.models.map((model) => ({
-      id: model,
-      providerId: this.config.id,
-      label: model,
-      contextWindow: this.capabilitiesValue.maxContextWindow,
-      supportsTools: this.capabilitiesValue.supportsTools,
-      supportsJson: this.capabilitiesValue.supportsJson,
-    }));
+    return this.config.models.map((model) =>
+      resolveModelInfo({
+        id: model,
+        providerId: this.config.id,
+        providerCaps: this.capabilitiesValue,
+        override: this.config.modelCapabilities?.[model],
+      }),
+    );
   }
 
   async *chat(request: ChatRequest, signal?: AbortSignal): AsyncIterable<ChatChunk> {

@@ -28,6 +28,25 @@ import {
 } from '../window/provider-presets.js';
 import { providerAvatarSrc } from '../lib/provider-avatars.js';
 
+/** Infer persisted model caps so Term/composer pickers show vision + context without a second probe. */
+function buildModelCapabilities(models: string[]): Record<string, { supportsVision?: boolean; contextWindow?: number }> {
+  const out: Record<string, { supportsVision?: boolean; contextWindow?: number }> = {};
+  for (const id of models) {
+    const lower = id.toLowerCase();
+    const vision = /vision|-vl|vl-|gpt-4o|gpt-4\.1|llava|qwen-vl|qwen2\.5-vl|qwen2-vl|gemini-|claude-3|claude-4|minicpm-v|internvl/.test(lower);
+    const ctx = /qwen-long|gemini-1\.5-pro/.test(lower)
+      ? 1_000_000
+      : /claude/.test(lower)
+        ? 200_000
+        : /qwen/.test(lower)
+          ? 131_072
+          : 128_000;
+    out[id] = { ...(vision ? { supportsVision: true } : {}), contextWindow: ctx };
+  }
+  return out;
+}
+
+
 type Tr = (key: Parameters<typeof t>[1]) => string;
 
 export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
@@ -189,6 +208,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         label: name.trim(),
         baseUrl: baseUrl.trim() || (localProvider ? 'http://127.0.0.1:11434/v1' : ''),
         models,
+        modelCapabilities: buildModelCapabilities(models),
         defaultModel: model.trim(),
         activate,
         model: model.trim(),
@@ -217,6 +237,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         label: card.name,
         baseUrl: card.baseUrl || templateFor(card.id).baseUrl,
         models: card.model ? [card.model] : templateFor(card.id).models,
+        modelCapabilities: buildModelCapabilities(card.model ? [card.model] : templateFor(card.id).models),
         defaultModel: card.model || suggestionFor(card.id),
         activate: true,
         model: card.model || suggestionFor(card.id),

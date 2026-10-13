@@ -99,6 +99,8 @@ type StringKey =
   | 'composer.modelSettings'
   | 'composer.switchModel'
   | 'composer.singleModel'
+  | 'composer.modelVision'
+  | 'composer.modelContext'
   | 'welcome.title'
   | 'welcome.body'
   | 'step.pending'
@@ -514,6 +516,8 @@ const en: Record<StringKey, string> = {
   'composer.modelSettings': 'Active model — open settings',
   'composer.switchModel': 'Switch model',
   'composer.singleModel': 'This provider advertises one model — open settings to add more',
+  'composer.modelVision': 'Vision — accepts images',
+  'composer.modelContext': 'Context window',
   'welcome.title': 'No task yet',
   'welcome.body': 'Describe what you want built, fixed or investigated. Camelia plans it, executes it step by step, verifies every acceptance point and shows you the whole run.',
   'step.pending': 'Pending',
@@ -922,6 +926,8 @@ const zh: Record<StringKey, string> = {
   'composer.shiftEnter': 'Shift+回车换行',
   'composer.modelSettings': '当前模型——打开设置',
   'composer.switchModel': '切换模型',
+  'composer.modelVision': '视觉 — 可看图',
+  'composer.modelContext': '上下文窗口',
   'composer.singleModel': '该服务商只对外提供一个模型——可在设置里添加更多',
   'welcome.title': '暂无任务',
   'welcome.body': '描述你想构建、修复或调查的内容。Camelia 会规划、逐步执行、校验每个验收点，并向你展示完整运行过程。',

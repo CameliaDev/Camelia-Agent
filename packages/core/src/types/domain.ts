@@ -334,6 +334,8 @@ export interface ModelInfo {
   contextWindow: number;
   supportsTools: boolean;
   supportsJson: boolean;
+  /** True when the model accepts image / multimodal parts. */
+  supportsVision: boolean;
 }
 
 /** Capability profile of a provider — drives granularity + fallback decisions. */
@@ -353,6 +355,8 @@ export interface ProviderCapabilities {
   supportsJson: boolean;
   supportsStreaming: boolean;
   maxContextWindow: number;
+  /** True when models on this provider generally accept images. Overridable per model. */
+  supportsVision?: boolean;
   /** 0..1 heuristic quality score used by ModelRouter. */
   quality: number;
 }

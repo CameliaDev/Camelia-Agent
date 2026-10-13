@@ -33,7 +33,7 @@ import type {
   VerdictStatus,
 } from '@camelia/core';
 
-import type { ProviderStatus } from './wire.js';
+import type { ProviderModelDetail, ProviderStatus } from './wire.js';
 
 /** Bounded so a pathological event storm cannot grow the browser snapshot forever. */
 const MAX_TIMELINE = 400;
@@ -199,6 +199,8 @@ export interface ProviderView {
    * can tell "no choice to offer" from "not yet known".
    */
   models?: string[];
+  /** Rich caps aligned with `models` (vision, context window). */
+  modelDetails?: ProviderModelDetail[];
   /**
    * Which provider the `models` list belongs to.
    *
@@ -440,6 +442,7 @@ export function withProviderStatus(
       // Tagged with the provider they came from, so a later re-route cannot silently
       // present them under another provider's name.
       ...(status.models?.length ? { models: status.models, modelsFor: status.id } : {}),
+      ...(status.modelDetails?.length ? { modelDetails: status.modelDetails } : {}),
       // A known-connected engine that has no session yet should still name its provider;
       // one already set by a run's events wins (it reflects the routing actually taken).
       ...(connected && !snapshot.provider.activeProvider

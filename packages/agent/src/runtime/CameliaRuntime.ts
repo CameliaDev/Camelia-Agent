@@ -1018,13 +1018,21 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
   }
 
   /** The provider chain, in fallback order. */
-  providerChain(): { id: string; label: string; model: string; models: string[]; active: boolean }[] {
+  providerChain(): {
+    id: string;
+    label: string;
+    model: string;
+    models: string[];
+    modelDetails?: import('../view/wire.js').ProviderModelDetail[];
+    active: boolean;
+  }[] {
     const activeId = this.fallback.active.id;
     return this.handles.map((handle) => ({
       id: handle.id,
       label: handle.label,
       model: handle.model,
       models: handle.models,
+      ...(handle.modelDetails?.length ? { modelDetails: handle.modelDetails } : {}),
       active: handle.id === activeId,
     }));
   }
@@ -1159,6 +1167,14 @@ async function buildPluginProviderHandles(
         label: plugin.manifest.name,
         model: models[0]?.id ?? '',
         models: models.map((model) => model.id),
+        modelDetails: models.map((model) => ({
+          id: model.id,
+          label: model.label,
+          contextWindow: model.contextWindow,
+          supportsVision: model.supportsVision === true,
+          supportsTools: model.supportsTools,
+          supportsJson: model.supportsJson,
+        })),
         port,
       });
     } catch (error) {

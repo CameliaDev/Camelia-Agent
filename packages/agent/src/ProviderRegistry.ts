@@ -7,12 +7,22 @@
  * @module
  */
 
-import type { LLMPort } from '@camelia/core';
+import type { LLMPort, ProviderCapabilities } from '@camelia/core';
+import { resolveModelInfo } from '@camelia/core';
 
 import type { CameliaConfig, ProviderProfile } from './config/load.js';
 import { usableProfiles } from './config/load.js';
 import { MockProvider } from './providers/MockProvider.js';
 import { OpenAICompatibleProvider } from './providers/OpenAICompatibleProvider.js';
+
+export type HandleModelDetail = {
+  id: string;
+  label: string;
+  contextWindow: number;
+  supportsVision: boolean;
+  supportsTools: boolean;
+  supportsJson: boolean;
+};
 
 export interface ProviderHandle {
   id: string;
@@ -21,7 +31,28 @@ export interface ProviderHandle {
   model: string;
   /** Models this provider advertises, for model-aware routing. */
   models: string[];
+  /** Rich caps for the composer / Term model picker. */
+  modelDetails?: HandleModelDetail[];
   port: LLMPort;
+}
+
+function detailsFor(profile: ProviderProfile, providerCaps: ProviderCapabilities): HandleModelDetail[] {
+  return profile.models.map((id) => {
+    const info = resolveModelInfo({
+      id,
+      providerId: profile.id,
+      providerCaps,
+      override: profile.modelCapabilities?.[id],
+    });
+    return {
+      id: info.id,
+      label: info.label,
+      contextWindow: info.contextWindow,
+      supportsVision: info.supportsVision,
+      supportsTools: info.supportsTools,
+      supportsJson: info.supportsJson,
+    };
+  });
 }
 
 function build(profile: ProviderProfile): ProviderHandle {
@@ -31,7 +62,15 @@ function build(profile: ProviderProfile): ProviderHandle {
       models: profile.models,
       capabilities: profile.capabilities,
     });
-    return { id: profile.id, label: profile.label, model: profile.defaultModel ?? profile.models[0] ?? 'mock-model', models: profile.models, port };
+    const caps = port.capabilities();
+    return {
+      id: profile.id,
+      label: profile.label,
+      model: profile.defaultModel ?? profile.models[0] ?? 'mock-model',
+      models: profile.models,
+      modelDetails: detailsFor(profile, caps),
+      port,
+    };
   }
   const port = new OpenAICompatibleProvider({
     id: profile.id,
@@ -40,6 +79,7 @@ function build(profile: ProviderProfile): ProviderHandle {
     models: profile.models,
     defaultModel: profile.defaultModel,
     capabilities: profile.capabilities,
+    modelCapabilities: profile.modelCapabilities,
     headers: profile.headers,
   });
   return {
@@ -47,6 +87,7 @@ function build(profile: ProviderProfile): ProviderHandle {
     label: profile.label,
     model: profile.defaultModel ?? profile.models[0] ?? 'unknown',
     models: profile.models,
+    modelDetails: detailsFor(profile, port.capabilities()),
     port,
   };
 }

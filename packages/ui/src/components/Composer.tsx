@@ -163,6 +163,8 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
    */
   const provider = snapshot.provider.activeProvider;
   const models = snapshot.provider.models ?? [];
+  const modelDetails = snapshot.provider.modelDetails ?? [];
+  const detailById = new Map(modelDetails.map((d) => [d.id, d]));
   const activeModel = snapshot.provider.activeModel;
   const canSwitch =
     models.length > 1 && provider !== undefined && snapshot.provider.modelsFor === provider;
@@ -462,10 +464,18 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                   role="listbox"
                   data-composer-models
                   aria-label={tr('composer.switchModel')}
-                  className="absolute bottom-full left-0 z-30 mb-1 max-h-64 min-w-[240px] overflow-y-auto rounded-lg border border-line bg-elevated p-1 shadow-lg"
+                  className="absolute bottom-full left-0 z-30 mb-1 max-h-72 min-w-[280px] overflow-y-auto rounded-lg border border-line bg-elevated p-1 shadow-lg"
                 >
                   {models.map((model) => {
                     const selected = model === activeModel;
+                    const detail = detailById.get(model);
+                    const ctxLabel = detail
+                      ? detail.contextWindow >= 1_000_000
+                        ? `${Math.round(detail.contextWindow / 1_000_000)}M`
+                        : detail.contextWindow >= 1000
+                          ? `${Math.round(detail.contextWindow / 1000)}k`
+                          : String(detail.contextWindow)
+                      : null;
                     return (
                       <li key={model}>
                         <button
@@ -483,7 +493,22 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                             selected ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
                           }`}
                         >
-                          <span className="min-w-0 flex-1 truncate font-mono">{model}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-mono">{model}</span>
+                            {detail ? (
+                              <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-normal text-ink-3">
+                                {ctxLabel ? <span title={tr('composer.modelContext')}>{ctxLabel} ctx</span> : null}
+                                {detail.supportsVision ? (
+                                  <span className="rounded bg-info/15 px-1 text-info" title={tr('composer.modelVision')}>
+                                    vision
+                                  </span>
+                                ) : null}
+                                {!detail.supportsTools ? (
+                                  <span className="rounded bg-warn/15 px-1 text-warn">no-tools</span>
+                                ) : null}
+                              </span>
+                            ) : null}
+                          </span>
                           {selected ? <Icon name="check" size={11} className="shrink-0" /> : null}
                         </button>
                       </li>

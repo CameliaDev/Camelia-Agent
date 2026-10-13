@@ -813,6 +813,7 @@ fn upsert_provider_preset(
     base_url: String,
     models: Vec<String>,
     default_model: Option<String>,
+    model_capabilities: Option<serde_json::Value>,
     activate: Option<bool>,
     model: Option<String>,
     grunt_model: Option<String>,
@@ -861,6 +862,11 @@ fn upsert_provider_preset(
     );
     if let Some(ref dm) = default {
         entry.insert("defaultModel".into(), serde_json::Value::String(dm.clone()));
+    }
+    if let Some(caps) = model_capabilities {
+        if caps.is_object() {
+            entry.insert("modelCapabilities".into(), caps);
+        }
     }
 
     let mut map = read_config_object()?;

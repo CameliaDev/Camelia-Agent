@@ -37,6 +37,8 @@ export interface UpsertProviderPresetInput {
   baseUrl: string;
   models: string[];
   defaultModel?: string;
+  /** Per-model caps persisted into config.json providers[].modelCapabilities. */
+  modelCapabilities?: Record<string, { contextWindow?: number; supportsVision?: boolean; supportsTools?: boolean; supportsJson?: boolean; label?: string }>;
   /** When true, also set preferredProvider + model/gruntModel. */
   activate?: boolean;
   model?: string;
@@ -65,6 +67,10 @@ function asProviders(raw: unknown): ProviderPresetRecord[] {
     const models = Array.isArray(row.models)
       ? row.models.filter((m): m is string => typeof m === 'string' && m.trim().length > 0).map((m) => m.trim())
       : [];
+    const modelCapabilities =
+      row.modelCapabilities && typeof row.modelCapabilities === 'object' && !Array.isArray(row.modelCapabilities)
+        ? (row.modelCapabilities as ProviderPresetRecord['modelCapabilities'])
+        : undefined;
     out.push({
       id,
       label: typeof row.label === 'string' && row.label.trim() ? row.label.trim() : id,
@@ -72,6 +78,7 @@ function asProviders(raw: unknown): ProviderPresetRecord[] {
       baseUrl: typeof row.baseUrl === 'string' ? row.baseUrl.trim() : '',
       models,
       defaultModel: typeof row.defaultModel === 'string' ? row.defaultModel.trim() : undefined,
+      ...(modelCapabilities ? { modelCapabilities } : {}),
     });
   }
   return out;
@@ -140,6 +147,7 @@ export async function upsertProviderPreset(input: UpsertProviderPresetInput): Pr
     baseUrl: input.baseUrl,
     models: input.models,
     defaultModel: input.defaultModel ?? input.model ?? '',
+    modelCapabilities: input.modelCapabilities ?? null,
     activate: input.activate === true,
     model: input.model ?? '',
     gruntModel: input.gruntModel ?? '',

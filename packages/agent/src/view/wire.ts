@@ -53,8 +53,20 @@ export interface ProviderStatus {
   model?: string;
   /** Models the active provider advertises — what the composer may switch between in place. */
   models?: string[];
+  /** Rich per-model caps (vision, context window) for the picker. Same order as `models`. */
+  modelDetails?: ProviderModelDetail[];
   /** Ids of every provider along the configured fallback chain, in order. */
   chain: string[];
+}
+
+/** Compact model row the UI can render without another round-trip. */
+export interface ProviderModelDetail {
+  id: string;
+  label: string;
+  contextWindow: number;
+  supportsVision: boolean;
+  supportsTools: boolean;
+  supportsJson: boolean;
 }
 
 /** `GET /health` response body. */
@@ -101,6 +113,7 @@ export interface ProviderChainEntry {
   model: string;
   /** Every model this provider advertises — the set the UI may switch between in place. */
   models?: string[];
+  modelDetails?: ProviderModelDetail[];
   active: boolean;
 }
 
@@ -119,6 +132,7 @@ export function toProviderStatus(chain: ProviderChainEntry[], model?: string): P
     // second round-trip. Only the active provider's models: switching model must not
     // silently switch vendor, and a provider with no advertised list gets no dropdown.
     ...(active?.models?.length ? { models: active.models } : {}),
+    ...(active?.modelDetails?.length ? { modelDetails: active.modelDetails } : {}),
     chain: chain.map((entry) => entry.id),
   };
 }

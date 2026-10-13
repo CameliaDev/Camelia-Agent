@@ -36,6 +36,7 @@ import {
   type SessionStore,
   type ToolCall,
 } from '@camelia/core';
+import { localNowPromptLine } from '@camelia/core';
 import {
   ApprovalGate,
   WorkspaceJournal,
@@ -98,6 +99,7 @@ function chatSystemPrompt(policy: ChatPolicy, workspace: string, effort?: Effort
   const lines = [
     'You are Camelia in conversation mode: reply directly and concisely, like a normal chat app.',
     'No goal restatement, no plans, no task machinery, no acceptance checks — just the answer.',
+    localNowPromptLine(),
     `Workspace: ${workspace}`,
     posture,
     'You may call tools when the user asks something that needs the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',

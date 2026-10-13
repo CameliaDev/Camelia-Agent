@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 
-import type { McpConfigIssue, McpServerConfig, ProviderCapabilities } from '@camelia/core';
+import type { McpConfigIssue, McpServerConfig, ModelCapabilitySpec, ProviderCapabilities } from '@camelia/core';
 import { parseMcpConfig } from '@camelia/core';
 
 import { keyEnvVars, paths } from './paths.js';
@@ -25,6 +25,8 @@ export interface ProviderProfile {
   models: string[];
   defaultModel?: string;
   capabilities?: Partial<ProviderCapabilities>;
+  /** Per-model overrides (vision, context window, …). Keys are model ids. */
+  modelCapabilities?: Record<string, ModelCapabilitySpec>;
   headers?: Record<string, string>;
 }
 
@@ -165,6 +167,10 @@ export function loadConfig(options: LoadConfigOptions = {}): CameliaConfig {
       baseUrl: fromFile?.baseUrl ?? profile.baseUrl,
       models: fromFile?.models ?? profile.models,
       defaultModel: fromFile?.defaultModel ?? profile.defaultModel,
+      modelCapabilities: {
+        ...(profile.modelCapabilities ?? {}),
+        ...(fromFile?.modelCapabilities ?? {}),
+      },
       apiKey: fromKeys ?? fromEnv ?? fromFile?.apiKey,
     } satisfies ProviderProfile;
   });
@@ -183,6 +189,7 @@ export function loadConfig(options: LoadConfigOptions = {}): CameliaConfig {
         models: extra.models ?? [],
         defaultModel: extra.defaultModel,
         capabilities: extra.capabilities,
+        modelCapabilities: extra.modelCapabilities ?? {},
         headers: extra.headers,
         apiKey: fromKeys ?? extra.apiKey,
       } satisfies ProviderProfile);
