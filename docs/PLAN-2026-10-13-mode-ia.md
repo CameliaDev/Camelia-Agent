@@ -234,7 +234,7 @@ TopBar: [品牌] [Work | Math] ………… [Live]
 | `82ede96` | feat(core/agent/cli): 对话模式 ChatLoop + Engine 命令 |
 | `54831b5` | feat(ui): ChatTranscript / ModeHeader / PanelDeck / RunDock / IconRail 等 |
 | `3d5e630` | feat(desktop): 图标与 mascot + README/CODE-SUMMARY |
-| （本提交） | docs: PLAN-2026-10-13-mode-ia.md |
+| `330ff12` | docs: PLAN-2026-10-13-mode-ia.md |
 
 ## 8. 附录：库存原文要点索引
 
@@ -242,4 +242,5 @@ TopBar: [品牌] [Work | Math] ………… [Live]
 - P0-1：`Conversation` 零引用；`app.test.tsx` 22 红；临时「点 plan tab」无效（PlanReview ≠ Conversation）。  
 - F3/F4/F6：用户已定向（见决策表）。  
 - c12 临时脚本：Phase 0 删除；根目录 ChatLoop 副本若存在不入库（以 `packages/` 为准）。
+
 
