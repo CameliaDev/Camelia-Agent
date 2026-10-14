@@ -283,6 +283,8 @@ type StringKey =
   | 'settings.presets.testFail'
   | 'settings.presets.modelsFound'
   | 'settings.presets.manualModels'
+  | 'settings.presets.testMissingKey'
+  | 'settings.presets.testInvalidKey'
   | 'connection.reconnect'
   | 'connection.liveHint'
   | 'connection.offlineHonest'
@@ -765,6 +767,8 @@ const en: Record<StringKey, string> = {
   'settings.presets.testFail': 'Connection failed',
   'settings.presets.modelsFound': 'models found',
   'settings.presets.manualModels': 'Could not list models — enter model IDs manually',
+  'settings.presets.testMissingKey': 'No API key was sent. A saved key is used automatically; paste one if none is saved.',
+  'settings.presets.testInvalidKey': 'The key was rejected. Check that it is valid and was created for this region (a Beijing key belongs with dashscope.aliyuncs.com). You can still type model IDs by hand.',
   'connection.reconnect': 'Reconnect',
   'connection.liveHint': 'Engine stream is live',
   'connection.offlineHonest': 'Offline — not pretending to be live',
@@ -1265,6 +1269,8 @@ const zh: Record<StringKey, string> = {
   'settings.presets.testFail': '连通失败',
   'settings.presets.modelsFound': '个模型',
   'settings.presets.manualModels': '无法拉取模型列表 — 请手动填写模型 ID',
+  'settings.presets.testMissingKey': '没有带上密钥。已保存的密钥会自动用于测试；如果还没有，请先粘贴。',
+  'settings.presets.testInvalidKey': '密钥被拒绝。请核对密钥是否有效，以及是否和这个地域的地址匹配（北京密钥对应 dashscope.aliyuncs.com）。仍可手动填写模型 ID。',
   'connection.reconnect': '重新连接',
   'connection.liveHint': '引擎事件流在线',
   'connection.offlineHonest': '离线 — 不会假装在线',

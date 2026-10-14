@@ -185,10 +185,17 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
       const result = await testOpenAiCompatible({
         baseUrl: baseUrl.trim() || (localProvider ? 'http://127.0.0.1:11434/v1' : ''),
         apiKey: apiKey.trim() || undefined,
+        providerId: (editingId || presetId).trim() || undefined,
       });
       if (!result.ok) {
         setDiscoveredModels([]);
-        setNote(tr('settings.presets.testFail') + ': ' + result.error + ' — ' + tr('settings.presets.manualModels'));
+        const detail =
+          result.error === 'missing-key'
+            ? tr('settings.presets.testMissingKey')
+            : result.error === 'invalid-key'
+              ? tr('settings.presets.testInvalidKey')
+              : result.error + ' — ' + tr('settings.presets.manualModels');
+        setNote(tr('settings.presets.testFail') + ': ' + detail);
         return;
       }
       setDiscoveredModels(result.models);
@@ -550,7 +557,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
               {tr('settings.close')}
             </button>
           </div>
-          {note ? <p className="text-[12px] text-ink-2">{note}</p> : null}
+          {note ? <p className="text-[12px] text-ink-2" data-preset-note>{note}</p> : null}
         </div>
       )}
 

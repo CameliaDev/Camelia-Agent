@@ -206,12 +206,83 @@ export async function relaunchDesktop(): Promise<string | null> {
 }
 
 /**
- * Probe an OpenAI-compatible endpoint: GET {base}/models (or /v1/models) with Bearer.
- * Returns discovered model ids, or an error so the UI can fall back to manual entry.
+ * A stored key, never the on-screen hint. Empty when this shell has no keys file.
+ */
+export async function readSavedProviderKey(providerId: string): Promise<string> {
+  const id = providerId.trim();
+  if (!id) return '';
+  const pending = invoke<string>('read_provider_key', { provider: id });
+  if (!pending) return '';
+  try {
+    const value = await pending;
+    return typeof value === 'string' ? normalizeApiKey(value) : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Drop a pasted `Bearer ` prefix so the header is not `Bearer Bearer …`. */
+export function normalizeApiKey(raw: string): string {
+  return raw.trim().replace(/^bearer\s+/i, '').trim();
+}
+
+function modelIdsFromBody(body: unknown): string[] {
+  const ids: string[] = [];
+  const push = (value: unknown): void => {
+    if (typeof value !== 'string') return;
+    const id = value.trim();
+    if (id && !ids.includes(id)) ids.push(id);
+  };
+  if (!body || typeof body !== 'object') return ids;
+  const record = body as Record<string, unknown>;
+  if (Array.isArray(record.data)) {
+    for (const row of record.data) {
+      if (!row || typeof row !== 'object') continue;
+      const item = row as Record<string, unknown>;
+      push(item.id ?? item.model);
+    }
+  }
+  const output = record.output;
+  if (output && typeof output === 'object') {
+    const models = (output as Record<string, unknown>).models;
+    if (Array.isArray(models)) {
+      for (const row of models) {
+        if (typeof row === 'string') {
+          push(row);
+          continue;
+        }
+        if (!row || typeof row !== 'object') continue;
+        const item = row as Record<string, unknown>;
+        push(item.model ?? item.id);
+      }
+    }
+  }
+  return ids;
+}
+
+/**
+ * 401 with no key is "you didn't send Authorization".
+ * 401 with a key is a rejected key (wrong, expired, or a DashScope region mismatch).
+ */
+function failureCode(status: number, sentKey: boolean): string {
+  if (status === 401 || status === 403) return sentKey ? 'invalid-key' : 'missing-key';
+  return `http-${status}`;
+}
+
+/**
+ * Probe an OpenAI-compatible endpoint: GET {base}/models (or /v1/models).
+ *
+ * DashScope's compatible-mode list is that same path
+ * (`https://dashscope.aliyuncs.com/compatible-mode/v1/models`) and requires
+ * `Authorization: Bearer <key>`. An empty password field still counts: the
+ * saved `keys.json` entry for `providerId` is sent. A 401 is then a rejected
+ * key, not a missing list endpoint.
  */
 export async function testOpenAiCompatible(input: {
   baseUrl: string;
   apiKey?: string;
+  /** When the field is empty, the desktop shell reads this id from keys.json. */
+  providerId?: string;
   fetchImpl?: typeof fetch;
 }): Promise<{ ok: true; models: string[] } | { ok: false; error: string }> {
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -220,31 +291,26 @@ export async function testOpenAiCompatible(input: {
   const candidates = raw.endsWith('/v1')
     ? [`${raw}/models`]
     : [`${raw}/v1/models`, `${raw}/models`];
+  let key = normalizeApiKey(input.apiKey ?? '');
+  if (!key && input.providerId) key = await readSavedProviderKey(input.providerId);
   const headers: Record<string, string> = { Accept: 'application/json' };
-  const key = input.apiKey?.trim();
   if (key) headers.Authorization = `Bearer ${key}`;
   let lastError = 'unreachable';
+  let authError: string | null = null;
   for (const url of candidates) {
     try {
       const res = await fetchImpl(url, { headers });
       if (!res.ok) {
-        lastError = `http-${res.status}`;
+        const kind = failureCode(res.status, Boolean(key));
+        if (kind === 'invalid-key' || kind === 'missing-key') authError = kind;
+        else lastError = kind;
         continue;
       }
-      const body = (await res.json()) as { data?: unknown };
-      const models: string[] = [];
-      if (Array.isArray(body.data)) {
-        for (const row of body.data) {
-          if (row && typeof row === 'object' && typeof (row as { id?: unknown }).id === 'string') {
-            const id = (row as { id: string }).id.trim();
-            if (id) models.push(id);
-          }
-        }
-      }
-      return { ok: true, models };
+      const body: unknown = await res.json();
+      return { ok: true, models: modelIdsFromBody(body) };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
     }
   }
-  return { ok: false, error: lastError };
+  return { ok: false, error: authError ?? lastError };
 }

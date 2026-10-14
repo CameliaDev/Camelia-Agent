@@ -1115,6 +1115,23 @@ fn read_key_status() -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Object(out))
 }
 
+/// Full key for a connectivity probe. The settings field stays empty once a key is saved,
+/// so the webview cannot put `Authorization` on `GET /models` unless this command supplies it.
+#[tauri::command]
+fn read_provider_key(provider: String) -> Result<String, String> {
+    let id = clean_provider_id(&provider)?;
+    if id == "ollama" {
+        return Ok(String::new());
+    }
+    let map = read_keys_object()?;
+    Ok(map
+        .get(&id)
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string())
+}
+
 #[tauri::command]
 fn write_provider_key(provider: String, api_key: String) -> Result<(), String> {
     let id = clean_provider_id(&provider)?;
@@ -1424,6 +1441,7 @@ fn main() {
             upsert_provider_preset,
             delete_provider_preset,
             read_key_status,
+            read_provider_key,
             write_provider_key,
             relaunch_app,
             download_update
