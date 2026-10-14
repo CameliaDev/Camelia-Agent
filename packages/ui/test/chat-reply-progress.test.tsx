@@ -188,6 +188,72 @@ describe('chatRunStatus', () => {
     ).toBe('replying');
   });
 
+  it('is done after tools finish even when an earlier tool round is still marked streaming', () => {
+    const finished = chat({
+      inflight: false,
+      turns: [
+        turn({ id: 'u1', role: 'user', text: '改一下 README', at: 1 }),
+        turn({
+          id: 'a1',
+          role: 'assistant',
+          text: '',
+          streaming: true,
+          toolCalls: [tool('fs.read'), tool('fs.write'), tool('test.run')],
+          at: 2,
+        }),
+        turn({ id: 'a2', role: 'assistant', text: '已在 README.md 末尾追加一行。', at: 3 }),
+      ],
+    });
+    expect(chatRunStatus(finished)).toBe('done');
+    expect(chatReplyProgressPhase(finished)).toBe('hidden');
+    expect(isChatReplyInFlight(finished)).toBe(false);
+
+    // Same shape without the run bit — the latest settled turn still wins.
+    const legacy = chat({
+      turns: finished.turns,
+    });
+    expect(chatRunStatus(legacy)).toBe('done');
+  });
+
+  it('stays thinking while the run is in flight, and replying once the latest turn has answer text', () => {
+    expect(
+      chatRunStatus(
+        chat({
+          inflight: true,
+          turns: [
+            turn({ id: 'u1', role: 'user', text: 'hi', at: 1 }),
+            turn({
+              id: 'a1',
+              role: 'assistant',
+              text: '',
+              streaming: true,
+              toolCalls: [{ ...tool('fs.read'), status: 'running' }],
+              at: 2,
+            }),
+          ],
+        }),
+      ),
+    ).toBe('thinking');
+    expect(
+      chatRunStatus(
+        chat({
+          inflight: true,
+          turns: [
+            turn({
+              id: 'a1',
+              role: 'assistant',
+              text: '',
+              streaming: true,
+              toolCalls: [tool('fs.read')],
+              at: 2,
+            }),
+            turn({ id: 'a2', role: 'assistant', text: '已追加', streaming: true, at: 3 }),
+          ],
+        }),
+      ),
+    ).toBe('replying');
+  });
+
   it('is done while an ask picker follows a finished reply, and error on a failed turn', () => {
     expect(
       chatRunStatus(
@@ -253,6 +319,10 @@ describe('ChatReplyProgress', () => {
     expect(idle.textContent).toBe('空闲');
     expect(idle.className).toContain('justify-center');
     expect(idle.style.height).toBe(`${MODE_HEADER_H}px`);
+    const idleLabel = idle.querySelector('[data-chat-status-label]') as HTMLElement;
+    expect(idleLabel.className).toContain('text-[16px]');
+    expect(idleLabel.className).toContain('font-bold');
+    expect(idleLabel.className).not.toContain('font-medium');
     expect(idle.getAttribute('role')).toBe('status');
     expect(container.querySelector('[data-progress-line]')).toBeNull();
     expect(container.querySelector('[data-progress-dot]')).toBeNull();
@@ -292,6 +362,31 @@ describe('ChatReplyProgress', () => {
     bar = container.querySelector('[data-chat-status]') as HTMLElement;
     expect(bar.getAttribute('data-status')).toBe('done');
     expect(bar.textContent).toBe('已完成');
+    expect(bar.querySelector('[data-chat-status-label]')!.className).toContain('font-bold');
+
+    setChat(store, [
+      turn({ id: 'u1', role: 'user', text: '给当前仓库加一个小改动', at: 1 }),
+      turn({
+        id: 'a1',
+        role: 'assistant',
+        text: '',
+        streaming: true,
+        toolCalls: [tool('fs.read'), tool('fs.write'), tool('test.run')],
+        at: 2,
+      }),
+      turn({ id: 'a2', role: 'assistant', text: '已在 README.md 末尾追加一行。', at: 3 }),
+    ]);
+    rerender(
+      <UiProvider store={store}>
+        <App />
+      </UiProvider>,
+    );
+    bar = container.querySelector('[data-chat-status]') as HTMLElement;
+    expect(bar.getAttribute('data-status')).toBe('done');
+    expect(bar.getAttribute('data-phase')).toBe('hidden');
+    expect(bar.textContent).toBe('已完成');
+    expect(container.querySelector('[data-progress-line]')).toBeNull();
+    expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(3);
 
     setChat(store, [
       turn({ id: 'u1', role: 'user', text: 'hi', at: 1 }),
