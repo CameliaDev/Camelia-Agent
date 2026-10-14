@@ -17,6 +17,8 @@
 
 推荐写入：`node scripts/write-desktop-json.mjs`（UTF-8 无 BOM）。下文 §0–§1 保留事故现场叙述，勿删。
 
+壳层与本地覆盖安装以 2026-10-14 的 [`SHELL-UX.md`](SHELL-UX.md) 和 [`apps/desktop/README.md`](../apps/desktop/README.md) 为准（`main` `1b36ad2`）。§4.3 里曾经写过的桌面 `Camelia-Agent-new.exe` 不要再启动，也不要再覆盖。
+
 ---
 
 ## 0. 可执行摘要（先看这里）
@@ -289,7 +291,7 @@ node packages\cli\dist\bin.js run "只用一句话回复：你好" --yes --works
 
 1. 确认 Ollama 在跑：`http://127.0.0.1:11434/api/tags` 含 `qwen2.5-coder:7b`。  
 2. 关掉所有 `camelia-desktop` 进程。  
-3. 启动 `%LOCALAPPDATA%\Camelia\camelia-desktop.exe`（或 Desktop 上的 `Camelia-Agent-new.exe`）。  
+3. 启动 `%LOCALAPPDATA%\Camelia\camelia-desktop.exe`，或 `D:\app\Camelia\camelia-desktop.exe`（桌面只通过原地更新的 `Camelia.lnk` 指向后者）。不要启动桌面上的 `Camelia-Agent-new.exe`——那是已作废的覆盖目标。  
 4. 看顶栏/连接：**Live**；打开设置 → 引擎与日志 → 确认 log 无 ABI 错误。  
 5. 在 Settings 启用 **一条** 预设（建议先 Ollama 本地，排除云网络变量）。  
 6. 输入 `hello`（或「写一个 hello.txt，内容为 hi」）。  

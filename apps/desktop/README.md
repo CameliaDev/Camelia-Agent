@@ -55,6 +55,20 @@ pnpm --filter @camelia/desktop desktop:check    # cargo check
 
 > `custom-protocol` 特性决定 webview 加载内嵌产物还是 `devUrl`。`desktop:build` 会打开它；用裸 `cargo build --release` 而不带该特性，会得到一个连不上 devUrl 的白屏窗口。
 
+## 本地覆盖（免安装 exe）
+
+`desktop:build` 在 **Node 22** 下执行（与根 README 的 ABI 127 相同，不要在 Node 24 下重编 `better-sqlite3`）。产物是 `src-tauri/target/release/camelia-desktop.exe`。
+
+要替换本机正在用的程序时，覆盖下面这些位置。`D:\app\Camelia` 不存在就先建目录。
+
+| 目标 | 做法 |
+| --- | --- |
+| `D:\app\Camelia\camelia-desktop.exe` | 直接覆盖 |
+| `%LOCALAPPDATA%\Camelia\camelia-desktop.exe` | 直接覆盖 |
+| 桌面启动器 | 只保留一个 `Camelia.lnk`，原地更新。目标 `D:\app\Camelia\camelia-desktop.exe`，`WorkingDirectory` 为 `D:\app\Camelia` |
+
+不要在桌面新增 `Camelia-Agent-new.exe`，也不要再放一份 `Camelia.exe`。界面行为以 [`docs/SHELL-UX.md`](../../docs/SHELL-UX.md) 为准。
+
 ## 打包（NSIS）
 
 `desktop:bundle` 先构建 `packages/ui/dist`，再用 `cargo tauri build --bundles nsis` 产出 Windows 安装包：
@@ -87,7 +101,9 @@ pnpm --filter @camelia/desktop desktop:check    # cargo check
 
 ## 插件
 
-引擎在进程启动时扫描 `~/.camelia/plugins` 下带 `camelia.plugin.json` 的目录。左侧「插件」只打开这个说明，没有启用开关，也没有应用内安装。放入目录后重新启动桌面才会加载。
+活动栏图标的名字是 **插件**。点开后左栏标题是 **扩展**，下面有搜索框（「搜索已安装的扩展」）、筛选和刷新。搜索过滤的是这一栏里的已安装列表；当前构建里这份列表是空的，所以会看到「还没有插件」。
+
+引擎仍在进程启动时扫描 `~/.camelia/plugins` 下带 `camelia.plugin.json` 的目录。没有启用开关，也没有应用内下载。安装说明在标题栏「…」→「如何安装」里。放入目录后重新启动桌面才会加载。
 
 示例：把仓库里的 `plugins/quiet-activity-bar` 整夹复制到 `~/.camelia/plugins/quiet-activity-bar`，再启动桌面。这是主题存根（更安静的颜色记号），不是活动栏本身。48px 纯图标活动栏在应用里，不从插件里加载。
 

@@ -214,7 +214,7 @@ SQLite（better-sqlite3），WAL + `foreign_keys=ON`，`SCHEMA_VERSION = 4`（V1
 
 ### 引擎服务器（`serve` → `server/`）
 
-`EngineServer` 路由（`@camelia/agent/view` 常量）：`GET /health`、`GET /events`（SSE，帧 `bootstrap`/`domain`/`status`，先订阅后回放，最多 2000 条）、`POST /command`（命令 → `CommandAck`，`ok?200:409`）。`ApprovalBroker`：挂起的工具审批，超时（默认 300s）**失败即拒绝**——「没回答≠同意」。命令映射覆盖 submit/plan/tool/pause/cancel/intervene/记忆面板；`rollback_step` 与 `select_provider` 目前返回「尚不可用」。
+`EngineServer` 路由（`@camelia/agent/view` 常量）：`GET /health`、`GET /events`（SSE，帧 `bootstrap`/`domain`/`status`，先订阅后回放，最多 2000 条）、`POST /command`（命令 → `CommandAck`，`ok?200:409`）。`ApprovalBroker`：挂起的工具审批，超时（默认 300s）**失败即拒绝**——「没回答≠同意」。命令映射覆盖 submit/plan/tool/pause/cancel/intervene/记忆面板，以及 `select_provider`（输入框换模型）、`set_workspace`（底栏换文件夹）、`rollback_step`（无运行中任务时失败）。`AgentLoop.rollback` 仍忽略传入的 checkpoint id，见上文 journal 说明。
 
 ---
 
@@ -222,8 +222,9 @@ SQLite（better-sqlite3），WAL + `foreign_keys=ON`，`SCHEMA_VERSION = 4`（V1
 
 UI 不发明业务状态：`snapshot` 唯一来源是事件流经 `reduceEvents` 的折叠。传输层 `fixture`（离线/截图/测试）与 `sse`（真实引擎，`?engineUrl=`）共用同一契约。`window.__CAMELIA_BOOT__`（外壳注入）优先级 > URL。
 
-- **Zustand store**（`state/store.ts`）：`snapshot` / `status` / `sessions` / `memory` / `localPrefs` / `settingsOpen` + 动作 `dispatch` / `query`（查询命令 10s 超时）。
-- **组件**（`components/`）：`TopBar`（顶栏，`h-9`=36px）、`ActivityBar`（活动栏/阶段与进度）、`SessionRail`（左栏会话）、`Conversation`（对话流 + `PlanReview`/审批/失败卡）、`Composer`（底栏）、`RightRail`（右栏：运行统计/步骤/上下文/子 Agent/记忆/事件）、`StepCard`、`ToolCard`、`MemoryPanel`、`PlanReview`、`Reliability`（`NoticeBanner`/`ApprovalCard`/`FailureCard`）、`SettingsDrawer`、`CodeBlock`/`DiffBlock`、`WindowEdges`、`RailDivider`。
+- **Zustand store**（`state/store.ts`）：`snapshot` / `status` / `sessions` / `memory` / `localPrefs` / `settingsOpen` + 动作 `dispatch` / `query`（查询命令 10s 超时）。当前模式是窗口状态 `mode: 'work' | 'math' | 'term'`，不写入 `snapshot`。
+- **壳层**（以 [`SHELL-UX.md`](SHELL-UX.md) 为准，`main` `1b36ad2` / PR #4）：48px 图标活动栏 + 可收到 0 的会话栏 + 工作区 + 默认关闭的右侧抽屉。模式分段在会话栏上方，是 Work / Math / Term，不是顶栏上的 chat / plan。齿轮先开小菜单。模型与力度在输入框。设置含 **记忆** 页。预设厂商头像是水墨头，阿里云用应用图标。
+- **组件**：`IconRail`、`SessionRail`、`ModeTabs`、`TopBar`（36px 浮层）、`Composer`、`GearMenu`、`LoginGate`、`ExtensionsPanel`（标题「扩展」）、`RightRail` / `MathSetupPanel`、`SettingsDrawer`、`ChatTranscript`、`TermWorkspace`。`Conversation` 不再是主工作区。
 - **可复现场景**（`transport/scenario.ts`）**10 个**：`empty` / `connecting` / `planning` / `plan` / `diff` / `running` / `approval` / `failure` / `error` / `done`。
 - **主题**（`theme/presets.ts`）4 套：`warm-dark` / `cool-dark` / `light`（"Light Refined"）/ `high-contrast`；样式表 `index.css` 装的是山茶花暖色暗黑基线（`--color-base:#1a1514`、`--color-accent:#d96c5f` 等）；token 白名单 20 项（与 core 同步）。**默认 `themeId='light'`、`language='zh'`**——即新装默认是「浅色 + 中文」。
 - **i18n**（`i18n/`）：`en` + `zh` 双语（`t(lang,key)`，缺词回退英文再回退 key）。
@@ -238,7 +239,7 @@ UI 不发明业务状态：`snapshot` 唯一来源是事件流经 `reduceEvents`
 - 启动参数（`--flag` 或环境变量）：`--engine-url`/`CAMELIA_ENGINE_URL`、`--scene`/`CAMELIA_SCENE`、`--session-id`/`CAMELIA_SESSION_ID`；序列化为 `window.__CAMELIA_BOOT__`。
 - **无显式 engine-url 且无 scene 时自动 `spawn_engine()`**：CLI 来自 `CAMELIA_CLI` / `~/.camelia/desktop.json` `cli` / 上溯仓库；Node 来自 `CAMELIA_NODE` / `desktop.json` `node` / fnm·nvm **Node 22** / Program Files / PATH；spawn 前 **probe `better-sqlite3`**（ABI 不匹配则清晰失败，不假装 Live）；成功则 `node <bin> serve --port=0 --json` 读回 `{url, sessionId}`；失败则 boot 注入 `engineSpawnError`，UI 走 fixture + 横幅。日志：`~/.camelia/logs/engine.log`。`desktop.json` 须 UTF-8 **无 BOM**。
 - 命令与权限：注册 `read/write_model_settings`、`read_key_status`、`write_provider_key`、`relaunch_app`（另有 `open_engine_log`/`read_engine_log`，但未在 capabilities 授权）；密钥/配置写 `~/.camelia/keys.json`、`~/.camelia/config.json`。
-- 打包：NSIS、`currentUser` 安装到 `%LOCALAPPDATA%\Camelia`，产物 `Camelia_<version>_x64-setup.exe`；`custom-protocol` 特性决定加载内嵌产物还是 Vite `devUrl`。
+- 打包：`desktop:build`（Node 22）产出 `src-tauri/target/release/camelia-desktop.exe`。本机覆盖只写 `D:\app\Camelia\camelia-desktop.exe`、`%LOCALAPPDATA%\Camelia\camelia-desktop.exe`，以及原地更新的桌面 `Camelia.lnk`（目标与工作目录都是 `D:\app\Camelia`）。不要往桌面放 `Camelia-Agent-new.exe`。NSIS（`desktop:bundle`）仍是 `currentUser` 安装到 `%LOCALAPPDATA%\Camelia`，产物 `Camelia_<version>_x64-setup.exe`。`custom-protocol` 决定加载内嵌产物还是 Vite `devUrl`。
 
 ---
 
@@ -266,7 +267,7 @@ UI 不发明业务状态：`snapshot` 唯一来源是事件流经 `reduceEvents`
 0. 仓库锁定 **Node 22**（`.nvmrc`）。系统 `Program Files` 若为 Node 24 而 `better-sqlite3` 按 22 编译，桌面 spawn 会 ABI 崩溃；应用 `desktop.json.node` / `CAMELIA_NODE` 指向 Node 22，或在同一 Node 下 `pnpm rebuild better-sqlite3`。
 
 **实现上的「尚不可用」**
-6. `EngineServer` 对 `rollback_step`、`select_provider` 返回「尚不可用」。
+6. ~~`EngineServer` 对 `rollback_step`、`select_provider` 返回「尚不可用」~~（已过时）：两条命令都已接入。`rollback` 仍忽略 checkpoint id，见上文。
 7. ~~桌面端 `open_engine_log` / `read_engine_log` 未授权~~（已过时）：`capabilities/default.json` 已含 `allow-open-engine-log` / `allow-read-engine-log`。
 8. `tauri.conf.json` 的 `app.windows` 为空，窗口配置只存在于 `main.rs`。
 

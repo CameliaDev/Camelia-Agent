@@ -5,6 +5,16 @@
 
 Camelia 不是「会聊天的代码工具」，而是「能把任务做到尽善尽美」的 Agent：用户给一个目标，Camelia 规划、执行、自检、纠错、交付，并在每一步都可观测、可干预、可回滚、可回放。
 
+## 当前界面
+
+桌面壳是三种模式：**Work / Math / Term**。切换模式只显示该模式自己的会话。模式在左侧会话栏上方，不在顶栏，也不是 chat / plan。
+
+齿轮先打开小菜单（主题 / 快捷方式配置 / 设置）。输入框上的模型芯片打开模型列表，不打开设置。力度是显示当前档位的按钮（默认 High），弹出 Max / High / Low，不会点一下轮换。
+
+壳层快捷键、登录、插件栏、Math 新建、Term 的本地时间线，以及**不要**往桌面放 `Camelia-Agent-new.exe`，写在 [`docs/SHELL-UX.md`](docs/SHELL-UX.md)。打包覆盖路径写在 [`apps/desktop/README.md`](apps/desktop/README.md)。
+
+引擎仍是「规划 → 执行 → 验证」这条能力；Term 界面上的计划 / 执行 / 校验 / 完成**不是**已经接通的团队多智能体。下面的 Iteration 记录讲的是引擎与验收，不描述当前壳层。
+
 ## 运行环境
 
 - **Node.js 22**（`>=22.11`，仓库以 `.nvmrc` / `.node-version` / `package.json#engines` / CI / Dockerfile 统一锁定）
@@ -115,7 +125,7 @@ ui  →  agent  →  harness  →  core
 | `@camelia/cli`     | 驱动           | `run` / `replay` / `doctor` / `serve`                          |
 | `apps/desktop`     | 桌面外壳       | Tauri 2.x 原生窗口，装载 `@camelia/ui` 构建产物并注入启动参数         |
 
-设计文档见 [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md)，产品/工程方向见 [`docs/CAMELIA-ROADMAP.md`](docs/CAMELIA-ROADMAP.md)，迭代记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)，验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)，代码实现速查见 [`docs/CODE-SUMMARY.md`](docs/CODE-SUMMARY.md)。
+当前壳层见 [`docs/SHELL-UX.md`](docs/SHELL-UX.md)。设计意图见 [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md)，产品/工程方向见 [`docs/CAMELIA-ROADMAP.md`](docs/CAMELIA-ROADMAP.md)，迭代记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)，验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)，代码实现速查见 [`docs/CODE-SUMMARY.md`](docs/CODE-SUMMARY.md)。
 
 ## 技术栈
 

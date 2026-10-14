@@ -22,7 +22,7 @@ The engine loads the theme into its plugin result on startup. The desktop settin
 
 1. Copy this directory to `~/.camelia/plugins/quiet-activity-bar` (the folder must contain `camelia.plugin.json`).
 2. Quit Camelia completely and start it again. The engine scans `~/.camelia/plugins` only when the process starts.
-3. Open Plugins in the activity bar. The panel explains the same drop-in. It has no enable switch.
+3. Open Plugins in the activity bar. The activity-bar label stays **插件**; the panel header is **扩展**, with a search box over the in-app installed list. That list is empty in this build — the engine still loads `~/.camelia/plugins` only when the process starts. The panel has no enable switch.
 
 Windows: `%USERPROFILE%\.camelia\plugins\quiet-activity-bar`.
 
