@@ -382,6 +382,53 @@ export class FixtureTransport implements Transport {
         return;
       case 'chat_cancel':
         return;
+      case 'submit_term': {
+        // Same events a live team run folds: plan, a worker, verify, then done.
+        // Done is only honest here because the worker report is `ok`.
+        this.clock += 5;
+        const taskId = `tsk_term_${(this.sent.length * 7919 + 104729).toString(16)}`;
+        const now = this.clock;
+        const task: Task = {
+          id: taskId,
+          sessionId: command.payload.sessionId,
+          intentRaw: command.payload.intent,
+          status: 'planning',
+          phase: 'planning',
+          progress: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+        this.push('task.received', { task });
+        this.push('task.status_changed', { from: 'received', to: 'planning', reason: 'coordinator' });
+        this.push('task.phase_changed', { phase: 'planning' });
+        this.push('task.status_changed', { from: 'planning', to: 'executing', reason: 'workers assigned' });
+        this.push('task.phase_changed', { phase: 'executing' });
+        this.push('subagent.spawned', {
+          id: 'wrk_term_1',
+          goal: command.payload.intent,
+          parentTaskId: taskId,
+          model: 'qwen-vl-plus',
+          role: 'worker',
+        });
+        this.push('subagent.finished', {
+          report: {
+            id: 'wrk_term_1',
+            parentTaskId: taskId,
+            goal: command.payload.intent,
+            status: 'ok',
+            summary: 'worker finished',
+            artifacts: [],
+            verdicts: [],
+            tokensUsed: 12,
+            startedAt: now,
+            endedAt: now + 1,
+          },
+        });
+        this.push('task.status_changed', { from: 'executing', to: 'verifying', reason: 'check reports' });
+        this.push('task.phase_changed', { phase: 'verifying' });
+        this.push('task.completed', { summary: 'worker finished', artifacts: [] });
+        return;
+      }
       case 'submit_task': {
         // Offline fixture: do not replay the canned CLI demo for a typed intent.
         this.clock += 5;

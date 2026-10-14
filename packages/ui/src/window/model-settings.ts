@@ -5,6 +5,8 @@
  * @module
  */
 
+import { catalogRowAdvertisesCaps, parseModelCatalog, type ParsedModelCaps } from '@camelia/core/capabilities';
+
 import type { ProviderPresetRecord } from './provider-presets.js';
 
 /** Mirrors `HarnessConfig['planApproval']` and `CameliaConfig['planApproval']`. */
@@ -226,38 +228,10 @@ export function normalizeApiKey(raw: string): string {
   return raw.trim().replace(/^bearer\s+/i, '').trim();
 }
 
-function modelIdsFromBody(body: unknown): string[] {
-  const ids: string[] = [];
-  const push = (value: unknown): void => {
-    if (typeof value !== 'string') return;
-    const id = value.trim();
-    if (id && !ids.includes(id)) ids.push(id);
-  };
-  if (!body || typeof body !== 'object') return ids;
-  const record = body as Record<string, unknown>;
-  if (Array.isArray(record.data)) {
-    for (const row of record.data) {
-      if (!row || typeof row !== 'object') continue;
-      const item = row as Record<string, unknown>;
-      push(item.id ?? item.model);
-    }
-  }
-  const output = record.output;
-  if (output && typeof output === 'object') {
-    const models = (output as Record<string, unknown>).models;
-    if (Array.isArray(models)) {
-      for (const row of models) {
-        if (typeof row === 'string') {
-          push(row);
-          continue;
-        }
-        if (!row || typeof row !== 'object') continue;
-        const item = row as Record<string, unknown>;
-        push(item.model ?? item.id);
-      }
-    }
-  }
-  return ids;
+function modelsFromBody(body: unknown): { ids: string[]; capabilities: ParsedModelCaps[] } {
+  const rows = parseModelCatalog(body);
+  const capabilities = rows.filter(catalogRowAdvertisesCaps);
+  return { ids: rows.map((row) => row.id), capabilities };
 }
 
 /**
@@ -284,7 +258,10 @@ export async function testOpenAiCompatible(input: {
   /** When the field is empty, the desktop shell reads this id from keys.json. */
   providerId?: string;
   fetchImpl?: typeof fetch;
-}): Promise<{ ok: true; models: string[] } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; models: string[]; capabilities?: ParsedModelCaps[] }
+  | { ok: false; error: string }
+> {
   const fetchImpl = input.fetchImpl ?? fetch;
   const raw = input.baseUrl.trim().replace(/\/$/, '');
   if (!raw) return { ok: false, error: 'empty-url' };
@@ -307,7 +284,12 @@ export async function testOpenAiCompatible(input: {
         continue;
       }
       const body: unknown = await res.json();
-      return { ok: true, models: modelIdsFromBody(body) };
+      const parsed = modelsFromBody(body);
+      return {
+        ok: true,
+        models: parsed.ids,
+        ...(parsed.capabilities.length > 0 ? { capabilities: parsed.capabilities } : {}),
+      };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
     }

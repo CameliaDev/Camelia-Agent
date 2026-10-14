@@ -347,7 +347,12 @@ export class EngineServer {
       case 'submit_task': {
         const effort = parseEffort(command.payload.effort);
         if (effort === null) return { ok: false, error: `无效的力度: ${String(command.payload.effort)}` };
-        return this.submit(command.payload.intent, command.payload.sessionId, effort);
+        return this.submit(command.payload.intent, command.payload.sessionId, effort, false);
+      }
+      case 'submit_term': {
+        const effort = parseEffort(command.payload.effort);
+        if (effort === null) return { ok: false, error: `无效的力度: ${String(command.payload.effort)}` };
+        return this.submit(command.payload.intent, command.payload.sessionId, effort, true);
       }
       case 'resume_task':
         return this.resume(command.payload.taskId);
@@ -556,12 +561,12 @@ export class EngineServer {
     }
   }
 
-  private submit(intent: string, sessionId?: string, effort?: EffortLevel): CommandAck {
+  private submit(intent: string, sessionId?: string, effort?: EffortLevel, team = false): CommandAck {
     if (this.activeRun) return { ok: false, error: '已有任务正在运行' };
     const trimmed = intent.trim();
     if (!trimmed) return { ok: false, error: '任务描述不能为空' };
     this.activeRun = this.options.runtime
-      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId, effort })
+      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId, effort, team })
       .catch((error: unknown) => {
         this.options.logger?.error('task run failed', { error: String(error) });
       })

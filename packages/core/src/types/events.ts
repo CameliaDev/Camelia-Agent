@@ -157,7 +157,7 @@ export interface DomainEventMap {
   'recovery.rollback_done': { checkpointId: Id; restored: number };
 
   // ---- Sub-agents -----------------------------------------------------------
-  'subagent.spawned': { id: Id; goal: string; parentTaskId: Id };
+  'subagent.spawned': { id: Id; goal: string; parentTaskId: Id; model?: string; role?: string };
   'subagent.finished': { report: SubAgentReport };
 
   // ---- Providers ------------------------------------------------------------
@@ -265,6 +265,11 @@ export type PlanEdit =
 
 export interface CommandMap {
   'submit_task': { sessionId: Id; intent: string; workspace: string; effort?: EffortLevel };
+  /**
+   * Term team run. The engine coordinates workers through the sub-agent
+   * orchestrator. This is not a local timeline.
+   */
+  'submit_term': { sessionId: Id; intent: string; workspace: string; effort?: EffortLevel };
   'approve_tool': { callId: Id; scope: 'once' | 'session' };
   'deny_tool': { callId: Id; reason: string };
   /** `session` auto-approves later plans in this project, same shape as `approve_tool`. */

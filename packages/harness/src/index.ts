@@ -63,6 +63,11 @@ export * from './recovery/ErrorRecovery.js';
 // ---- sub-agents ------------------------------------------------------------
 export * from './subagent/SubAgentOrchestrator.js';
 
+// ---- term team -------------------------------------------------------------
+export * from './team/assign-roles.js';
+export * from './team/plan.js';
+export * from './team/TeamOrchestrator.js';
+
 // ---- memory lifecycle (Iteration 20) ---------------------------------------
 export * from './memory/MemoryService.js';
 export * from './memory/value.js';

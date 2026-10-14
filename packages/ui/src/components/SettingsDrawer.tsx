@@ -131,13 +131,13 @@ export function SettingsDrawer(): ReactNode {
             {section === 'engine' ? <EngineSection tr={tr} /> : null}
             {section === 'memory' ? <MemorySettingsSection /> : null}
             {section === 'feedback' ? (
-        <FeedbackForm
-          onNeedLogin={() => {
-            setSettingsSection('account');
-          }}
-        />
-      ) : null}
-      {section === 'about' ? <AboutSection tr={tr} /> : null}
+              <FeedbackForm
+                onNeedLogin={() => {
+                  setSettingsSection('account');
+                }}
+              />
+            ) : null}
+            {section === 'about' ? <AboutSection tr={tr} /> : null}
           </div>
         </div>
       </div>

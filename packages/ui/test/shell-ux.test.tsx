@@ -42,6 +42,17 @@ describe('composer model picker and effort', () => {
     expect(container.querySelector('[data-composer-models]')).toBeNull();
   });
 
+  it('filters the model list by vision without opening settings', () => {
+    const { container } = renderScene('running');
+    fireEvent.click(container.querySelector('[data-composer-model]') as HTMLElement);
+    expect(container.querySelector('[data-settings-page]')).toBeNull();
+    expect(container.querySelectorAll('[data-model-option]').length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-model-option="qwen3-coder:free"]')?.textContent ?? '').not.toMatch(/ctx/);
+    fireEvent.click(container.querySelector('[data-model-filter="vision"]') as HTMLElement);
+    expect(container.querySelector('[data-model-filter-empty]')).not.toBeNull();
+    expect(container.querySelector('[data-model-option]')).toBeNull();
+  });
+
   it('lists effort levels instead of cycling on click', () => {
     const { container } = renderScene('empty');
     const effort = container.querySelector('[data-composer-effort]') as HTMLElement;
@@ -152,7 +163,7 @@ describe('mode isolation, math setup, and term', () => {
     });
   });
 
-  it('runs a plan, execute, and verify pass from the term composer', async () => {
+  it('runs a term team from engine events, and done requires a worker', async () => {
     const { container, transport } = renderScene('empty');
     fireEvent.click(container.querySelector('[data-mode-tab="term"]') as HTMLElement);
     expect(container.textContent).not.toContain('界面占位');
@@ -161,9 +172,11 @@ describe('mode isolation, math setup, and term', () => {
     fireEvent.change(area, { target: { value: 'ship the notes' } });
     fireEvent.keyDown(area, { key: 'Enter' });
     await waitFor(() => {
-      expect(container.querySelector('[data-term-phase="plan"]')).not.toBeNull();
+      expect(container.querySelector('[data-term-phase="done"]')).not.toBeNull();
     });
     expect(container.querySelector('[data-term-run]')?.textContent).toContain('ship the notes');
+    expect(container.querySelector('[data-term-worker="wrk_term_1"]')?.getAttribute('data-term-worker-status')).toBe('ok');
+    expect(transport.sent.some((command) => command.type === 'submit_term')).toBe(true);
     expect(transport.sent.some((command) => command.type === 'submit_task')).toBe(false);
     expect(transport.sent.some((command) => command.type === 'new_session' && (command.payload as { kind?: string }).kind === 'term')).toBe(true);
   });

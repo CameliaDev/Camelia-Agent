@@ -1,8 +1,8 @@
 /**
  * Ephemeral shell state that is not part of the engine snapshot.
  *
- * Math setup and the term timeline are window chrome. Putting them on the
- * task snapshot would make a mode switch look like a domain event.
+ * Math setup is window chrome. Putting it on the task snapshot would make a
+ * mode switch look like a domain event. Term stages come from the engine task.
  * @module
  */
 
@@ -15,18 +15,9 @@ export interface MathSessionProfile {
   useTemplates: boolean;
 }
 
-export type TermPhase = 'plan' | 'execute' | 'verify' | 'done';
-
-export interface TermRun {
-  sessionId: string;
-  intent: string;
-  phase: TermPhase;
-}
-
 interface ShellExtras {
   mathSetupOpen: boolean;
   mathProfiles: Record<string, MathSessionProfile>;
-  termRun?: TermRun;
 }
 
 let state: ShellExtras = { mathSetupOpen: false, mathProfiles: {} };
@@ -61,33 +52,10 @@ export function setMathProfile(sessionId: string, profile: MathSessionProfile): 
   emit();
 }
 
-export function setTermRun(run: TermRun | undefined): void {
-  state = { ...state, termRun: run };
-  emit();
-}
-
-const NEXT_PHASE: Record<TermPhase, TermPhase> = {
-  plan: 'execute',
-  execute: 'verify',
-  verify: 'done',
-  done: 'done',
-};
-
-export function advanceTermRun(): void {
-  const run = state.termRun;
-  if (!run || run.phase === 'done') return;
-  state = { ...state, termRun: { ...run, phase: NEXT_PHASE[run.phase] } };
-  emit();
-}
-
 export function useMathSetupOpen(): boolean {
   return useSyncExternalStore(subscribe, () => getState().mathSetupOpen);
 }
 
 export function useMathProfile(sessionId: string | undefined): MathSessionProfile | undefined {
   return useSyncExternalStore(subscribe, () => (sessionId ? getState().mathProfiles[sessionId] : undefined));
-}
-
-export function useTermRun(): TermRun | undefined {
-  return useSyncExternalStore(subscribe, () => getState().termRun);
 }

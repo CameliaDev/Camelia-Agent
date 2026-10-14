@@ -18,6 +18,8 @@ export interface FeedbackPayload {
   appVersion: string;
   mode: string;
   os: string;
+  /** When false, version / mode / OS are left out of the issue body. Default true. */
+  includeMeta?: boolean;
   includeLogs?: boolean;
   logSnippet?: string;
   /** Override default repo (owner/name). */
@@ -30,9 +32,11 @@ export interface FeedbackResult {
   error?: string;
 }
 
-function repoOf(raw?: string): string {
-  const v = (raw || DEFAULT_FEEDBACK_REPO).trim();
-  return v.includes('/') ? v : DEFAULT_FEEDBACK_REPO;
+/** `owner/name`. Empty input uses the default public feedback repo. */
+export function feedbackRepo(raw?: string): { ok: true; repo: string } | { ok: false; error: 'invalid-repo' } {
+  const value = (raw ?? '').trim() || DEFAULT_FEEDBACK_REPO;
+  if (!/^[\w.-]+\/[\w.-]+$/.test(value)) return { ok: false, error: 'invalid-repo' };
+  return { ok: true, repo: value };
 }
 
 export async function submitFeedback(
@@ -53,23 +57,26 @@ export async function submitFeedback(
   if (payload.repro?.trim()) {
     parts.push('', '## Repro', '', payload.repro.trim());
   }
-  parts.push(
-    '',
-    '## Environment',
-    '',
-    `- App: ${payload.appVersion}`,
-    `- Mode: ${payload.mode}`,
-    `- OS: ${payload.os}`,
-  );
+  if (payload.includeMeta !== false) {
+    parts.push(
+      '',
+      '## Environment',
+      '',
+      `- App: ${payload.appVersion}`,
+      `- Mode: ${payload.mode}`,
+      `- OS: ${payload.os}`,
+    );
+  }
   if (payload.includeLogs && payload.logSnippet?.trim()) {
     parts.push('', '## Logs (user opted in)', '', '```', payload.logSnippet.trim().slice(0, 8000), '```');
   }
   parts.push('', '_Submitted from Camelia in-app feedback. No API keys included._');
 
-  const repo = repoOf(payload.repo);
+  const repo = feedbackRepo(payload.repo);
+  if (!repo.ok) return { ok: false, error: repo.error };
   const fetchImpl = options?.fetchImpl ?? fetch;
   try {
-    const res = await fetchImpl(`https://api.github.com/repos/${repo}/issues`, {
+    const res = await fetchImpl(`https://api.github.com/repos/${repo.repo}/issues`, {
       method: 'POST',
       headers: {
         Accept: 'application/vnd.github+json',
@@ -77,13 +84,15 @@ export async function submitFeedback(
         'X-GitHub-Api-Version': '2022-11-28',
         'Content-Type': 'application/json',
       },
+      // Labels are omitted on purpose: a brand-new empty repo has none, and
+      // GitHub rejects the whole issue with 422 when a label is missing.
       body: JSON.stringify({
         title: `[${payload.type}] ${title}`.slice(0, 200),
         body: parts.join('\n'),
-        labels: [payload.type === 'bug' ? 'bug' : 'enhancement', 'in-app-feedback'],
       }),
     });
     if (res.status === 401 || res.status === 403) return { ok: false, error: 'unauthorized' };
+    if (res.status === 404) return { ok: false, error: 'missing-repo' };
     if (!res.ok) return { ok: false, error: `http-${res.status}` };
     const json = (await res.json()) as { html_url?: string };
     if (!json.html_url) return { ok: false, error: 'malformed' };

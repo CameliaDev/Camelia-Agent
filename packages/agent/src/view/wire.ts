@@ -69,6 +69,15 @@ export interface ProviderModelDetail {
   supportsVision: boolean;
   supportsTools: boolean;
   supportsJson: boolean;
+  /**
+   * Where each flag came from. `context: "default"` is not a real window.
+   * Older engines omit this object.
+   */
+  capabilitySource?: {
+    vision: string;
+    context: string;
+    tools: string;
+  };
 }
 
 /** `GET /health` response body. */

@@ -112,6 +112,36 @@ describe('testOpenAiCompatible', () => {
     expect(result).toEqual({ ok: true, models: ['qwen-plus', 'qwen-vl-max'] });
   });
 
+  it('keeps advertised vision and context from a models payload', async () => {
+    const result = await testOpenAiCompatible({
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: 'sk-or',
+      fetchImpl: (async () =>
+        jsonResponse(200, {
+          data: [
+            {
+              id: 'openai/gpt-4o',
+              context_length: 128000,
+              architecture: { input_modalities: ['text', 'image'] },
+              supported_parameters: ['tools'],
+            },
+            { id: 'plain-coder' },
+          ],
+        })) as typeof fetch,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.models).toEqual(['openai/gpt-4o', 'plain-coder']);
+    expect(result.capabilities).toEqual([
+      {
+        id: 'openai/gpt-4o',
+        contextWindow: 128000,
+        supportsVision: true,
+        supportsTools: true,
+      },
+    ]);
+  });
+
   it('strips a pasted Bearer prefix', () => {
     expect(normalizeApiKey('  Bearer sk-abc  ')).toBe('sk-abc');
   });

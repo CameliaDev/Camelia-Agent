@@ -326,16 +326,34 @@ export interface ToolDescriptor {
   source: string;
 }
 
+/**
+ * Where a capability value came from.
+ *
+ * `default` and `unknown` are not evidence: a hard requirement (vision, a
+ * minimum context) must not treat them as a match.
+ */
+export type CapabilityOrigin = 'advertised' | 'override' | 'inferred' | 'provider' | 'default' | 'unknown';
+
+export interface ModelCapabilitySource {
+  vision: CapabilityOrigin;
+  /** `default` is the generic fallback window, not a size the model advertised. */
+  context: CapabilityOrigin;
+  tools: CapabilityOrigin;
+}
+
 export interface ModelInfo {
   id: string;
   providerId: string;
   /** Free-text label. */
   label: string;
+  /** Context window in tokens. May be a heuristic when `capabilitySource.context` is not advertised. */
   contextWindow: number;
   supportsTools: boolean;
   supportsJson: boolean;
   /** True when the model accepts image / multimodal parts. */
   supportsVision: boolean;
+  /** How each flag was obtained. Absent on hand-built test doubles. */
+  capabilitySource?: ModelCapabilitySource;
 }
 
 /** Capability profile of a provider — drives granularity + fallback decisions. */

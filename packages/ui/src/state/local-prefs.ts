@@ -132,6 +132,13 @@ export interface LocalPrefs {
   chatPolicy: ChatPolicy;
   /** Work-mode generation effort (composer chips). */
   effort: EffortPref;
+  /**
+   * GitHub `owner/name` that in-app feedback opens issues against.
+   * Empty uses `CameliaDev/camelia-feedback`.
+   */
+  feedbackRepo: string;
+  /** Attach app version and the current mode to a feedback issue. */
+  includeFeedbackMeta: boolean;
   window?: WindowGeometry;
 }
 
@@ -154,6 +161,8 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   displayName: '',
   chatPolicy: 'readonly-sandbox',
   effort: 'high',
+  feedbackRepo: '',
+  includeFeedbackMeta: true,
 };
 
 const THEME_IDS: readonly ThemeId[] = ['warm-dark', 'cool-dark', 'light', 'high-contrast'];
@@ -244,8 +253,17 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     effort: EFFORTS.includes(raw?.effort as EffortPref)
       ? (raw?.effort as EffortPref)
       : DEFAULT_LOCAL_PREFS.effort,
+    feedbackRepo: sanitizeFeedbackRepo(raw?.feedbackRepo),
+    includeFeedbackMeta: raw?.includeFeedbackMeta !== false,
     ...(window ? { window } : {}),
   };
+}
+
+function sanitizeFeedbackRepo(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim().slice(0, 120);
+  if (!trimmed || !/^[\w.-]+\/[\w.-]+$/.test(trimmed)) return '';
+  return trimmed;
 }
 
 function sanitizeGithubAccount(value: GithubAccountPrefs | null | undefined): GithubAccountPrefs | null {

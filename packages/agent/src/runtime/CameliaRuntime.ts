@@ -40,8 +40,10 @@ import {
   type SessionStore,
   type Span,
   type StoredEvent,
+  resolveModelInfo,
+  type CapabilityOrigin,
+  type ModelInfo,
   type Task,
-  type TaskStatus,
   type TokenBudget,
 } from '@camelia/core';
 import {
@@ -187,6 +189,11 @@ export interface RunTaskOptions {
    * Composer effort. Stored as a planning constraint. Does not change the model.
    */
   effort?: EffortLevel;
+  /**
+   * Term team run. A coordinator plans workers and the sub-agent orchestrator
+   * executes them. Ordinary Work tasks leave this unset.
+   */
+  team?: boolean;
 }
 
 export interface CameliaRunResult {
@@ -888,7 +895,9 @@ export class CameliaRuntime {
     await this.store.updateTask(task.id, { intentClarified: intent });
     this.bus.emit('task.clarified', { intent }, meta);
 
-    const outcome = await agentLoop.run(intent, { plan, startStepIdx: options.startStepIdx });
+    const outcome = options.team
+      ? await agentLoop.runTeam(intent, this.teamCatalog())
+      : await agentLoop.run(intent, { plan, startStepIdx: options.startStepIdx });
     this.activeLoop = undefined;
     await this.flush();
 
@@ -1060,6 +1069,53 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
       { traceId: 'user-action', sessionId: this.session.id, taskId: this.activeLoop?.currentTaskId },
     );
     this.persistSelectedProvider(providerId, chosen, gruntModel?.trim() || undefined);
+  }
+
+  /**
+   * Models the Term coordinator may assign. Details already resolved by the
+   * provider keep their capability source; a bare id is inferred.
+   */
+  private teamCatalog(): ModelInfo[] {
+    const handle = this.fallback.active;
+    const caps = handle.port.capabilities();
+    const ids = handle.models.length > 0 ? handle.models : [this.decision.model].filter((id) => id.trim().length > 0);
+    return ids.map((id) => {
+      const detail = handle.modelDetails?.find((row) => row.id === id);
+      if (!detail?.capabilitySource) {
+        return resolveModelInfo({
+          id,
+          providerId: handle.id,
+          providerCaps: caps,
+          override: detail
+            ? {
+                label: detail.label,
+                contextWindow: detail.contextWindow,
+                supportsVision: detail.supportsVision,
+                supportsTools: detail.supportsTools,
+                supportsJson: detail.supportsJson,
+              }
+            : undefined,
+        });
+      }
+      const origin = (value: string, fallback: CapabilityOrigin): CapabilityOrigin => {
+        const allowed: CapabilityOrigin[] = ['advertised', 'override', 'inferred', 'provider', 'default', 'unknown'];
+        return allowed.includes(value as CapabilityOrigin) ? (value as CapabilityOrigin) : fallback;
+      };
+      return {
+        id: detail.id,
+        providerId: handle.id,
+        label: detail.label,
+        contextWindow: detail.contextWindow,
+        supportsTools: detail.supportsTools,
+        supportsJson: detail.supportsJson,
+        supportsVision: detail.supportsVision,
+        capabilitySource: {
+          vision: origin(detail.capabilitySource.vision, detail.supportsVision ? 'inferred' : 'unknown'),
+          context: origin(detail.capabilitySource.context, 'default'),
+          tools: origin(detail.capabilitySource.tools, 'provider'),
+        },
+      };
+    });
   }
 
   /** Follow the active provider's advertised window so a switch cannot keep promising the old one. */
@@ -1291,6 +1347,7 @@ async function buildPluginProviderHandles(
           supportsVision: model.supportsVision === true,
           supportsTools: model.supportsTools,
           supportsJson: model.supportsJson,
+          ...(model.capabilitySource ? { capabilitySource: model.capabilitySource } : {}),
         })),
         port,
       });

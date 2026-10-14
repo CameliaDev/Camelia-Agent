@@ -107,6 +107,9 @@ export interface SubAgentView {
   artifacts: Artifact[];
   startedAt: number;
   endedAt?: number;
+  /** Model the coordinator assigned, when the spawn event carried one. */
+  model?: string;
+  role?: string;
 }
 
 export interface FailureView {
@@ -1259,12 +1262,15 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
           status: 'running',
           artifacts: [],
           startedAt: event.ts,
+          ...(event.payload.model ? { model: event.payload.model } : {}),
+          ...(event.payload.role ? { role: event.payload.role } : {}),
         }),
       }));
 
     case 'subagent.finished':
       return mutateTask(snapshot, event, (t) => {
         const report = event.payload.report;
+        const prev = t.subAgents.find((agent) => agent.id === report.id);
         const entry: SubAgentView = {
           id: report.id,
           goal: report.goal,
@@ -1274,6 +1280,8 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
           artifacts: report.artifacts,
           startedAt: report.startedAt,
           endedAt: report.endedAt,
+          ...(prev?.model ? { model: prev.model } : {}),
+          ...(prev?.role ? { role: prev.role } : {}),
         };
         const exists = t.subAgents.some((s) => s.id === report.id);
         return {
