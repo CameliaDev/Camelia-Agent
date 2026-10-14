@@ -692,15 +692,17 @@ describe('App — empty scene', () => {
     expect(container.querySelector('.camelia-topbar [data-mode-tabs]')).toBeNull();
   });
 
-  it('opens a plugins sidebar from the left nav without enable switches', () => {
-    const { container } = renderScene('empty');
+  it('opens a plugins sidebar from the left nav without enable switches', async () => {
+    const { container, transport } = renderScene('empty');
     fireEvent.click(screen.getByRole('button', { name: '插件' }));
     const panel = container.querySelector('[data-extensions-panel]') as HTMLElement;
     expect(panel).not.toBeNull();
-    expect(within(panel).getByText('还没有插件。')).toBeInTheDocument();
+    expect(await within(panel).findByText('还没有插件。')).toBeInTheDocument();
+    expect(within(panel).getByText('Quiet activity bar')).toBeInTheDocument();
+    expect(panel.querySelector('[data-extensions-search]')).toHaveAttribute('placeholder', '搜索扩展目录');
+    expect(panel.textContent).not.toMatch(/应用内安装尚未接通/);
     expect(within(panel).getByText('扩展')).toBeInTheDocument();
     expect(panel.querySelector('[role="switch"]')).toBeNull();
-    expect(panel.querySelector('[data-extensions-search]')).not.toBeNull();
     expect(panel.querySelector('[data-layout-sidebar]'), 'plugins header has no collapse button').toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '插件' }));
     expect((container.querySelector('[data-shell]') as HTMLElement).style.getPropertyValue('--rail-left-w')).toBe('0px');
@@ -710,6 +712,68 @@ describe('App — empty scene', () => {
     fireEvent.click(within(panel).getByRole('button', { name: '如何安装' }));
     expect(panel.textContent).toMatch(/camelia\.plugin\.json/);
     expect(panel.textContent).toMatch(/~\/\.camelia\/plugins/);
+    expect(panel.textContent).toMatch(/CAMELIA_CATALOG_URL/);
+    const beforeRefresh = transport.sent.filter((command) => command.type === 'fetch_extension_catalog').length;
+    fireEvent.click(within(panel).getByRole('button', { name: '刷新' }));
+    await waitFor(() => {
+      expect(transport.sent.filter((command) => command.type === 'fetch_extension_catalog').length).toBeGreaterThan(
+        beforeRefresh,
+      );
+    });
+    expect(transport.sent.some((command) => command.type === 'list_plugins')).toBe(true);
+  });
+
+  it('filters the extension catalog and installs a plugin into the local list', async () => {
+    const { container, transport } = renderScene('empty');
+    fireEvent.click(screen.getByRole('button', { name: '插件' }));
+    const panel = container.querySelector('[data-extensions-panel]') as HTMLElement;
+    expect(await within(panel).findByText('Quiet activity bar')).toBeInTheDocument();
+    const search = panel.querySelector('[data-extensions-search]') as HTMLInputElement;
+    fireEvent.change(search, { target: { value: 'theme' } });
+    expect(within(panel).getByText('Quiet activity bar')).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '不存在的插件zzz' } });
+    expect(within(panel).getByText('目录和已安装列表里都没有匹配项。')).toBeInTheDocument();
+    expect(within(panel).queryByText('Quiet activity bar')).toBeNull();
+    fireEvent.change(search, { target: { value: '' } });
+    fireEvent.click(within(panel).getByRole('button', { name: '安装' }));
+    expect(await within(panel).findByText(/重新启动 Camelia/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(panel.querySelector('[data-catalog-installed="quiet-activity-bar"]')).not.toBeNull();
+    });
+    expect(
+      transport.sent.some(
+        (command) => command.type === 'install_catalog_plugin' && command.payload.id === 'quiet-activity-bar',
+      ),
+    ).toBe(true);
+    expect(panel.querySelector('[role="switch"]')).toBeNull();
+  });
+
+  it('searches the skill catalog and installs a skill without dropping folder install', async () => {
+    const { container, transport } = renderScene('empty');
+    fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
+    const panel = container.querySelector('[data-skills-panel]') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(panel.querySelector('[data-skills-open-folder]')).not.toBeNull();
+    expect(panel.querySelector('[data-skills-install]')).not.toBeNull();
+    expect(await within(panel).findByText('Catalog maintainer')).toBeInTheDocument();
+    expect(within(panel).getByText('demo-skill')).toBeInTheDocument();
+    const search = panel.querySelector('[data-skills-search]') as HTMLInputElement;
+    expect(search.placeholder).toBe('搜索技能目录');
+    fireEvent.change(search, { target: { value: 'catalog' } });
+    expect(within(panel).queryByText('demo-skill')).toBeNull();
+    expect(within(panel).getByText('Catalog maintainer')).toBeInTheDocument();
+    expect(within(panel).queryByText('Quiet shell notes')).toBeNull();
+    fireEvent.click(panel.querySelector('[data-catalog-skill-install="catalog-maintainer"]') as HTMLButtonElement);
+    expect(await within(panel).findByText('已安装。')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(panel.querySelector('[data-catalog-skill-installed="catalog-maintainer"]')).not.toBeNull();
+    });
+    expect(
+      transport.sent.some(
+        (command) => command.type === 'install_catalog_skill' && command.payload.id === 'catalog-maintainer',
+      ),
+    ).toBe(true);
+    expect(transport.sent.some((command) => command.type === 'fetch_extension_catalog')).toBe(true);
   });
 
   it('checks GitHub releases from About and does not download outside the desktop shell', async () => {

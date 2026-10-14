@@ -588,6 +588,30 @@ export class EngineServer {
         if (!installed.ok) return installed;
         return { ok: true, data: installed.skills };
       }
+      case 'list_plugins':
+        return { ok: true, data: this.options.runtime.listPlugins() };
+      case 'fetch_extension_catalog': {
+        const catalog = await this.options.runtime.fetchExtensionCatalog();
+        if (!catalog.ok) return { ok: false, error: catalog.error };
+        return { ok: true, data: { ...catalog.value, sourceUrl: catalog.sourceUrl } };
+      }
+      case 'install_catalog_plugin': {
+        const id = command.payload?.id;
+        if (typeof id !== 'string' || !id.trim()) return { ok: false, error: '缺少插件 id' };
+        const installed = await this.options.runtime.installCatalogPlugin(id.trim());
+        if (!installed.ok) return installed;
+        return {
+          ok: true,
+          data: { id: installed.id, dir: installed.dir, restartRequired: true as const },
+        };
+      }
+      case 'install_catalog_skill': {
+        const id = command.payload?.id;
+        if (typeof id !== 'string' || !id.trim()) return { ok: false, error: '缺少技能 id' };
+        const installed = await this.options.runtime.installCatalogSkill(id.trim());
+        if (!installed.ok) return installed;
+        return { ok: true, data: installed.skills };
+      }
 
       default:
         return { ok: false, error: `不支持的命令: ${String((command as { type?: string }).type ?? '')}` };

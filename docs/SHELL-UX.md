@@ -77,11 +77,11 @@ Work 的输入框另外保留权限策略下拉。
 
 ## 插件栏与 Skills
 
-活动栏图标的顺序是：会话、**插件**（`extensions.title` / `rail.extensions`）、**Skills**（第三个，`data-rail-view="skills"`）。插件点开后，左栏标题是 **扩展**（`extensions.panelTitle`），下面有搜索框「搜索已安装的扩展」。
+活动栏图标的顺序是：会话、**插件**（`extensions.title` / `rail.extensions`）、**Skills**（第三个，`data-rail-view="skills"`）。插件点开后，左栏标题是 **扩展**（`extensions.panelTitle`），搜索框是「搜索扩展目录」。
 
-搜索只过滤**这一栏里的已安装列表**。当前构建里这份列表是空数组，所以常见状态是「还没有插件」。引擎仍然只在**进程启动**时读取 `~/.camelia/plugins` 下带 `camelia.plugin.json` 的目录。没有启用开关，也没有应用内下载。「如何安装」在标题栏「…」里。示例插件 `plugins/quiet-activity-bar` 是主题存根，不替换这 48px 图标栏。
+搜索同时过滤 **Camelia 维护的扩展目录**和本机已安装列表。默认目录文档是 `https://raw.githubusercontent.com/CameliaDev/camelia-extensions/main/catalog.json`（`main` 上的 `catalog.json`）。这个仓库拉不到时，改读 `https://raw.githubusercontent.com/CameliaDev/Camelia-Agent/main/extensions-registry/catalog.json`。环境变量 `CAMELIA_CATALOG_URL` 可以换成别的 http(s) 地址，设了之后不再回退。安装对目录条目做 `git clone --depth 1`，把条目的 `path` 复制到 `~/.camelia/plugins/<id>`，目录里必须有 `camelia.plugin.json`。引擎仍然只在**进程启动**时加载插件，所以安装后要重新启动才会生效；刷新会重新拉目录并重读磁盘上的文件夹。没有启用开关。「如何安装」在标题栏「…」里。示例插件 `quiet-activity-bar` 在目录仓库的 `plugins/quiet-activity-bar`，是主题存根，不替换这 48px 图标栏。
 
-Skills 页列出含 `SKILL.md` 的文件夹（和 Cursor / Claude 的布局一样，frontmatter 里的 `name` / `description`）。扫描 `~/.camelia/skills`、工作区 `.camelia/skills`、`.cursor/skills`、`.claude/skills`、`.agents/skills`，以及用户主目录下的 `.cursor/skills` 和 `.claude/skills`。「打开目录」再加一个扫描根。「安装…」把选中的文件夹复制进 `~/.camelia/skills`。命令是 `list_skills` 和 `install_skill`。
+Skills 页列出含 `SKILL.md` 的文件夹（和 Cursor / Claude 的布局一样，frontmatter 里的 `name` / `description`）。扫描 `~/.camelia/skills`、工作区 `.camelia/skills`、`.cursor/skills`、`.claude/skills`、`.agents/skills`，以及用户主目录下的 `.cursor/skills` 和 `.claude/skills`。「打开目录」再加一个扫描根。「安装…」把选中的文件夹复制进 `~/.camelia/skills`。同一份 `catalog.json` 的 `skills` 出现在搜索结果里，安装同样克隆后走 `install_skill`，落到 `~/.camelia/skills`。命令是 `list_skills`、`install_skill`、`fetch_extension_catalog`、`install_catalog_skill`。插件侧对应 `list_plugins` 和 `install_catalog_plugin`。
 
 ## 聊天里的状态
 

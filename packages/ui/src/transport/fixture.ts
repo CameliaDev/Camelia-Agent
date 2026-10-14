@@ -57,6 +57,18 @@ export class FixtureTransport implements Transport {
   private record = true;
   /** Scripted memory panel data (Iteration 22) — a stand-in, never the engine. */
   private memory: FixtureMemoryDb = createFixtureMemoryDb(Date.now(), PRIMARY_SESSION.id);
+  /** On-disk plugins the fixture pretends are under `~/.camelia/plugins`. */
+  private installedPlugins: FixturePlugin[] = [];
+  /** Skill folders `list_skills` returns. Catalog installs append here. */
+  private skillRows: FixtureSkill[] = [
+    {
+      id: 'user:demo-skill',
+      name: 'demo-skill',
+      description: 'A fixture skill',
+      dir: '/skills/demo-skill',
+      source: 'user',
+    },
+  ];
 
   constructor(private readonly options: FixtureOptions = {}) {}
 
@@ -359,15 +371,7 @@ export class FixtureTransport implements Transport {
         return;
       }
       case 'list_skills':
-        this.answer(command.commandId, [
-          {
-            id: 'user:demo-skill',
-            name: 'demo-skill',
-            description: 'A fixture skill',
-            dir: '/skills/demo-skill',
-            source: 'user',
-          },
-        ]);
+        this.answer(command.commandId, this.skillRows);
         return;
       case 'install_skill': {
         const source = typeof command.payload?.path === 'string' ? command.payload.path.trim() : '';
@@ -376,9 +380,51 @@ export class FixtureTransport implements Transport {
           return;
         }
         const name = source.split(/[/\\]/).filter(Boolean).pop() || 'skill';
-        this.answer(command.commandId, [
-          { id: `user:${name}`, name, description: 'Installed', dir: source, source: 'user' },
-        ]);
+        const row = { id: `user:${name}`, name, description: 'Installed', dir: source, source: 'user' };
+        this.skillRows = [...this.skillRows.filter((skill) => skill.name !== name), row];
+        this.answer(command.commandId, [row]);
+        return;
+      }
+      case 'list_plugins':
+        this.answer(command.commandId, this.installedPlugins);
+        return;
+      case 'fetch_extension_catalog':
+        this.answer(command.commandId, FIXTURE_CATALOG);
+        return;
+      case 'install_catalog_plugin': {
+        const id = command.payload.id.trim();
+        const known = FIXTURE_CATALOG.plugins.find((entry) => entry.id === id);
+        if (!known) {
+          this.answer(command.commandId, { ok: false, error: '目录里没有这个插件' });
+          return;
+        }
+        const row = {
+          id,
+          name: known.name,
+          description: known.description,
+          kind: 'theme',
+          dir: `/plugins/${id}`,
+        };
+        this.installedPlugins = [...this.installedPlugins.filter((plugin) => plugin.id !== id), row];
+        this.answer(command.commandId, { id, dir: row.dir, restartRequired: true });
+        return;
+      }
+      case 'install_catalog_skill': {
+        const id = command.payload.id.trim();
+        const known = FIXTURE_CATALOG.skills.find((entry) => entry.id === id);
+        if (!known) {
+          this.answer(command.commandId, { ok: false, error: '目录里没有这个技能' });
+          return;
+        }
+        const row = {
+          id: `user:${id}`,
+          name: known.name,
+          description: known.description,
+          dir: `/skills/${id}`,
+          source: 'user',
+        };
+        this.skillRows = [...this.skillRows.filter((skill) => skill.name !== known.name), row];
+        this.answer(command.commandId, [row]);
         return;
       }
       case 'set_workspace': {
@@ -525,6 +571,55 @@ export class FixtureTransport implements Transport {
     }
   }
 }
+
+interface FixturePlugin {
+  id: string;
+  name: string;
+  description: string;
+  kind: string;
+  dir: string;
+}
+
+interface FixtureSkill {
+  id: string;
+  name: string;
+  description: string;
+  dir: string;
+  source: string;
+}
+
+const FIXTURE_CATALOG = {
+  version: 1 as const,
+  sourceUrl: 'https://raw.githubusercontent.com/CameliaDev/camelia-extensions/main/catalog.json',
+  plugins: [
+    {
+      id: 'quiet-activity-bar',
+      name: 'Quiet activity bar',
+      description: 'Quieter ink tokens',
+      repo: 'https://github.com/CameliaDev/camelia-extensions',
+      path: 'plugins/quiet-activity-bar',
+      tags: ['theme'],
+    },
+  ],
+  skills: [
+    {
+      id: 'catalog-maintainer',
+      name: 'Catalog maintainer',
+      description: 'Add an entry to the Camelia catalog',
+      repo: 'https://github.com/CameliaDev/camelia-extensions',
+      path: 'skills/catalog-maintainer',
+      tags: ['meta'],
+    },
+    {
+      id: 'quiet-shell-notes',
+      name: 'Quiet shell notes',
+      description: 'Notes for the quieter shell',
+      repo: 'https://github.com/CameliaDev/camelia-extensions',
+      path: 'skills/quiet-shell-notes',
+      tags: ['shell'],
+    },
+  ],
+};
 
 /** Canned but plausible tool output for a command-driven approval. */
 function fixtureOutput(call: Pick<ToolCall, 'name' | 'input'>): JsonValue {
