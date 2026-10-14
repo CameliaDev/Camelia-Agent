@@ -16,8 +16,10 @@
 
 import { useCallback } from 'react';
 
-import { useUiStore } from '../state/UiProvider.js';
+import { makeCommand } from '../state/store.js';
+import { useUiStore, useUiStoreApi } from '../state/UiProvider.js';
 import { modeDefinition } from './ModeRegistry.js';
+import { projectionMatchesMode, sessionForMode } from './session-kind.js';
 import { normalizeModeId, type AppModeId, type ModeDefinition } from './types.js';
 
 export interface ModeControls {
@@ -34,12 +36,21 @@ export function useMode(): ModeControls {
   const setModeRaw = useUiStore((s) => s.setMode);
   const preferredMode = useUiStore((s) => s.localPrefs.preferredMode);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
+  const store = useUiStoreApi();
 
   const setMode = useCallback(
     (id: AppModeId) => {
-      setModeRaw(normalizeModeId(id));
+      const next = normalizeModeId(id);
+      const state = store.getState();
+      setModeRaw(next);
+      // Show this mode's own session when one already exists. Do not create one:
+      // a tab click must not invent a conversation or disturb a running task.
+      if (projectionMatchesMode(state.snapshot, next)) return;
+      const row = sessionForMode(state.sessions, next);
+      if (!row || row.id === state.snapshot.session?.id) return;
+      state.dispatch(makeCommand('select_session', { sessionId: row.id }));
     },
-    [setModeRaw],
+    [setModeRaw, store],
   );
 
   const setPreferredMode = useCallback(

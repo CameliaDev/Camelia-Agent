@@ -151,6 +151,7 @@ describe('loadToolsInWorker — containment', () => {
 
   it('enforces a floor on the deadline so it cannot be set to zero', async () => {
     // A zero timeout would race the worker's own startup and fail every load.
+    // The host raises it high enough that an empty plugin still comes back.
     const entry = plugin(`export const tools = [];`);
     const result = await loadToolsInWorker({ entry, permissions: [], timeoutMs: 0 });
     expect(result.ok).toBe(true);

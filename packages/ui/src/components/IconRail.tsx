@@ -53,6 +53,7 @@ import { useState, type ReactNode } from 'react';
 import { t } from '../i18n/strings.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { AccountMenu } from './AccountMenu.js';
+import { GearMenu } from './GearMenu.js';
 import { Avatar, Icon, userAvatarSrc } from './primitives.js';
 
 /** One activity-bar cell. The glyph is the control; the word is the tooltip. */
@@ -93,8 +94,8 @@ export function IconRail(): ReactNode {
   const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
   const displayNamePref = useUiStore((s) => s.localPrefs.displayName);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
-  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [gearOpen, setGearOpen] = useState(false);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   /**
    * The name the user configured, or nothing.
@@ -178,7 +179,10 @@ export function IconRail(): ReactNode {
           aria-haspopup="menu"
           aria-expanded={accountMenuOpen}
           className={`${CELL} ${accountMenuOpen ? ITEM_ACTIVE : ITEM_IDLE}`}
-          onClick={() => setAccountMenuOpen((open) => !open)}
+          onClick={() => {
+            setGearOpen(false);
+            setAccountMenuOpen((open) => !open);
+          }}
         >
           <Avatar kind="user" size={20} src={userAvatarSrc(userAvatar, githubAccount)} />
           {!accountMenuOpen ? (
@@ -200,20 +204,25 @@ export function IconRail(): ReactNode {
         The gear, set a step further down than the account mark so the two read as separate
         entries rather than a pair — `gap-1` alone leaves them looking like one stack.
       */}
-      <button
-        type="button"
-        data-rail-settings
-        title={tr('settings.title')}
-        aria-label={tr('settings.title')}
-        className={`${CELL} ${ITEM_IDLE} mt-0.5`}
-        onClick={() => {
-          setAccountMenuOpen(false);
-          setSettingsOpen(true);
-        }}
-      >
-        <Icon name="settings" size={20} />
-        <Tip>{tr('settings.title')}</Tip>
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          data-rail-settings
+          title={tr('settings.title')}
+          aria-label={tr('settings.title')}
+          aria-haspopup="menu"
+          aria-expanded={gearOpen}
+          className={`${CELL} ${gearOpen ? ITEM_ACTIVE : ITEM_IDLE} mt-0.5`}
+          onClick={() => {
+            setAccountMenuOpen(false);
+            setGearOpen((open) => !open);
+          }}
+        >
+          <Icon name="settings" size={20} />
+          {!gearOpen ? <Tip>{tr('settings.title')}</Tip> : null}
+        </button>
+        {gearOpen ? <GearMenu onClose={() => setGearOpen(false)} /> : null}
+      </div>
     </aside>
   );
 }

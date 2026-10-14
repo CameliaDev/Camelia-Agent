@@ -94,6 +94,8 @@ export type ChatFinishReason = 'stop' | 'tool_calls' | 'length' | 'error';
 
 export type ChatChunk =
   | { type: 'text-delta'; text: string }
+  /** Provider reasoning (`reasoning_content`). Not part of the answer text. */
+  | { type: 'reasoning-delta'; text: string }
   | { type: 'tool-call'; call: LLMToolCall }
   | { type: 'usage'; promptTokens: number; completionTokens: number }
   | { type: 'done'; finishReason: ChatFinishReason }
@@ -133,6 +135,8 @@ export async function collectChat(stream: AsyncIterable<ChatChunk>): Promise<LLM
     switch (chunk.type) {
       case 'text-delta':
         text += chunk.text;
+        break;
+      case 'reasoning-delta':
         break;
       case 'tool-call':
         toolCalls.push(chunk.call);

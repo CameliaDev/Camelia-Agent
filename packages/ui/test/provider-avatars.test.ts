@@ -18,11 +18,15 @@ describe('providerAvatarSrc', () => {
     expect(new Set(urls).size).toBe(3);
     for (const url of urls) {
       expect(url).not.toBe(providerAvatarSrc('aliyun'));
+      expect(url.startsWith('data:image/svg+xml')).toBe(true);
+      expect(url.toLowerCase()).not.toContain('%3ctext');
+      expect(url).not.toContain('font-family');
     }
   });
 
   it('falls back to a data-URI disc for unknown custom ids', () => {
     const url = providerAvatarSrc('my-corp-llm');
     expect(url.startsWith('data:image/svg+xml')).toBe(true);
+    expect(url.toLowerCase()).not.toContain('%3ctext');
   });
 });

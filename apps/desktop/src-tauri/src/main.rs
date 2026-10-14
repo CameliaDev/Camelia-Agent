@@ -742,6 +742,47 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Native folder dialog. The UI also accepts a typed path when this fails.
+#[tauri::command]
+fn pick_folder() -> Result<String, String> {
+    let output = pick_folder_command()
+        .output()
+        .map_err(|err| format!("folder dialog failed: {err}"))?;
+    if !output.status.success() {
+        return Err("cancelled".into());
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().trim_matches('"').to_string();
+    if path.is_empty() {
+        return Err("cancelled".into());
+    }
+    Ok(path)
+}
+
+#[cfg(target_os = "windows")]
+fn pick_folder_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args([
+        "-NoProfile",
+        "-Command",
+        "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }",
+    ]);
+    cmd
+}
+
+#[cfg(target_os = "macos")]
+fn pick_folder_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("osascript");
+    cmd.args(["-e", "POSIX path of (choose folder)"]);
+    cmd
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn pick_folder_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("zenity");
+    cmd.args(["--file-selection", "--directory"]);
+    cmd
+}
+
 #[tauri::command]
 fn github_device_code(client_id: String, scope: String) -> Result<serde_json::Value, String> {
     let client_id = client_id.trim();
@@ -1074,6 +1115,23 @@ fn read_key_status() -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Object(out))
 }
 
+/// Full key for a connectivity probe. The settings field stays empty once a key is saved,
+/// so the webview cannot put `Authorization` on `GET /models` unless this command supplies it.
+#[tauri::command]
+fn read_provider_key(provider: String) -> Result<String, String> {
+    let id = clean_provider_id(&provider)?;
+    if id == "ollama" {
+        return Ok(String::new());
+    }
+    let map = read_keys_object()?;
+    Ok(map
+        .get(&id)
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string())
+}
+
 #[tauri::command]
 fn write_provider_key(provider: String, api_key: String) -> Result<(), String> {
     let id = clean_provider_id(&provider)?;
@@ -1372,6 +1430,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             open_external_url,
+            pick_folder,
             github_device_code,
             github_device_poll,
             open_engine_log,
@@ -1382,6 +1441,7 @@ fn main() {
             upsert_provider_preset,
             delete_provider_preset,
             read_key_status,
+            read_provider_key,
             write_provider_key,
             relaunch_app,
             download_update

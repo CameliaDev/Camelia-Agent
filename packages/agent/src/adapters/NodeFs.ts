@@ -17,7 +17,12 @@ import { toPosix } from '@camelia/core';
 const DEFAULT_MAX_ENTRIES = 2_000;
 
 export class NodeFs implements FsPort {
-  constructor(private readonly root: string) {}
+  constructor(private root: string) {}
+
+  /** Re-root after the user picks another working folder. */
+  setRoot(root: string): void {
+    this.root = root;
+  }
 
   async readFile(filePath: string): Promise<string> {
     return fs.readFile(filePath, 'utf8');

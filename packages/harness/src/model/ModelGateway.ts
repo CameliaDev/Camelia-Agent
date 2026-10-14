@@ -267,6 +267,8 @@ export class ModelGateway {
         case 'text-delta':
           text += chunk.text;
           break;
+        case 'reasoning-delta':
+          break;
         case 'tool-call':
           toolCalls.push(chunk.call);
           break;

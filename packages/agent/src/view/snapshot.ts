@@ -151,6 +151,8 @@ export interface ChatTurnView {
   images?: ChatImagePayload[];
   /** True while `chat.delta` chunks are still arriving (drives the caret). */
   streaming: boolean;
+  /** Reasoning stream (`chat.delta` channel `thinking`). Kept out of `text`. */
+  thinking?: string;
   toolCalls: ToolCallView[];
   /** Why the turn ended abnormally, when it did (`chat.failed`). */
   error?: string;
@@ -736,17 +738,32 @@ function pushChatTurn(chat: ChatView, turn: ChatTurnView): ChatView {
 }
 
 /** Fold a streamed chunk into the trailing assistant turn, opening one if needed. */
-function appendChatDelta(chat: ChatView, turnId: Id, delta: string, at: number): ChatView {
+function appendChatDelta(
+  chat: ChatView,
+  turnId: Id,
+  delta: string,
+  at: number,
+  channel?: 'thinking',
+): ChatView {
   const last = chat.turns[chat.turns.length - 1];
   if (last && last.id === turnId && last.role === 'assistant' && last.streaming) {
     const turns = [...chat.turns];
-    turns[turns.length - 1] = { ...last, text: (last.text + delta).slice(0, MAX_CHAT_CHARS), at };
+    if (channel === 'thinking') {
+      turns[turns.length - 1] = {
+        ...last,
+        thinking: ((last.thinking ?? '') + delta).slice(0, MAX_CHAT_CHARS),
+        at,
+      };
+    } else {
+      turns[turns.length - 1] = { ...last, text: (last.text + delta).slice(0, MAX_CHAT_CHARS), at };
+    }
     return { ...chat, turns };
   }
   return pushChatTurn(chat, {
     id: turnId,
     role: 'assistant',
-    text: delta.slice(0, MAX_CHAT_CHARS),
+    text: channel === 'thinking' ? '' : delta.slice(0, MAX_CHAT_CHARS),
+    ...(channel === 'thinking' ? { thinking: delta.slice(0, MAX_CHAT_CHARS) } : {}),
     streaming: true,
     toolCalls: [],
     at,
@@ -1345,7 +1362,7 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
 
     case 'chat.delta':
       return mutateChat(snapshot, event, (chat) =>
-        appendChatDelta(chat, event.payload.turnId, event.payload.delta, event.ts),
+        appendChatDelta(chat, event.payload.turnId, event.payload.delta, event.ts, event.payload.channel),
       );
 
     case 'chat.message':

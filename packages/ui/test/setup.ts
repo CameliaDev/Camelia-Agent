@@ -11,14 +11,19 @@ import { afterEach, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 import { clearThemeTokens } from '../src/theme/apply-theme.js';
+import { resetShellExtras } from '../src/state/shell-extras.js';
 
 beforeEach(() => {
   localStorage.clear();
+  // Tests are returning guests. A first-run case removes this key itself.
+  localStorage.setItem('camelia.loginGate', 'skipped');
+  resetShellExtras();
 });
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  resetShellExtras();
   clearThemeTokens();
   delete document.documentElement.dataset.motion;
   delete document.documentElement.dataset.resizing;

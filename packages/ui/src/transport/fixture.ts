@@ -18,7 +18,7 @@ import type {
   ToolCall,
 } from '@camelia/core';
 
-import { initialSnapshot, reduceEvents, type ProjectionSnapshot } from '@camelia/agent/view';
+import { initialSnapshot, reduceEvents, type ProjectionSnapshot, type SessionView } from '@camelia/agent/view';
 
 import {
   BOOTSTRAP_PROVIDER,
@@ -49,6 +49,12 @@ export class FixtureTransport implements Transport {
   private timers: ReturnType<typeof setTimeout>[] = [];
   private clock = 0;
   private snapshot: ProjectionSnapshot = initialSnapshot();
+  /** Per-session event tape, so leaving a session and coming back restores it. */
+  private tapes = new Map<string, DomainEvent[]>();
+  private sessionRows: SessionView[] = [];
+  private activeSessionId?: string;
+  /** False while a tape is replayed, so the replay is not appended to itself. */
+  private record = true;
   /** Scripted memory panel data (Iteration 22) — a stand-in, never the engine. */
   private memory: FixtureMemoryDb = createFixtureMemoryDb(Date.now(), PRIMARY_SESSION.id);
 
@@ -66,6 +72,9 @@ export class FixtureTransport implements Transport {
       throw new Error('engine unreachable — ECONNREFUSED 127.0.0.1:7433 after all three free paths failed');
     }
     handlers.onStatus('connecting');
+    const bare = this.scene === 'empty' || this.scene === 'connecting';
+    this.sessionRows = bare ? [] : SESSION_LIST.map((row) => ({ ...row }));
+    this.activeSessionId = bare ? undefined : PRIMARY_SESSION.id;
     handlers.onBootstrap(this.bootstrap());
 
     const events = buildScenario(this.scene);
@@ -109,7 +118,33 @@ export class FixtureTransport implements Transport {
 
   private emit(event: DomainEvent): void {
     this.snapshot = reduceEvents(this.snapshot, [event]);
+    if (this.record && this.activeSessionId) {
+      const tape = this.tapes.get(this.activeSessionId) ?? [];
+      tape.push(event);
+      this.tapes.set(this.activeSessionId, tape);
+    }
     this.handlers?.onEvent(event);
+  }
+
+  private replaySession(sessionId: string): void {
+    const tape = this.tapes.get(sessionId);
+    if (!tape || sessionId === this.activeSessionId) return;
+    const row = this.sessionRows.find((session) => session.id === sessionId);
+    if (!row || !this.handlers) return;
+    this.activeSessionId = sessionId;
+    this.record = false;
+    this.snapshot = initialSnapshot();
+    this.handlers.onBootstrap({
+      session: row,
+      sessions: this.sessionRows,
+      provider: BOOTSTRAP_PROVIDER,
+      providerStatus: BOOTSTRAP_PROVIDER_STATUS,
+    });
+    for (const event of tape) {
+      this.snapshot = reduceEvents(this.snapshot, [event]);
+      this.handlers.onEvent(event);
+    }
+    this.record = true;
   }
 
   /** Push an event onto the tail of the replay clock. */
@@ -271,11 +306,15 @@ export class FixtureTransport implements Transport {
           kind,
           blank: true,
         };
+        // The previous session keeps the events already recorded on its tape.
+        this.activeSessionId = sessionId;
+        this.tapes.set(sessionId, []);
+        this.sessionRows = [blank, ...this.sessionRows.filter((row) => row.id !== sessionId)];
         // Drop the previous task/chat so the shell shows the centred empty state.
         this.snapshot = initialSnapshot();
         this.handlers?.onBootstrap({
           session: blank,
-          sessions: [blank, ...SESSION_LIST.filter((s) => s.id !== sessionId)],
+          sessions: this.sessionRows,
           provider: BOOTSTRAP_PROVIDER,
           providerStatus: BOOTSTRAP_PROVIDER_STATUS,
         });
@@ -284,7 +323,30 @@ export class FixtureTransport implements Transport {
       }
       case 'select_session':
         this.answer(command.commandId, { ok: true });
+        this.replaySession(command.payload.sessionId);
         return;
+      case 'set_workspace': {
+        const dir = typeof command.payload?.path === 'string' ? command.payload.path.trim() : '';
+        // Bootstrap writes the session into the store. The fixture snapshot only
+        // folds domain events, so the row lives on `sessionRows`.
+        const current =
+          this.sessionRows.find((row) => row.id === this.activeSessionId) ?? this.snapshot.session;
+        if (!dir || !current) {
+          this.answer(command.commandId, { ok: false, error: 'not a directory' });
+          return;
+        }
+        const next = { ...current, workspace: dir };
+        this.sessionRows = this.sessionRows.map((row) => (row.id === next.id ? { ...row, workspace: dir } : row));
+        this.handlers?.onBootstrap({
+          session: next,
+          sessions: this.sessionRows.length ? this.sessionRows : [next],
+          provider: BOOTSTRAP_PROVIDER,
+          providerStatus: BOOTSTRAP_PROVIDER_STATUS,
+        });
+        this.snapshot = { ...this.snapshot, session: next };
+        this.answer(command.commandId, { ok: true, workspace: dir });
+        return;
+      }
       case 'select_provider':
         this.push('provider.selected', {
           providerId: command.payload.providerId,

@@ -203,6 +203,12 @@ export async function loginWithGithubToken(
 
 export function logoutGithub(storage?: Storage): void {
   clearGithubToken(storage);
+  // Signing out is not a first launch. The login page stays dismissed.
+  try {
+    (storage ?? localStorage).setItem('camelia.loginGate', 'skipped');
+  } catch {
+    // Ignore a storage that refuses the write.
+  }
 }
 
 async function postForm(

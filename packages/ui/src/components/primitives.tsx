@@ -140,6 +140,7 @@ export const PATHS: Record<string, string> = {
   // tab, so it does not read as a generic square at 11px.
   folder:
     '<path d="M2.4 12.2V4.4A1.2 1.2 0 0 1 3.6 3.2h2.5l1.3 1.6h5A1.2 1.2 0 0 1 13.6 6v6.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/>',
+  filter: '<path d="M2.6 3.2h10.8L9.2 8.2v4.2l-2.4-1.2V8.2L2.6 3.2z"/>',
 };
 
 export const ICON_NAMES = Object.keys(PATHS);

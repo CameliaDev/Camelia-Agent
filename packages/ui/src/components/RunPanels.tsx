@@ -12,9 +12,9 @@
  *
  * ## What replaced it
  *
- * The header keeps one drawer toggle (`PanelDrawerToggle`). The sections are tabs
- * inside `RightRail`, and the bodies live here. A task-bound section stays in the
- * tab row when there is no task — dimmed, not removed — so the set does not jump.
+ * The top bar keeps one drawer toggle (`PanelDrawerToggle`). The sections are the
+ * top bar's 更多 menu, and the bodies live here. A task-bound section stays in the
+ * menu when there is no task — dimmed, not removed — so the set does not jump.
  *
  * Nothing is deleted and nothing is simplified. The panel bodies are the same components
  * that rendered in the rail, moved wholesale — a rewrite would risk the run record and the

@@ -274,6 +274,12 @@ export class EngineServer {
     for (const client of this.clients) this.write(client.res, frame);
   }
 
+  /** Re-send bootstrap after the working folder (and its session) changes. */
+  private async pushBootstrap(): Promise<void> {
+    const frame = sseFrame(SSE_FRAME.bootstrap, await this.bootstrap());
+    for (const client of this.clients) this.write(client.res, frame);
+  }
+
   private async bootstrap(): Promise<{
     session: ReturnType<typeof toSessionView>;
     sessions: ReturnType<typeof toSessionView>[];
@@ -426,6 +432,16 @@ export class EngineServer {
         return ok
           ? { ok: true }
           : { ok: false, error: `会话不存在: ${String(command.payload.sessionId)}` };
+      }
+      case 'set_workspace': {
+        const dir = command.payload?.path;
+        if (typeof dir !== 'string' || !dir.trim()) return { ok: false, error: '路径不能为空' };
+        const changed = await this.options.runtime.setWorkspace(dir.trim());
+        if (!changed.ok) {
+          return { ok: false, error: changed.error === 'busy' ? '有任务正在进行' : '这不是文件夹' };
+        }
+        await this.pushBootstrap();
+        return { ok: true, data: { workspace: changed.workspace } };
       }
 
       // ---- memory panel (Iteration 22) -----------------------------------

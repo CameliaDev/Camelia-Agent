@@ -34,8 +34,8 @@ function renderScene(scene: SceneId) {
 /**
  * Open a section in the right drawer and return the deck.
  *
- * The header has one toggle. The sections are tabs inside the drawer, so a test that
- * wants the run steps opens the drawer, then the tab.
+ * The top bar has one toggle. The sections are the 更多 menu beside it, so a test
+ * that wants the run steps opens the drawer, then the menu.
  */
 function expandCollapsed(container: HTMLElement): void {
   container.querySelectorAll('[data-collapsible-toggle]').forEach((btn) => {
@@ -163,9 +163,8 @@ describe('App — layout contract', () => {
   });
 
   it('draws the status bar with real readouts, and no controls that do nothing', () => {
-    // "In case we want to put things here later" is permission to add items, not to ship
-    // empty placeholders. Readout cells stay non-interactive. The one control is the
-    // connection status, which opens Settings → Engine.
+    // Readout cells stay non-interactive. The workspace name changes the working
+    // folder, and the connection status opens Settings → Engine.
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('running');
 
@@ -177,8 +176,9 @@ describe('App — layout contract', () => {
       expect(container.querySelector(`[data-status-item="${item}"]`), item).not.toBeNull();
     }
     const actions = bar.querySelectorAll('button, a, [role="button"]');
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toHaveAttribute('data-status-item', 'connection');
+    expect(actions).toHaveLength(2);
+    expect(bar.querySelector('[data-status-item="workspace"]')?.tagName).toBe('BUTTON');
+    expect(bar.querySelector('[data-status-item="connection"]')).not.toBeNull();
     // The workspace row is the folder and the name. The green status pip used to sit in front of them.
     expect(bar.querySelector('[data-status-item="workspace"] .h-2')).toBeNull();
     // A ratio, not a percentage — the weighting behind `progress` is not re-explained here.
@@ -211,9 +211,11 @@ describe('App — layout contract', () => {
     expect(top.querySelector('[data-brand-slot]')?.textContent).toContain('Camelia');
     expect(container.querySelector('[data-chat-workspace] [data-mode-header]')).toBeNull();
     expect(container.querySelector('[data-mode-header] [data-panel-drawer]')).toBeNull();
-    // Left collapse sits in the session header while that column is open.
-    // The right toggle stays in the top bar until the drawer is open.
-    expect(container.querySelector('[data-session-header] [data-layout-sidebar]')).not.toBeNull();
+    // The session header is search and new chat. Collapsing that column is the
+    // activity bar, so this row has no 收起会话 control. The right toggle stays
+    // in the top bar.
+    expect(container.querySelector('[data-session-header] [data-layout-sidebar]')).toBeNull();
+    expect(screen.queryByRole('button', { name: '收起会话' })).toBeNull();
     expect(top.querySelector('[data-layout-sidebar]')).toBeNull();
     expect(top.querySelector('[data-panel-drawer]')).not.toBeNull();
     expect(top.querySelector('[data-connection-status]')).toBeNull();
@@ -256,8 +258,11 @@ describe('App — layout contract', () => {
     fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
     expect(panelTitle(container)).toBe('产物');
     expect(container.querySelector('[data-panel-tabs]')).toBeNull();
-    expect(container.querySelector('[data-right-rail] [data-panel-drawer]')).not.toBeNull();
-    expect(container.querySelector('.camelia-topbar [data-panel-drawer]')).toBeNull();
+    // Open or closed, the glyph stays in the top bar. 更多 sits beside it there.
+    expect(container.querySelector('[data-right-rail] [data-panel-drawer]')).toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-panel-drawer]')).not.toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-panel-more]')?.textContent).toBe('更多');
+    expect(container.querySelector('[data-right-rail] [data-panel-more]')).toBeNull();
     fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
   });
@@ -306,13 +311,16 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-panel-deck="run"]')).not.toBeNull();
   });
 
-  it('closes the deck from the panel itself, not only from the header icon', () => {
+  it('closes the open drawer from the top bar, not from a control in the drawer', () => {
     const { container } = renderScene('running');
     openPanel(container, 'run');
-    const close = container.querySelector('[data-panel-close]') as HTMLElement;
-    expect(close, 'the deck carries its own dismiss').not.toBeNull();
+    expect(container.querySelector('[data-right-rail] [data-panel-close]')).toBeNull();
+    expect(container.querySelector('[data-right-rail] [data-panel-drawer]')).toBeNull();
+    const close = container.querySelector('.camelia-topbar [data-panel-close]') as HTMLElement;
+    expect(close, 'the top bar toggle dismisses the open drawer').not.toBeNull();
     fireEvent.click(close);
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-panel-more]')).toBeNull();
   });
 
   it('keeps artifacts open across modes and hides math outputs outside math', () => {
@@ -335,7 +343,8 @@ describe('App — layout contract', () => {
     expect(rail, 'right rail hosts the panel').not.toBeNull();
     expect(deck, 'panel deck attribute rides the right rail').not.toBeNull();
     expect(rail.getAttribute('data-panel-deck')).toBe('events');
-    expect(rail.querySelector('[data-panel-close]')).not.toBeNull();
+    expect(container.querySelector('.camelia-topbar [data-panel-close]')).not.toBeNull();
+    expect(rail.querySelector('[data-panel-close]')).toBeNull();
     expect(rail.querySelectorAll('section, [data-event-section]').length).toBeGreaterThan(0);
     // Not inside main — sibling column on the grid.
     expect(rail.closest('main')).toBeNull();
@@ -451,24 +460,26 @@ describe('App — left icon rail', () => {
     );
   };
 
-  it('closes the session column to zero, then re-opens it from the rail', () => {
+  it('tucks the session column away from the chats icon, then opens it again', () => {
     writePrefs(false);
     const { container } = renderScene('running');
     const shell = container.querySelector('[data-shell]') as HTMLElement;
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
 
-    expect(container.querySelector('[data-session-header] [data-layout-sidebar]')).not.toBeNull();
-    expect(container.querySelector('.camelia-topbar [data-layout-sidebar]')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '收起会话' }));
+    // No separate 收起会话 button in the session header or the top bar.
+    expect(container.querySelector('[data-layout-sidebar]')).toBeNull();
+    expect(screen.queryByRole('button', { name: '收起会话' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '会话' }));
     // Zero, not a 48px strip: the rail outside already is the strip, and keeping one here
     // as well would put two re-open controls side by side for a single panel.
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('0px');
     expect(railOf(container)).not.toBeNull();
-    // The same control moves to the top bar, matching the closed right drawer.
+    // The column is gone, so expand also sits in the top bar. The chats icon still works.
     expect(container.querySelector('.camelia-topbar [data-layout-sidebar]')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: '会话' }));
     expect(shell.style.getPropertyValue('--rail-left-w')).toBe('260px');
+    expect(container.querySelector('[data-layout-sidebar]')).toBeNull();
   });
 
   it('does not put search or new chat on the activity bar', () => {
@@ -545,6 +556,9 @@ describe('App — left icon rail', () => {
     expect(gear.getAttribute('aria-label')).toBe('设置');
 
     fireEvent.click(gear);
+    expect(container.querySelector('[data-gear-menu]')).not.toBeNull();
+    expect(container.querySelector('[data-settings-page]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-gear-settings]') as HTMLElement);
     expect(within(container).getByRole('heading', { name: '连接预设' })).toBeInTheDocument();
     fireEvent.click(within(container).getAllByRole('button', { name: '关闭' })[0]!);
     expect(container.querySelector('[data-settings-page]')).toBeNull();
@@ -681,7 +695,15 @@ describe('App — empty scene', () => {
     const panel = container.querySelector('[data-extensions-panel]') as HTMLElement;
     expect(panel).not.toBeNull();
     expect(within(panel).getByText('还没有插件。')).toBeInTheDocument();
-    expect(panel.querySelector('[role="switch"], input')).toBeNull();
+    expect(within(panel).getByText('扩展')).toBeInTheDocument();
+    expect(panel.querySelector('[role="switch"]')).toBeNull();
+    expect(panel.querySelector('[data-extensions-search]')).not.toBeNull();
+    expect(panel.querySelector('[data-layout-sidebar]'), 'plugins header has no collapse button').toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '插件' }));
+    expect((container.querySelector('[data-shell]') as HTMLElement).style.getPropertyValue('--rail-left-w')).toBe('0px');
+    fireEvent.click(screen.getByRole('button', { name: '插件' }));
+    expect((container.querySelector('[data-shell]') as HTMLElement).style.getPropertyValue('--rail-left-w')).toBe('260px');
+    fireEvent.click(within(panel).getByRole('button', { name: '更多' }));
     fireEvent.click(within(panel).getByRole('button', { name: '如何安装' }));
     expect(panel.textContent).toMatch(/camelia\.plugin\.json/);
     expect(panel.textContent).toMatch(/~\/\.camelia\/plugins/);
@@ -708,6 +730,7 @@ describe('App — empty scene', () => {
     try {
       const { container } = renderScene('empty');
       fireEvent.click(container.querySelector('[data-rail-settings]') as HTMLElement);
+      fireEvent.click(container.querySelector('[data-gear-settings]') as HTMLElement);
       fireEvent.click(screen.getByRole('button', { name: '关于' }));
       fireEvent.click(screen.getByRole('button', { name: '检查更新' }));
       expect(await screen.findByText(/0\.2\.0/)).toBeInTheDocument();
@@ -727,6 +750,7 @@ describe('App — empty scene', () => {
     const gear = container.querySelector('[data-rail-settings]') as HTMLElement;
     expect(gear).not.toBeNull();
     fireEvent.click(gear);
+    fireEvent.click(container.querySelector('[data-gear-settings]') as HTMLElement);
     expect(container.querySelector('[data-settings-page]')).not.toBeNull();
     expect(screen.getByRole('button', { name: '连接预设' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '语言与外观' })).toBeInTheDocument();

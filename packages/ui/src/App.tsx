@@ -9,8 +9,9 @@
  * ## The right drawer
  *
  * The fourth track is the right drawer (`RightRail`). It stays at width 0 until the
- * mode header's single panel toggle opens it. Artifacts, memory, context and the
- * other run sections are tabs inside that drawer, not icons in the header.
+ * top bar's single panel toggle opens it. That toggle stays in the top bar while
+ * the drawer is open. Artifacts is the drawer body; the other sections are the
+ * top bar's 更多 menu, not a second header inside the drawer.
  *
  * One row, four columns, and no left-side footer: the account entry belongs to the icon
  * rail, which is the only left-side surface that never collapses. Putting it anywhere else
@@ -60,8 +61,11 @@ import { SteeringForm } from './components/SteeringForm.js';
 import { Mascot } from './components/primitives.js';
 import { TopBar } from './components/TopBar.js';
 import { WindowEdges } from './components/WindowEdges.js';
+import { LoginGate } from './components/LoginGate.js';
 import { RAIL_ICON_WIDTH, railWidth } from './state/local-prefs.js';
+import { useMathSetupOpen } from './state/shell-extras.js';
 import { useUiStore } from './state/UiProvider.js';
+import { loginGatePassed, markLoginGatePassed } from './window/login-gate.js';
 import { ModeShell } from './modes/ModeShell.js';
 import { readModelSettings } from './window/model-settings.js';
 import { isFreshChatSession } from './state/fresh-session.js';
@@ -76,12 +80,17 @@ export function App(): ReactNode {
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
+  const togglePanelDrawer = useUiStore((s) => s.togglePanelDrawer);
+  const mathSetupOpen = useMathSetupOpen();
+  const [gatePassed, setGatePassed] = useState(() => loginGatePassed());
   const [revealed, setRevealed] = useState(prefs.topBar === 'pinned');
   const hideTimer = useRef<number | null>(null);
   const prefsRef = useRef(prefs);
   const settingsRef = useRef(settingsOpen);
+  const toggleDrawerRef = useRef(togglePanelDrawer);
   prefsRef.current = prefs;
   settingsRef.current = settingsOpen;
+  toggleDrawerRef.current = togglePanelDrawer;
 
   const clearHide = (): void => {
     if (hideTimer.current !== null) {
@@ -130,6 +139,12 @@ export function App(): ReactNode {
   }, [prefs.topBar]);
 
   useEffect(() => {
+    if (!prefs.githubAccount) return;
+    markLoginGatePassed();
+    setGatePassed(true);
+  }, [prefs.githubAccount]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         if (settingsRef.current) {
@@ -139,15 +154,29 @@ export function App(): ReactNode {
         scheduleHide();
         return;
       }
+      if (event.repeat) return;
       if (event.ctrlKey && event.code === 'Backquote') {
         event.preventDefault();
         clearHide();
         setRevealed(true);
+        return;
+      }
+      // Ctrl+B folds the session column. Ctrl+Alt+B folds the artifacts drawer.
+      // Both work while the composer is focused, and a held key must not toggle twice.
+      const chordB = event.code === 'KeyB' && event.ctrlKey && !event.shiftKey && !event.metaKey;
+      if (chordB && event.altKey) {
+        event.preventDefault();
+        toggleDrawerRef.current();
+        return;
+      }
+      if (chordB && !event.altKey) {
+        event.preventDefault();
+        setLocalPrefs({ leftCollapsed: !prefsRef.current.leftCollapsed });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setSettingsOpen]);
+  }, [setSettingsOpen, setLocalPrefs]);
 
   /* Native Chromium/Tauri right-click menu (Copy / Print / Inspect) looks wrong in-app. */
   useEffect(() => {
@@ -161,7 +190,8 @@ export function App(): ReactNode {
 
   const left = railWidth(prefs);
   const panelId = useUiStore((s) => s.panelId);
-  const right = panelId ? prefs.rightWidth : 0;
+  const right = panelId || mathSetupOpen ? prefs.rightWidth : 0;
+  const showLogin = !gatePassed && !prefs.githubAccount;
   const topVisible = prefs.topBar === 'hidden' ? false : prefs.topBar === 'pinned' || revealed;
   const snapshot = useUiStore((s) => s.snapshot);
   const transportError = useUiStore((s) => s.transportError);
@@ -255,6 +285,7 @@ export function App(): ReactNode {
 
       <WindowEdges />
       <SettingsDrawer />
+      {showLogin ? <LoginGate onPassed={() => setGatePassed(true)} /> : null}
     </div>
   );
 }

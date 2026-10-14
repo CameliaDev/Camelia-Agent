@@ -328,7 +328,7 @@ export class CameliaRuntime {
   readonly tracer: InMemoryTracer;
   readonly tools: ToolEngine;
   session: Session;
-  readonly workspace: string;
+  workspace: string;
   /** Replaced when settings reload providers from disk. */
   config: CameliaConfig;
   readonly harnessConfig: HarnessConfig;
@@ -1160,6 +1160,37 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
     if (!existing) return false;
     this.session = existing;
     return true;
+  }
+
+  /**
+   * Point tools and the next chat turn at another folder.
+   *
+   * Refuses while a task loop or a chat turn is in flight — those already
+   * captured the old root. Opens (or reopens) the session for that folder.
+   */
+  async setWorkspace(dir: string): Promise<{ ok: true; workspace: string } | { ok: false; error: string }> {
+    const resolved = path.resolve(dir);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(resolved);
+    } catch {
+      return { ok: false, error: 'not a directory' };
+    }
+    if (!stat.isDirectory()) return { ok: false, error: 'not a directory' };
+    if (this.activeLoop || this.chatLoop.busy) return { ok: false, error: 'busy' };
+    if (this.ports.fs instanceof NodeFs) this.ports.fs.setRoot(resolved);
+    if (this.ports.search instanceof NodeSearch) this.ports.search.setRoot(resolved);
+    this.chatLoop.setWorkspace(resolved);
+    this.workspace = resolved;
+    const session = await openWorkspaceSession(
+      this.store,
+      resolved,
+      this.fallback.active.id,
+      this.decision.model,
+    );
+    this.session = session;
+    this.shared.sessionId = session.id;
+    return { ok: true, workspace: resolved };
   }
 
   get routingReason(): string {

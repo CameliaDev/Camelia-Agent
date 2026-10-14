@@ -1,10 +1,10 @@
 /**
- * The paired sidebar toggles.
+ * Sidebar toggles that live in the top bar.
  *
- * Left and right use the same button: one glyph, one click, open or closed.
- * While a side is open the control sits in that side's header. While it is
- * closed the same control moves to the top bar, so expand stays reachable
- * after the panel itself is gone. Only one instance of each is mounted.
+ * The right drawer has one toggle, and it stays in the top bar whether the
+ * drawer is open or shut. The left column does not: collapsing it is the
+ * activity bar (click the open chats or plugins icon). This left button is
+ * only the way back, mounted in the top bar while that column is closed.
  * @module
  */
 
@@ -17,7 +17,12 @@ import { Icon } from './primitives.js';
 const TOGGLE =
   'grid h-6 w-6 shrink-0 place-items-center rounded text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
-/** Collapse or expand the session column. Mirrors `PanelDrawerToggle`. */
+/**
+ * Expand the session column.
+ *
+ * Mounted in the top bar only while the column is closed. The activity bar
+ * is what tucks it away; this button is not placed in the session header.
+ */
 export function LeftSidebarToggle(): ReactNode {
   const language = useUiStore((s) => s.localPrefs.language);
   const leftOpen = !useUiStore((s) => s.localPrefs.leftCollapsed);
@@ -40,8 +45,8 @@ export function LeftSidebarToggle(): ReactNode {
   );
 }
 
-/** Open or close the right drawer. `embedded` marks the copy that lives in the drawer. */
-export function PanelDrawerToggle({ embedded = false }: { embedded?: boolean }): ReactNode {
+/** Open or close the right drawer. One control, always in the top bar. */
+export function PanelDrawerToggle(): ReactNode {
   const language = useUiStore((s) => s.localPrefs.language);
   const panelId = useUiStore((s) => s.panelId);
   const toggle = useUiStore((s) => s.togglePanelDrawer);
@@ -52,7 +57,7 @@ export function PanelDrawerToggle({ embedded = false }: { embedded?: boolean }):
     <button
       type="button"
       data-panel-drawer
-      data-panel-close={embedded ? '' : undefined}
+      data-panel-close={open ? '' : undefined}
       aria-pressed={open}
       aria-expanded={open}
       title={open ? tr('panels.toggleClose') : tr('panels.toggleOpen')}
