@@ -50,6 +50,9 @@ const DEFAULT_CAPABILITIES: ProviderCapabilities = {
 interface StreamDelta {
   role?: string;
   content?: string | null;
+  /** DeepSeek / Qwen compatible reasoning channel. Not the answer. */
+  reasoning_content?: string | null;
+  reasoning?: string | null;
   tool_calls?: {
     index: number;
     id?: string;
@@ -212,6 +215,8 @@ export class OpenAICompatibleProvider implements LLMPort {
 
         const choice = event.choices?.[0];
         const delta = choice?.delta;
+        const reasoning = delta?.reasoning_content ?? delta?.reasoning;
+        if (typeof reasoning === 'string' && reasoning) yield { type: 'reasoning-delta', text: reasoning };
         if (delta?.content) yield { type: 'text-delta', text: delta.content };
 
         for (const call of delta?.tool_calls ?? []) {

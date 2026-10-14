@@ -18,17 +18,17 @@ export function UiProvider({ store, children }: { store: UiStore; children: Reac
   return <UiStoreContext.Provider value={store}>{children}</UiStoreContext.Provider>;
 }
 
-function useStoreApi(): UiStore {
+export function useUiStoreApi(): UiStore {
   const store = useContext(UiStoreContext);
   if (!store) throw new Error('useUiStore must be used inside <UiProvider>');
   return store;
 }
 
 export function useUiStore<T>(selector: (state: UiState) => T): T {
-  return useStore(useStoreApi(), selector);
+  return useStore(useUiStoreApi(), selector);
 }
 
 /** Whole-state read, for components that genuinely need several slices. */
 export function useUiState(): UiState {
-  return useStore(useStoreApi(), (state) => state);
+  return useStore(useUiStoreApi(), (state) => state);
 }

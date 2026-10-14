@@ -28,9 +28,9 @@
  * Clipboard paste still attaches images. The `+` button uses the same path. There is
  * no microphone and no plugin cluster: those would be controls that cannot act.
  *
- * The model chip switches the model in place. When the provider advertises a single
- * model the chip opens Settings rather than a one-item list. Switching model must not
- * silently switch vendor, so re-homing stays in Settings.
+ * The model chip switches the model in place. A provider that advertises one model,
+ * or none after a failed model list, still opens this picker: the known catalog and
+ * a typed id are enough. Switching model must not silently switch vendor.
  *
  * Effort sits next to the model. Work mode also has the permission chip. Work, Math,
  * and Term live above the session list, not in this card.
@@ -41,8 +41,11 @@ import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, t
 
 import type { ChatPolicy } from '@camelia/core';
 
+import { composerModelChoices } from '../lib/composer-models.js';
+import { projectionMatchesMode } from '../mode/session-kind.js';
 import { makeCommand } from '../state/store.js';
-import { useUiState, useUiStore } from '../state/UiProvider.js';
+import { setTermRun } from '../state/shell-extras.js';
+import { useUiState, useUiStore, useUiStoreApi } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
 import { useMode } from '../mode/useMode.js';
 import { Icon } from './primitives.js';
@@ -86,8 +89,8 @@ function policyLabelKey(policy: ChatPolicy): 'composer.policy.readonly' | 'compo
 
 export function Composer({ centered = false }: { centered?: boolean } = {}): ReactNode {
   const { snapshot, activeSessionId, status, dispatch } = useUiState();
+  const store = useUiStoreApi();
   const lang = useUiStore((s) => s.localPrefs.language);
-  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [value, setValue] = useState('');
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
@@ -144,21 +147,36 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   /**
    * In-place model switching.
    *
-   * `models.length > 1` is the honest gate: with zero or one advertised model there is no
-   * choice to offer, so the chip keeps its old job (open Settings) instead of rendering a
-   * list of one. `modelsFor` must match the live provider — a run can re-route vendors
-   * after bootstrap, and offering one vendor's models under another's name would be a
-   * silent lie. The provider itself is never changed here; that is Settings' call.
+   * The chip always opens a picker when a provider is connected. Advertised ids,
+   * the preset catalog, and a typed id are one list. A list tagged for another
+   * vendor is ignored so this control cannot switch provider. Settings is not
+   * the fallback when `/models` comes back empty.
    */
   const provider = snapshot.provider.activeProvider;
   const models = snapshot.provider.models ?? [];
   const modelDetails = snapshot.provider.modelDetails ?? [];
   const detailById = new Map(modelDetails.map((d) => [d.id, d]));
   const activeModel = snapshot.provider.activeModel;
-  const canSwitch =
-    models.length > 1 && provider !== undefined && snapshot.provider.modelsFor === provider;
+  const choices = composerModelChoices({
+    providerId: provider,
+    activeModel,
+    advertised: models,
+    advertisedFor: snapshot.provider.modelsFor,
+  });
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [manualModel, setManualModel] = useState('');
+  const [effortOpen, setEffortOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const effortRef = useRef<HTMLDivElement>(null);
+  const manualRef = useRef<HTMLInputElement>(null);
+
+  const chooseModel = (model: string): void => {
+    const id = model.trim();
+    if (!provider || !id) return;
+    dispatch(makeCommand('select_provider', { providerId: provider, model: id }));
+    setPickerOpen(false);
+    setManualModel('');
+  };
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -175,6 +193,26 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       document.removeEventListener('keydown', onKey);
     };
   }, [pickerOpen]);
+
+  useEffect(() => {
+    if (!effortOpen) return;
+    const onDown = (event: MouseEvent): void => {
+      if (effortRef.current && !effortRef.current.contains(event.target as Node)) setEffortOpen(false);
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setEffortOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [effortOpen]);
+
+  useEffect(() => {
+    if (pickerOpen && choices.length === 0) manualRef.current?.focus();
+  }, [pickerOpen, choices.length]);
 
   const addImageFiles = useCallback(
     async (files: File[]): Promise<void> => {
@@ -236,6 +274,29 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
 
   const submit = (): void => {
     const intent = value.trim();
+    if (mode === 'term') {
+      if (!intent) return;
+      const state = store.getState();
+      const begin = (sessionId: string): void => {
+        setTermRun({ sessionId, intent, phase: 'plan' });
+      };
+      if (projectionMatchesMode(state.snapshot, 'term') && state.snapshot.session) {
+        begin(state.snapshot.session.id);
+      } else {
+        void state
+          .query<{ sessionId: string }>(makeCommand('new_session', { kind: 'term' }))
+          .then((res) => {
+            if (!res?.sessionId) return;
+            state.setActiveSession(res.sessionId);
+            state.dispatch(makeCommand('select_session', { sessionId: res.sessionId }));
+            begin(res.sessionId);
+          })
+          .catch(() => undefined);
+      }
+      setValue('');
+      setPendingImages([]);
+      return;
+    }
     const images =
       conversational && pendingImages.length > 0
         ? pendingImages.map((img) => ({ mimeType: img.mimeType, dataBase64: img.dataBase64 }))
@@ -330,11 +391,13 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
             placeholder={tr(
               mode === 'math'
                 ? 'math.composer.placeholder'
-                : mode === 'work'
-                  ? 'composer.chatPlaceholder'
-                  : running
-                    ? 'composer.steerPlaceholder'
-                    : 'composer.placeholder',
+                : mode === 'term'
+                  ? 'term.composer'
+                  : mode === 'work'
+                    ? 'composer.chatPlaceholder'
+                    : running
+                      ? 'composer.steerPlaceholder'
+                      : 'composer.placeholder',
             )}
             className="max-h-60 min-h-[56px] w-full resize-none bg-transparent px-1.5 py-1 text-[14px] leading-6 text-ink outline-none placeholder:text-ink-3"
           />
@@ -427,11 +490,14 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               <button
                 type="button"
                 data-composer-model
-                aria-haspopup={canSwitch ? 'listbox' : undefined}
-                aria-expanded={canSwitch ? pickerOpen : undefined}
-                onClick={() => (canSwitch ? setPickerOpen((open) => !open) : setSettingsOpen(true))}
-                title={canSwitch ? tr('composer.switchModel') : tr('composer.singleModel')}
-                aria-label={canSwitch ? tr('composer.switchModel') : tr('composer.modelSettings')}
+                aria-haspopup={provider ? 'listbox' : undefined}
+                aria-expanded={provider ? pickerOpen : undefined}
+                onClick={() => {
+                  if (!provider) return;
+                  setPickerOpen((open) => !open);
+                }}
+                title={tr('composer.switchModel')}
+                aria-label={tr('composer.switchModel')}
                 className="flex w-full min-w-0 items-center gap-1.5 rounded-full px-2 py-1 text-[11.5px] text-ink-2 hover:bg-hover"
               >
                 <span
@@ -443,61 +509,137 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 <Icon
                   name="chevron"
                   size={11}
-                  className={`shrink-0 text-ink-3 ${canSwitch && pickerOpen ? '-rotate-90' : 'rotate-90'}`}
+                  className={`shrink-0 text-ink-3 ${pickerOpen ? '-rotate-90' : 'rotate-90'}`}
                 />
               </button>
 
-              {pickerOpen && canSwitch ? (
+              {pickerOpen && provider ? (
+                <div
+                  data-composer-models
+                  className="absolute bottom-full left-0 z-30 mb-1 w-[280px] rounded-lg border border-line bg-elevated shadow-lg"
+                >
+                  <ul
+                    role="listbox"
+                    aria-label={tr('composer.switchModel')}
+                    className="max-h-72 overflow-y-auto p-1"
+                  >
+                    {choices.length === 0 ? (
+                      <li className="px-2 py-1.5 text-[11.5px] leading-5 text-ink-3">{tr('composer.modelEmpty')}</li>
+                    ) : null}
+                    {choices.map((model) => {
+                      const selected = model === activeModel;
+                      const detail = detailById.get(model);
+                      const ctxLabel = detail
+                        ? detail.contextWindow >= 1_000_000
+                          ? `${Math.round(detail.contextWindow / 1_000_000)}M`
+                          : detail.contextWindow >= 1000
+                            ? `${Math.round(detail.contextWindow / 1000)}k`
+                            : String(detail.contextWindow)
+                        : null;
+                      return (
+                        <li key={model}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            data-model-option={model}
+                            onClick={() => chooseModel(model)}
+                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11.5px] ${
+                              selected ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
+                            }`}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-mono">{model}</span>
+                              {detail ? (
+                                <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-normal text-ink-3">
+                                  {ctxLabel ? <span title={tr('composer.modelContext')}>{ctxLabel} ctx</span> : null}
+                                  {detail.supportsVision ? (
+                                    <span className="rounded bg-info/15 px-1 text-info" title={tr('composer.modelVision')}>
+                                      vision
+                                    </span>
+                                  ) : null}
+                                  {!detail.supportsTools ? (
+                                    <span className="rounded bg-warn/15 px-1 text-warn">no-tools</span>
+                                  ) : null}
+                                </span>
+                              ) : null}
+                            </span>
+                            {selected ? <Icon name="check" size={11} className="shrink-0" /> : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="flex items-center gap-1 border-t border-line p-1" data-model-manual>
+                    <input
+                      ref={manualRef}
+                      data-model-manual-input
+                      value={manualModel}
+                      aria-label={tr('composer.modelManual')}
+                      placeholder={tr('composer.modelManual')}
+                      onChange={(event) => setManualModel(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        chooseModel(manualModel);
+                      }}
+                      className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 font-mono text-[11.5px] text-ink outline-none placeholder:text-ink-3"
+                    />
+                    <button
+                      type="button"
+                      data-model-manual-use
+                      className="shrink-0 rounded-md px-2 py-1 text-[11.5px] text-ink-2 hover:bg-hover hover:text-ink"
+                      onClick={() => chooseModel(manualModel)}
+                    >
+                      {tr('composer.modelUse')}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div ref={effortRef} className="relative shrink-0">
+              <button
+                type="button"
+                data-composer-effort
+                data-effort-option={effort}
+                aria-haspopup="listbox"
+                aria-expanded={effortOpen}
+                title={tr('composer.effort')}
+                aria-label={`${tr('composer.effort')}: ${tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}`}
+                onClick={() => setEffortOpen((open) => !open)}
+                className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[10.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink"
+              >
+                {tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}
+                <Icon name="chevron" size={11} className={`text-ink-3 ${effortOpen ? '-rotate-90' : 'rotate-90'}`} />
+              </button>
+              {effortOpen ? (
                 <ul
                   role="listbox"
-                  data-composer-models
-                  aria-label={tr('composer.switchModel')}
-                  className="absolute bottom-full left-0 z-30 mb-1 max-h-72 min-w-[280px] overflow-y-auto rounded-lg border border-line bg-elevated p-1 shadow-lg"
+                  data-effort-menu
+                  aria-label={tr('composer.effort')}
+                  className="absolute bottom-full right-0 z-30 mb-1 min-w-[120px] rounded-lg border border-line bg-elevated p-1 shadow-lg"
                 >
-                  {models.map((model) => {
-                    const selected = model === activeModel;
-                    const detail = detailById.get(model);
-                    const ctxLabel = detail
-                      ? detail.contextWindow >= 1_000_000
-                        ? `${Math.round(detail.contextWindow / 1_000_000)}M`
-                        : detail.contextWindow >= 1000
-                          ? `${Math.round(detail.contextWindow / 1000)}k`
-                          : String(detail.contextWindow)
-                      : null;
+                  {(['max', 'high', 'low'] as const).map((level) => {
+                    const selected = level === effort;
                     return (
-                      <li key={model}>
+                      <li key={level}>
                         <button
                           type="button"
                           role="option"
                           aria-selected={selected}
-                          data-model-option={model}
+                          data-effort-choice={level}
                           onClick={() => {
-                            if (provider !== undefined) {
-                              dispatch(makeCommand('select_provider', { providerId: provider, model }));
-                            }
-                            setPickerOpen(false);
+                            setLocalPrefs({ effort: level });
+                            setEffortOpen(false);
                           }}
                           className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11.5px] ${
                             selected ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
                           }`}
                         >
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-mono">{model}</span>
-                            {detail ? (
-                              <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-normal text-ink-3">
-                                {ctxLabel ? <span title={tr('composer.modelContext')}>{ctxLabel} ctx</span> : null}
-                                {detail.supportsVision ? (
-                                  <span className="rounded bg-info/15 px-1 text-info" title={tr('composer.modelVision')}>
-                                    vision
-                                  </span>
-                                ) : null}
-                                {!detail.supportsTools ? (
-                                  <span className="rounded bg-warn/15 px-1 text-warn">no-tools</span>
-                                ) : null}
-                              </span>
-                            ) : null}
-                          </span>
-                          {selected ? <Icon name="check" size={11} className="shrink-0" /> : null}
+                          <span className="min-w-0 flex-1">{tr(`composer.effort.${level}` as Parameters<typeof t>[1])}</span>
+                          {selected ? <Icon name="check" size={11} /> : null}
                         </button>
                       </li>
                     );
@@ -505,21 +647,6 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 </ul>
               ) : null}
             </div>
-
-            <button
-              type="button"
-              data-composer-effort
-              data-effort-option={effort}
-              title={tr('composer.effort')}
-              aria-label={`${tr('composer.effort')}: ${tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}`}
-              onClick={() => {
-                const next = effort === 'max' ? 'high' : effort === 'high' ? 'low' : 'max';
-                setLocalPrefs({ effort: next });
-              }}
-              className="shrink-0 rounded-full px-2 py-[3px] text-[10.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink"
-            >
-              {tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}
-            </button>
 
             {running && mode !== 'work' ? (
               <button

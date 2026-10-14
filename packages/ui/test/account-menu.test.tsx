@@ -37,8 +37,11 @@ describe('AccountMenu', () => {
   it('keeps the gear opening Settings on the default page', () => {
     const { container } = renderApp();
     fireEvent.click(container.querySelector('[data-rail-settings]') as HTMLElement);
-    expect(container.querySelector('[data-settings-page]')).not.toBeNull();
+    expect(container.querySelector('[data-gear-menu]')).not.toBeNull();
+    expect(container.querySelector('[data-settings-page]')).toBeNull();
     expect(container.querySelector('[data-account-menu]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-gear-settings]') as HTMLElement);
+    expect(container.querySelector('[data-settings-page]')).not.toBeNull();
     expect(within(container).getByRole('heading', { name: '连接预设' })).toBeInTheDocument();
   });
 

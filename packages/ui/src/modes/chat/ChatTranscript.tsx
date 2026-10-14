@@ -20,6 +20,7 @@ import { makeCommand } from '../../state/store.js';
 import { useUiState, useUiStore } from '../../state/UiProvider.js';
 import { Avatar, Icon, userAvatarSrc } from '../../components/primitives.js';
 import { providerAvatarSrc } from '../../lib/provider-avatars.js';
+import { splitThinking } from '../../lib/thinking.js';
 import { TaskRunCard } from '../../components/TaskRunCard.js';
 import { CollapsibleBlock } from '../../components/CollapsibleBlock.js';
 import { ms } from '../../lib/format.js';
@@ -76,6 +77,15 @@ export function ChatTranscript(): ReactNode {
         {chat.turns.map((turn) => (
           <ChatBubble key={turn.id} turn={turn} />
         ))}
+        {chat.turns.at(-1)?.role === 'user' ? (
+          <div
+            data-chat-thinking="pending"
+            className="inline-flex items-center gap-2 self-start rounded-full border border-line bg-elevated px-2.5 py-1 text-[12px] text-ink-2"
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-3" />
+            {tr('chat.thinking')}
+          </div>
+        ) : null}
         <TaskRunCard />
         {chat.pendingAsk ? (
           <AskUserCard
@@ -87,6 +97,25 @@ export function ChatTranscript(): ReactNode {
         ) : null}
         <div ref={endRef} />
       </div>
+    </div>
+  );
+}
+
+function visibleAnswer(turn: ChatTurnView): string {
+  return splitThinking(turn.text).answer;
+}
+
+function ThinkingFold({ turn, label }: { turn: ChatTurnView; label: string }): ReactNode {
+  if (turn.role !== 'assistant') return null;
+  const parts = splitThinking(turn.text);
+  const thinking = [turn.thinking, parts.thinking].filter(Boolean).join('\n\n');
+  const live = turn.streaming && !parts.answer;
+  if (!thinking && !live) return null;
+  return (
+    <div className={parts.answer ? 'mb-2' : undefined} data-chat-thinking={live ? 'live' : 'folded'}>
+      <CollapsibleBlock summary={label} preferOpen={live} defaultOpen={live} data-collapsible="thinking">
+        <p className="whitespace-pre-wrap px-1 text-[12.5px] leading-5 text-ink-2">{thinking || label}</p>
+      </CollapsibleBlock>
     </div>
   );
 }
@@ -137,7 +166,10 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
         {turn.toolCalls.map((call) => (
           <ChatToolRow key={call.id} call={call} />
         ))}
-        {turn.text ? <p className="whitespace-pre-wrap text-[13.5px] leading-6">{turn.text}</p> : null}
+        <ThinkingFold turn={turn} label={tr('chat.thinking')} />
+        {visibleAnswer(turn) ? (
+          <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visibleAnswer(turn)}</p>
+        ) : null}
         {turn.streaming ? (
           <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
         ) : null}

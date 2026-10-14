@@ -36,6 +36,15 @@ type StringKey =
   | 'extensions.empty.hint'
   | 'extensions.installStub'
   | 'extensions.installBody'
+  | 'extensions.panelTitle'
+  | 'extensions.search'
+  | 'extensions.refresh'
+  | 'extensions.more'
+  | 'extensions.filter'
+  | 'extensions.installed'
+  | 'extensions.loadedAtStart'
+  | 'extensions.noMatch'
+  | 'extensions.filterInstalled'
   | 'workspace.title'
   | 'provider.title'
   | 'provider.primary'
@@ -96,16 +105,18 @@ type StringKey =
   | 'composer.policy.ask'
   | 'composer.policy.full'
   | 'chat.empty'
-| 'chat.running'
+  | 'chat.running'
+  | 'chat.thinking'
   | 'chat.failed'
   | 'chat.askTitle'
   | 'composer.noActiveRun'
   | 'composer.enterToSend'
   | 'composer.shiftEnter'
   | 'composer.attach'
-  | 'composer.modelSettings'
   | 'composer.switchModel'
-  | 'composer.singleModel'
+  | 'composer.modelManual'
+  | 'composer.modelUse'
+  | 'composer.modelEmpty'
   | 'composer.modelVision'
   | 'composer.modelContext'
   | 'welcome.title'
@@ -295,6 +306,7 @@ type StringKey =
 | 'settings.section.connections'
   | 'settings.section.appearance'
   | 'settings.section.engine'
+  | 'settings.section.memory'
   | 'settings.section.about'
   | 'settings.presets.add'
   | 'settings.presets.edit'
@@ -379,6 +391,47 @@ type StringKey =
   | 'mode.math.desc'
   | 'mode.term.desc'
   | 'mode.term.stub'
+  | 'term.plan'
+  | 'term.execute'
+  | 'term.verify'
+  | 'term.done'
+  | 'term.empty'
+  | 'term.phase.plan'
+  | 'term.phase.execute'
+  | 'term.phase.verify'
+  | 'term.phase.done'
+  | 'term.composer'
+  | 'math.setup.title'
+  | 'math.setup.contest'
+  | 'math.setup.cumcm'
+  | 'math.setup.mcm'
+  | 'math.setup.other'
+  | 'math.setup.templates'
+  | 'math.setup.create'
+  | 'math.setup.withTemplates'
+  | 'math.setup.noTemplates'
+  | 'gear.themes'
+  | 'gear.shortcuts'
+  | 'gear.settings'
+  | 'shortcut.left'
+  | 'shortcut.right'
+  | 'shortcut.topbar'
+  | 'workspace.change'
+  | 'workspace.path'
+  | 'workspace.apply'
+  | 'workspace.browse'
+  | 'workspace.busy'
+  | 'workspace.invalid'
+  | 'login.title'
+  | 'login.body'
+  | 'login.skip'
+  | 'login.github'
+  | 'memory.settings.hint'
+  | 'memory.settings.empty'
+  | 'memory.settings.forget'
+  | 'memory.settings.incorrect'
+  | 'memory.settings.promote'
+  | 'memory.settings.forgetLog'
   | 'mode.math.unavailable'
   | 'mode.switch.busy'
   | 'mode.elsewhere'
@@ -493,6 +546,15 @@ const en: Record<StringKey, string> = {
   'extensions.empty': 'No plugins installed.',
   'extensions.empty.hint': 'On startup the engine reads directories under ~/.camelia/plugins that contain camelia.plugin.json. In-app install is not wired yet.',
   'extensions.installStub': 'How to install',
+  'extensions.panelTitle': 'Extensions',
+  'extensions.search': 'Search installed extensions',
+  'extensions.refresh': 'Refresh',
+  'extensions.more': 'More',
+  'extensions.filter': 'Filter',
+  'extensions.installed': 'Installed',
+  'extensions.loadedAtStart': 'This is the list loaded when Camelia started.',
+  'extensions.noMatch': 'No installed extension matches.',
+  'extensions.filterInstalled': 'Installed',
   'extensions.installBody': 'Create one folder per plugin under ~/.camelia/plugins and add camelia.plugin.json, then restart. There is no in-app download or enable switch — the engine loads plugins only when the process starts. The repo sample plugins/quiet-activity-bar is a theme stub for the quieter activity-bar direction; copy that folder in and restart. It does not replace the icon rail, which ships in the app. A marketplace and signed packages are not part of this build.',
   'workspace.title': 'Workspace',
   'provider.title': 'Provider path',
@@ -550,6 +612,7 @@ const en: Record<StringKey, string> = {
   'composer.policy.ask': 'Ask before writes',
   'composer.policy.full': 'Full access',
   'chat.running': 'Replying…',
+  'chat.thinking': 'Thinking…',
   'chat.failed': 'Reply failed',
   'chat.empty': 'Conversation mode — the model answers directly. No plan, no task machinery.',
   'chat.askTitle': 'Camelia needs your choice',
@@ -557,9 +620,10 @@ const en: Record<StringKey, string> = {
   'composer.enterToSend': 'Enter to send',
   'composer.shiftEnter': 'Shift + Enter for a new line',
   'composer.attach': 'Attach image',
-  'composer.modelSettings': 'Active model — open settings',
   'composer.switchModel': 'Switch model',
-  'composer.singleModel': 'This provider advertises one model — open settings to add more',
+  'composer.modelManual': 'Model id',
+  'composer.modelUse': 'Use',
+  'composer.modelEmpty': 'The model list did not come back. Type an id to use it.',
   'composer.modelVision': 'Vision — accepts images',
   'composer.modelContext': 'Context window',
   'welcome.title': 'No task yet',
@@ -747,6 +811,7 @@ const en: Record<StringKey, string> = {
   'settings.section.connections': 'Connection presets',
   'settings.section.appearance': 'Language & appearance',
   'settings.section.engine': 'Engine & logs',
+  'settings.section.memory': 'Memory',
   'settings.section.about': 'About',
   'settings.presets.add': 'Add preset',
   'settings.presets.edit': 'Edit',
@@ -830,6 +895,47 @@ const en: Record<StringKey, string> = {
   'mode.math.desc': 'Mathematical modeling: assumptions, variables, equations, solver.',
   'mode.term.desc': 'Team mode — multi-agent collaboration (UI MVP).',
   'mode.term.stub': 'Term (team mode) is a UI stub. Sessions are filtered and created; orchestration lands later.',
+  'term.plan': 'Plan',
+  'term.execute': 'Execute',
+  'term.verify': 'Verify',
+  'term.done': 'Done',
+  'term.empty': 'Send a goal. Camelia will plan it, carry it out, and check the result.',
+  'term.phase.plan': 'Splitting the goal into a plan.',
+  'term.phase.execute': 'Carrying the plan out.',
+  'term.phase.verify': 'Checking the result.',
+  'term.phase.done': 'This pass is finished.',
+  'term.composer': 'What should the team do?',
+  'math.setup.title': 'New math session',
+  'math.setup.contest': 'Contest',
+  'math.setup.cumcm': 'CUMCM',
+  'math.setup.mcm': 'MCM',
+  'math.setup.other': 'Other',
+  'math.setup.templates': 'Use built-in templates',
+  'math.setup.create': 'Create session',
+  'math.setup.withTemplates': 'Built-in templates',
+  'math.setup.noTemplates': 'No templates',
+  'gear.themes': 'Themes',
+  'gear.shortcuts': 'Keyboard shortcuts',
+  'gear.settings': 'Settings',
+  'shortcut.left': 'Session list',
+  'shortcut.right': 'Artifacts drawer',
+  'shortcut.topbar': 'Show the top bar',
+  'workspace.change': 'Change folder',
+  'workspace.path': 'Folder path',
+  'workspace.apply': 'Use this folder',
+  'workspace.browse': 'Browse…',
+  'workspace.busy': 'A run is in progress.',
+  'workspace.invalid': 'That path is not a folder.',
+  'login.title': 'Sign in to Camelia',
+  'login.body': 'Sign in with GitHub, or continue as a guest. You can sign in later from the account menu.',
+  'login.skip': 'Continue without signing in',
+  'login.github': 'Sign in with GitHub',
+  'memory.settings.hint': 'Every memory the engine has stored, across sessions.',
+  'memory.settings.empty': 'No memories yet.',
+  'memory.settings.forget': 'Forget',
+  'memory.settings.incorrect': 'Mark incorrect',
+  'memory.settings.promote': 'Promote',
+  'memory.settings.forgetLog': 'Forget log',
   'mode.math.unavailable': 'The engine exposes no math commands yet — this workspace runs on a labelled demo.',
   'mode.switch.busy': 'A task is still running. Switching modes keeps it visible.',
   'mode.elsewhere': 'A task is running in {mode} mode.',
@@ -941,6 +1047,15 @@ const zh: Record<StringKey, string> = {
   'extensions.empty': '还没有插件。',
   'extensions.empty.hint': '引擎启动时会读取 ~/.camelia/plugins 下带 camelia.plugin.json 的目录。应用内安装尚未接通。',
   'extensions.installStub': '如何安装',
+  'extensions.panelTitle': '扩展',
+  'extensions.search': '搜索已安装的扩展',
+  'extensions.refresh': '刷新',
+  'extensions.more': '更多',
+  'extensions.filter': '筛选',
+  'extensions.installed': '已安装',
+  'extensions.loadedAtStart': '这是进程启动时读到的列表。',
+  'extensions.noMatch': '没有匹配的已安装扩展。',
+  'extensions.filterInstalled': '已安装',
   'extensions.installBody': '在 ~/.camelia/plugins 下为每个插件建一个目录，放入 camelia.plugin.json，然后重新启动。当前没有应用内下载或启用开关，引擎只在进程启动时加载。仓库里的 plugins/quiet-activity-bar 是更安静活动栏方向的主题示例：复制该文件夹后重启。它不代替应用内的窄图标栏。签名与插件市场尚未接入。',
   'workspace.title': '工作区',
   'provider.title': '模型链路',
@@ -998,6 +1113,7 @@ const zh: Record<StringKey, string> = {
   'composer.policy.ask': '写入前询问',
   'composer.policy.full': '完全放行',
   'chat.running': '回复中…',
+  'chat.thinking': '思考中…',
   'chat.failed': '回复失败',
   'chat.empty': '对话模式——模型直接回答，不建任务、不做计划。',
   'chat.askTitle': 'Camelia 需要你的选择',
@@ -1005,11 +1121,12 @@ const zh: Record<StringKey, string> = {
   'composer.enterToSend': '回车发送',
   'composer.shiftEnter': 'Shift+回车换行',
   'composer.attach': '添加图片',
-  'composer.modelSettings': '当前模型——打开设置',
   'composer.switchModel': '切换模型',
+  'composer.modelManual': '模型 ID',
+  'composer.modelUse': '使用',
+  'composer.modelEmpty': '模型列表没拉到。填一个模型 ID 就能用。',
   'composer.modelVision': '视觉 — 可看图',
   'composer.modelContext': '上下文窗口',
-  'composer.singleModel': '该服务商只对外提供一个模型——可在设置里添加更多',
   'welcome.title': '暂无任务',
   'welcome.body': '描述你想构建、修复或调查的内容。Camelia 会规划、逐步执行、校验每个验收点，并向你展示完整运行过程。',
   'step.pending': '待处理',
@@ -1194,6 +1311,7 @@ const zh: Record<StringKey, string> = {
   'settings.section.connections': '连接预设',
   'settings.section.appearance': '语言与外观',
   'settings.section.engine': '引擎与日志',
+  'settings.section.memory': '记忆',
   'settings.section.about': '关于',
   'settings.presets.add': '添加预设',
   'settings.presets.edit': '编辑',
@@ -1277,6 +1395,47 @@ const zh: Record<StringKey, string> = {
   'mode.math.desc': '数学建模：假设、变量、方程与求解。',
   'mode.term.desc': '团队模式 — 多智能体协作（界面 MVP）。',
   'mode.term.stub': 'Term（团队模式）目前是界面占位：可切换、可建会话；编排后端稍后接入。',
+  'term.plan': '计划',
+  'term.execute': '执行',
+  'term.verify': '校验',
+  'term.done': '完成',
+  'term.empty': '发一个目标。Camelia 会拆计划、执行，再校验结果。',
+  'term.phase.plan': '正在把目标拆成计划。',
+  'term.phase.execute': '正在按计划执行。',
+  'term.phase.verify': '正在校验结果。',
+  'term.phase.done': '这一轮结束了。',
+  'term.composer': '团队要做什么？',
+  'math.setup.title': '新建数学会话',
+  'math.setup.contest': '赛制',
+  'math.setup.cumcm': '国赛',
+  'math.setup.mcm': '美赛',
+  'math.setup.other': '其他',
+  'math.setup.templates': '使用内置模板',
+  'math.setup.create': '创建会话',
+  'math.setup.withTemplates': '内置模板',
+  'math.setup.noTemplates': '不用模板',
+  'gear.themes': '主题',
+  'gear.shortcuts': '快捷方式配置',
+  'gear.settings': '设置',
+  'shortcut.left': '会话栏',
+  'shortcut.right': '产物栏',
+  'shortcut.topbar': '显示顶栏',
+  'workspace.change': '更换文件夹',
+  'workspace.path': '文件夹路径',
+  'workspace.apply': '使用此文件夹',
+  'workspace.browse': '浏览…',
+  'workspace.busy': '有任务正在进行。',
+  'workspace.invalid': '这不是文件夹。',
+  'login.title': '登录 Camelia',
+  'login.body': '用 GitHub 登录，或先以访客继续。之后仍可从账户菜单登录。',
+  'login.skip': '暂不登录',
+  'login.github': '用 GitHub 登录',
+  'memory.settings.hint': '引擎里存着的全部记忆，不限当前会话。',
+  'memory.settings.empty': '还没有记忆。',
+  'memory.settings.forget': '忘记',
+  'memory.settings.incorrect': '标为不正确',
+  'memory.settings.promote': '提升',
+  'memory.settings.forgetLog': '遗忘记录',
   'mode.math.unavailable': '引擎尚未提供数模命令——此工作区运行在明确标注的演示数据上。',
   'mode.switch.busy': '仍有任务在运行。切换模式不会让它消失。',
   'mode.elsewhere': '{mode}模式有一个任务正在运行。',

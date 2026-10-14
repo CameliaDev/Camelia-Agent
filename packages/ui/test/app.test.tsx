@@ -163,9 +163,8 @@ describe('App — layout contract', () => {
   });
 
   it('draws the status bar with real readouts, and no controls that do nothing', () => {
-    // "In case we want to put things here later" is permission to add items, not to ship
-    // empty placeholders. Readout cells stay non-interactive. The one control is the
-    // connection status, which opens Settings → Engine.
+    // Readout cells stay non-interactive. The workspace name changes the working
+    // folder, and the connection status opens Settings → Engine.
     localStorage.removeItem('camelia.localPrefs');
     const { container } = renderScene('running');
 
@@ -177,8 +176,9 @@ describe('App — layout contract', () => {
       expect(container.querySelector(`[data-status-item="${item}"]`), item).not.toBeNull();
     }
     const actions = bar.querySelectorAll('button, a, [role="button"]');
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toHaveAttribute('data-status-item', 'connection');
+    expect(actions).toHaveLength(2);
+    expect(bar.querySelector('[data-status-item="workspace"]')?.tagName).toBe('BUTTON');
+    expect(bar.querySelector('[data-status-item="connection"]')).not.toBeNull();
     // The workspace row is the folder and the name. The green status pip used to sit in front of them.
     expect(bar.querySelector('[data-status-item="workspace"] .h-2')).toBeNull();
     // A ratio, not a percentage — the weighting behind `progress` is not re-explained here.
@@ -556,6 +556,9 @@ describe('App — left icon rail', () => {
     expect(gear.getAttribute('aria-label')).toBe('设置');
 
     fireEvent.click(gear);
+    expect(container.querySelector('[data-gear-menu]')).not.toBeNull();
+    expect(container.querySelector('[data-settings-page]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-gear-settings]') as HTMLElement);
     expect(within(container).getByRole('heading', { name: '连接预设' })).toBeInTheDocument();
     fireEvent.click(within(container).getAllByRole('button', { name: '关闭' })[0]!);
     expect(container.querySelector('[data-settings-page]')).toBeNull();
@@ -692,12 +695,15 @@ describe('App — empty scene', () => {
     const panel = container.querySelector('[data-extensions-panel]') as HTMLElement;
     expect(panel).not.toBeNull();
     expect(within(panel).getByText('还没有插件。')).toBeInTheDocument();
-    expect(panel.querySelector('[role="switch"], input')).toBeNull();
+    expect(within(panel).getByText('扩展')).toBeInTheDocument();
+    expect(panel.querySelector('[role="switch"]')).toBeNull();
+    expect(panel.querySelector('[data-extensions-search]')).not.toBeNull();
     expect(panel.querySelector('[data-layout-sidebar]'), 'plugins header has no collapse button').toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '插件' }));
     expect((container.querySelector('[data-shell]') as HTMLElement).style.getPropertyValue('--rail-left-w')).toBe('0px');
     fireEvent.click(screen.getByRole('button', { name: '插件' }));
     expect((container.querySelector('[data-shell]') as HTMLElement).style.getPropertyValue('--rail-left-w')).toBe('260px');
+    fireEvent.click(within(panel).getByRole('button', { name: '更多' }));
     fireEvent.click(within(panel).getByRole('button', { name: '如何安装' }));
     expect(panel.textContent).toMatch(/camelia\.plugin\.json/);
     expect(panel.textContent).toMatch(/~\/\.camelia\/plugins/);
@@ -724,6 +730,7 @@ describe('App — empty scene', () => {
     try {
       const { container } = renderScene('empty');
       fireEvent.click(container.querySelector('[data-rail-settings]') as HTMLElement);
+      fireEvent.click(container.querySelector('[data-gear-settings]') as HTMLElement);
       fireEvent.click(screen.getByRole('button', { name: '关于' }));
       fireEvent.click(screen.getByRole('button', { name: '检查更新' }));
       expect(await screen.findByText(/0\.2\.0/)).toBeInTheDocument();
@@ -743,6 +750,7 @@ describe('App — empty scene', () => {
     const gear = container.querySelector('[data-rail-settings]') as HTMLElement;
     expect(gear).not.toBeNull();
     fireEvent.click(gear);
+    fireEvent.click(container.querySelector('[data-gear-settings]') as HTMLElement);
     expect(container.querySelector('[data-settings-page]')).not.toBeNull();
     expect(screen.getByRole('button', { name: '连接预设' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '语言与外观' })).toBeInTheDocument();

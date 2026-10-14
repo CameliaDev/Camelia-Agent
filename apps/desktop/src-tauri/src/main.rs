@@ -742,6 +742,47 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Native folder dialog. The UI also accepts a typed path when this fails.
+#[tauri::command]
+fn pick_folder() -> Result<String, String> {
+    let output = pick_folder_command()
+        .output()
+        .map_err(|err| format!("folder dialog failed: {err}"))?;
+    if !output.status.success() {
+        return Err("cancelled".into());
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().trim_matches('"').to_string();
+    if path.is_empty() {
+        return Err("cancelled".into());
+    }
+    Ok(path)
+}
+
+#[cfg(target_os = "windows")]
+fn pick_folder_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args([
+        "-NoProfile",
+        "-Command",
+        "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }",
+    ]);
+    cmd
+}
+
+#[cfg(target_os = "macos")]
+fn pick_folder_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("osascript");
+    cmd.args(["-e", "POSIX path of (choose folder)"]);
+    cmd
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn pick_folder_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("zenity");
+    cmd.args(["--file-selection", "--directory"]);
+    cmd
+}
+
 #[tauri::command]
 fn github_device_code(client_id: String, scope: String) -> Result<serde_json::Value, String> {
     let client_id = client_id.trim();
@@ -1372,6 +1413,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             open_external_url,
+            pick_folder,
             github_device_code,
             github_device_poll,
             open_engine_log,

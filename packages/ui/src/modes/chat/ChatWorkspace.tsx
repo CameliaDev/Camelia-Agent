@@ -9,6 +9,7 @@
 
 import { type ReactNode } from 'react';
 
+import { projectionMatchesMode } from '../../mode/session-kind.js';
 import { useUiStore } from '../../state/UiProvider.js';
 import { isFreshChatSession } from '../../state/fresh-session.js';
 
@@ -18,7 +19,8 @@ import { ChatTranscript } from './ChatTranscript.js';
 export function ChatWorkspace(): ReactNode {
   const snapshot = useUiStore((s) => s.snapshot);
   const transportError = useUiStore((s) => s.transportError);
-  const fresh = isFreshChatSession(snapshot) && !transportError;
+  const aligned = projectionMatchesMode(snapshot, 'work');
+  const fresh = aligned && isFreshChatSession(snapshot) && !transportError;
   return (
     <div
       className={fresh ? 'flex shrink-0 flex-col' : 'flex min-h-0 flex-1 flex-col'}
@@ -26,7 +28,7 @@ export function ChatWorkspace(): ReactNode {
       data-chat-fresh={fresh || undefined}
     >
       <ChatReplyProgress />
-      {fresh ? null : <ChatTranscript />}
+      {fresh || !aligned ? null : <ChatTranscript />}
     </div>
   );
 }

@@ -45,12 +45,14 @@
  * @module
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { basename, count } from '../lib/format.js';
 import { CONNECTION_META, TONE_TEXT } from '../lib/status.js';
 import { t } from '../i18n/strings.js';
+import { makeCommand } from '../state/store.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
+import { pickFolder } from '../window/pick-folder.js';
 import { Icon, StatusDot } from './primitives.js';
 
 /**
@@ -90,6 +92,123 @@ function Cell({
   );
 }
 
+function WorkspaceCell({
+  workspace,
+  tr,
+}: {
+  workspace: string | undefined;
+  tr: (k: Parameters<typeof t>[1], params?: Parameters<typeof t>[2]) => string;
+}): ReactNode {
+  const query = useUiStore((s) => s.query);
+  const [open, setOpen] = useState(false);
+  const [path, setPath] = useState(workspace ?? '');
+  const [note, setNote] = useState<string | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open) setPath(workspace ?? '');
+  }, [open, workspace]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent): void => {
+      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const apply = (): void => {
+    const next = path.trim();
+    if (!next) return;
+    void query<{ ok?: boolean; workspace?: string; error?: string }>(makeCommand('set_workspace', { path: next }))
+      .then((res) => {
+        if (res && 'ok' in res && res.ok === false) {
+          setNote(res.error === 'busy' ? tr('workspace.busy') : tr('workspace.invalid'));
+          return;
+        }
+        setNote(null);
+        setOpen(false);
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setNote(message.includes('busy') || message.includes('进行') ? tr('workspace.busy') : tr('workspace.invalid'));
+      });
+  };
+
+  return (
+    <div ref={boxRef} className="relative min-w-0">
+      <button
+        type="button"
+        className={ITEM}
+        title={workspace ?? tr('statusBar.noWorkspace')}
+        data-status-item="workspace"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon name="folder" size={13} className="shrink-0 text-ink-3" />
+        <span className="max-w-[240px] truncate">{workspace ? basename(workspace) : tr('statusBar.noWorkspace')}</span>
+      </button>
+      {open ? (
+        <div
+          data-workspace-picker
+          role="dialog"
+          aria-label={tr('workspace.change')}
+          className="absolute bottom-full left-1 z-40 mb-1 w-[280px] rounded-lg border border-line bg-elevated p-2 shadow-lg"
+        >
+          <p className="px-0.5 text-[12px] font-medium text-ink">{tr('workspace.change')}</p>
+          <label className="mt-2 block text-[11px] text-ink-3">
+            {tr('workspace.path')}
+            <input
+              data-workspace-path
+              value={path}
+              onChange={(event) => setPath(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                apply();
+              }}
+              className="mt-1 w-full rounded-md border border-line bg-base px-2 py-1 font-mono text-[12px] text-ink outline-none"
+              spellCheck={false}
+            />
+          </label>
+          {note ? <p className="mt-1.5 text-[11.5px] text-warn">{note}</p> : null}
+          <div className="mt-2 flex justify-end gap-1.5">
+            <button
+              type="button"
+              data-workspace-browse
+              className="rounded px-2 py-1 text-[11.5px] text-ink-2 hover:bg-hover hover:text-ink"
+              onClick={() => {
+                void pickFolder().then((picked) => {
+                  if (picked) setPath(picked);
+                });
+              }}
+            >
+              {tr('workspace.browse')}
+            </button>
+            <button
+              type="button"
+              data-workspace-apply
+              className="rounded bg-accent px-2 py-1 text-[11.5px] font-medium text-white hover:bg-accent-2"
+              onClick={apply}
+            >
+              {tr('workspace.apply')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function StatusBar(): ReactNode {
   const { snapshot, status, setSettingsOpen } = useUiState();
   const language = useUiStore((s) => s.localPrefs.language);
@@ -123,12 +242,7 @@ export function StatusBar(): ReactNode {
     >
       {/* Left: where this run is pointed. */}
       <div className="flex min-w-0 shrink items-center">
-        <Cell testId="workspace" title={workspace ?? tr('statusBar.noWorkspace')}>
-          <Icon name="folder" size={13} className="shrink-0 text-ink-3" />
-          {/* The tail is what identifies a workspace; the full path is in the tooltip,
-              because a path long enough to be useful is too long for a 22px strip. */}
-          <span className="max-w-[240px] truncate">{workspace ? basename(workspace) : tr('statusBar.noWorkspace')}</span>
-        </Cell>
+        <WorkspaceCell workspace={workspace} tr={tr} />
 
         {/*
           Steps, while there is a task. `stepsTotal` can exceed `done` mid-run, and the

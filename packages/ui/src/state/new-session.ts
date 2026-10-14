@@ -13,6 +13,7 @@
 import { useCallback } from 'react';
 
 import { makeCommand } from './store.js';
+import { setMathSetupOpen } from './shell-extras.js';
 import { useUiState } from './UiProvider.js';
 import { useMode } from '../mode/useMode.js';
 import { isFreshChatSession } from './fresh-session.js';
@@ -41,6 +42,12 @@ export function useNewSession(): (options?: NewSessionOptions) => void {
   return useCallback((options?: NewSessionOptions) => {
     // Callers pass `{ excludeId }` or nothing. A click event is not an options bag.
     const excludeId = typeof options?.excludeId === 'string' && options.excludeId ? options.excludeId : undefined;
+    // Math 新建 opens the setup column first. Deleting the last row still creates
+    // immediately so the rail is not left with nowhere to go.
+    if (mode === 'math' && !excludeId) {
+      setMathSetupOpen(true);
+      return;
+    }
     const kind = mode === 'math' ? 'math' : mode === 'term' ? 'term' : 'work';
     // Already on an unused blank — do not pile another row in the rail; land the caret
     // in the centred composer so "new chat" still feels like arriving at a clean slate.

@@ -14,15 +14,19 @@ import { panelsForMode } from '../panels.js';
 import { t } from '../i18n/strings.js';
 import { MODE_HEADER_H } from '../modes/ModeHeader.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { MathSetupPanel } from './MathSetupPanel.js';
 import { PanelBody } from './RunPanels.js';
+import { useMathSetupOpen } from '../state/shell-extras.js';
 
 export function RightRail(): ReactNode {
   const language = useUiStore((s) => s.localPrefs.language);
   const panelId = useUiStore((s) => s.panelId);
   const setPanelId = useUiStore((s) => s.setPanelId);
   const mode = useUiStore((s) => s.mode);
+  const mathSetupOpen = useMathSetupOpen();
   const tr = (k: Parameters<typeof t>[1]) => t(language, k);
 
+  if (mathSetupOpen) return <MathSetupPanel />;
   if (!panelId) return null;
 
   const panels = panelsForMode(mode);

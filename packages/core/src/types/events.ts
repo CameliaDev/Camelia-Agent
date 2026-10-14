@@ -214,7 +214,8 @@ export interface DomainEventMap {
    * Every event carries `turnId`; the projection folds them into `snapshot.chat`.
    */
   'chat.received': { turnId: Id; text: string; images?: ChatImagePayload[] };
-  'chat.delta': { turnId: Id; delta: string };
+  /** `channel: 'thinking'` is the model's reasoning stream. Omitted means the answer. */
+  'chat.delta': { turnId: Id; delta: string; channel?: 'thinking' };
   'chat.message': { turnId: Id; role: 'user' | 'assistant'; text: string };
   /** Tool-call progress for a chat turn. Emitted at every status transition. */
   'chat.tool': { call: ToolCall };
@@ -292,6 +293,13 @@ export interface CommandMap {
   'new_session': { kind?: 'work' | 'math' | 'term'; excludeId?: string };
   /** Ask the UI to re-attach to a prior session's event stream. */
   'select_session': { sessionId: Id };
+  /**
+   * Point the running engine at another folder.
+   *
+   * Refuses while a task or chat turn is in flight. Response data:
+   * `{ workspace: string }`.
+   */
+  'set_workspace': { path: string };
 
   // ---- Memory panel (Iteration 22 — visible · usable · tunable) -----------
   /**

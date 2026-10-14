@@ -152,6 +152,11 @@ export class ChatLoop {
 
   constructor(private readonly opts: ChatLoopOptions) {}
 
+  /** Point later turns at a new working folder without rebuilding the loop. */
+  setWorkspace(workspace: string): void {
+    this.opts.workspace = workspace;
+  }
+
   /** Resolve the model at request time, not at construction time. */
   private resolveModel(): string {
     const model = this.opts.model;
@@ -224,6 +229,9 @@ export class ChatLoop {
                 streamed = true;
                 textOut += chunk.text;
                 this.opts.bus.emit('chat.delta', { turnId, delta: chunk.text }, meta);
+              } else if (chunk.type === 'reasoning-delta') {
+                streamed = true;
+                this.opts.bus.emit('chat.delta', { turnId, delta: chunk.text, channel: 'thinking' }, meta);
               } else if (chunk.type === 'tool-call') {
                 calls.push(chunk.call);
               } else if (chunk.type === 'error') {

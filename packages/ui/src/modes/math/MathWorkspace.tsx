@@ -11,7 +11,9 @@
 import { useEffect, type ReactNode } from 'react';
 
 import { t } from '../../i18n/strings.js';
+import { projectionMatchesMode } from '../../mode/session-kind.js';
 import { deriveProgress } from '../../progress/deriveProgress.js';
+import { useMathProfile } from '../../state/shell-extras.js';
 import { useUiState, useUiStore } from '../../state/UiProvider.js';
 import { canIntervene, interveneUnavailableReason } from '../../window/capabilities.js';
 import { Icon } from '../../components/primitives.js';
@@ -30,7 +32,9 @@ export function MathWorkspace(): ReactNode {
   const task = snapshot.task;
   const demoMode = mathDemo !== undefined;
   const shown: MathDemoSnapshot | undefined = mathDemo;
-  const fresh = isFreshChatSession(snapshot) && !transportError;
+  const aligned = projectionMatchesMode(snapshot, 'math');
+  const profile = useMathProfile(aligned ? snapshot.session?.id : undefined);
+  const fresh = aligned && isFreshChatSession(snapshot) && !transportError;
 
   useEffect(() => {
     if (!demoMode || !shown) return;
@@ -88,6 +92,13 @@ export function MathWorkspace(): ReactNode {
             );
           })}
         </ol>
+        {profile ? (
+          <span data-math-profile className="shrink-0 text-[11px] text-ink-2">
+            {tr(`math.setup.${profile.contest}` as Parameters<typeof t>[1])}
+            {' · '}
+            {tr(profile.useTemplates ? 'math.setup.withTemplates' : 'math.setup.noTemplates')}
+          </span>
+        ) : null}
         <span
           data-math-pipeline-hint
           className="min-w-0 truncate font-mono text-[10px] text-ink-3"
@@ -146,7 +157,7 @@ export function MathWorkspace(): ReactNode {
         {tr('math.unavailable.body')}
       </p>
 
-      {fresh ? null : <ChatTranscript />}
+      {fresh || !aligned ? null : <ChatTranscript />}
     </div>
   );
 }

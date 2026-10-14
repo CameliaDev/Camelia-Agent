@@ -66,7 +66,12 @@ function escapeRegExp(text: string): string {
 }
 
 export class NodeSearch implements SearchPort {
-  constructor(private readonly root: string) {}
+  constructor(private root: string) {}
+
+  /** Re-root after the user picks another working folder. */
+  setRoot(root: string): void {
+    this.root = root;
+  }
 
   async glob(pattern: string, options: GlobOptions = {}): Promise<string[]> {
     const base = options.cwd ?? this.root;

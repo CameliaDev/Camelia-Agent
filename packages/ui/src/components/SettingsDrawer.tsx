@@ -21,6 +21,7 @@ import { relaunchDesktop, writePlanApproval } from '../window/model-settings.js'
 import { ConnectionsSection } from './ConnectionsSection.js';
 import { UpdateCheck } from './UpdateCheck.js';
 import { FeedbackForm } from './FeedbackForm.js';
+import { MemorySettingsSection } from './MemorySettingsSection.js';
 import { MODE_REGISTRY } from '../mode/ModeRegistry.js';
 import type { AppModeId } from '../mode/types.js';
 import { openEngineLog, readEngineLog, readEngineTrust } from '../window/engine.js';
@@ -64,6 +65,7 @@ export function SettingsDrawer(): ReactNode {
     { id: 'connections', label: tr('settings.section.connections'), icon: 'layers' },
     { id: 'appearance', label: tr('settings.section.appearance'), icon: 'theme' },
     { id: 'engine', label: tr('settings.section.engine'), icon: 'terminal' },
+    { id: 'memory', label: tr('settings.section.memory'), icon: 'spark' },
     { id: 'feedback', label: tr('feedback.title'), icon: 'chat' },
     { id: 'about', label: tr('settings.section.about'), icon: 'info' },
   ];
@@ -127,6 +129,7 @@ export function SettingsDrawer(): ReactNode {
             {section === 'connections' ? <ConnectionsSection tr={tr} /> : null}
             {section === 'appearance' ? <AppearanceSection tr={tr} /> : null}
             {section === 'engine' ? <EngineSection tr={tr} /> : null}
+            {section === 'memory' ? <MemorySettingsSection /> : null}
             {section === 'feedback' ? (
         <FeedbackForm
           onNeedLogin={() => {
