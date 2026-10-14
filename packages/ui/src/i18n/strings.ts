@@ -118,6 +118,8 @@ type StringKey =
   | 'chat.empty'
   | 'chat.running'
   | 'chat.thinking'
+  | 'chat.idle'
+  | 'chat.done'
   | 'chat.failed'
   | 'chat.askTitle'
   | 'composer.noActiveRun'
@@ -657,6 +659,8 @@ const en: Record<StringKey, string> = {
   'composer.policy.full': 'Full access',
   'chat.running': 'Replying…',
   'chat.thinking': 'Thinking…',
+  'chat.idle': 'Idle',
+  'chat.done': 'Done',
   'chat.failed': 'Reply failed',
   'chat.empty': 'Say what you want done. Camelia can answer in the conversation, or turn the goal into a task it plans, runs, and checks.',
   'chat.askTitle': 'Camelia needs your choice',
@@ -1191,6 +1195,8 @@ const zh: Record<StringKey, string> = {
   'composer.policy.full': '完全放行',
   'chat.running': '回复中…',
   'chat.thinking': '思考中…',
+  'chat.idle': '空闲',
+  'chat.done': '已完成',
   'chat.failed': '回复失败',
   'chat.empty': '直接说出你要做的事。Camelia 可以当场回答，也可以把目标做成任务：规划、执行、再校验。',
   'chat.askTitle': 'Camelia 需要你的选择',

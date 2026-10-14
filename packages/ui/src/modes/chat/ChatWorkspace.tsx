@@ -1,8 +1,8 @@
 /**
  * Conversation mode (Work).
  *
- * Thin wrapper: ModeHeader + ChatTranscript. When the session is fresh the
- * workspace shrinks to the header only — App centres the composer in the
+ * Thin wrapper: the status strip + ChatTranscript. When the session is fresh the
+ * workspace shrinks to that strip — App centres the composer in the
  * remaining pane (ChatGPT-style empty state).
  * @module
  */
