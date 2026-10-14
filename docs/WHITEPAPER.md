@@ -623,7 +623,9 @@ ui 交互 ──► Command(意图) ──► agent ──► harness
 
 > 主题预设另有 `cool-dark` / `light`（"Light Refined"）/ `high-contrast`；UI 新装默认 `light` + 中文（`localPrefs.themeId='light'`, `language='zh'`）。
 
-**布局**：顶栏 36px / 左栏 260px / 中间对话（弹性）/ 右栏上下文（默认 360px，可拖 280–560）/ 底栏输入。
+**布局（设计稿尺寸）**：顶栏 36px / 左栏 260px / 中间对话（弹性）/ 右栏上下文（默认 360px，可拖 280–560）/ 底栏输入。
+
+> 已交付的壳层不以本节组件表为准。当前是活动栏 + 可收起的会话栏、会话栏上方的 **Work / Math / Term**、默认收起的右侧抽屉。见 [`SHELL-UX.md`](SHELL-UX.md)（`main` `1b36ad2` / PR #4）。本节保留的是投影原则和设计 token。
 
 ---
 

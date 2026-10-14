@@ -1,5 +1,9 @@
 ﻿# Camelia-Agent — Hard Sprint Goal Prompt (single shot)
 
+> **Do not execute this prompt as current product or packaging.** It predates `main` `1b36ad2` (PR #4). Modes are Work / Math / Term on the session column, not the layout this file freezes. Do **not** overwrite `%USERPROFILE%\Desktop\Camelia-Agent-new.exe`. Local overwrite targets and the single `Camelia.lnk` are in [`apps/desktop/README.md`](../apps/desktop/README.md). Shell behavior is in [`SHELL-UX.md`](SHELL-UX.md). The text below is a historical agent brief.
+
+
+
 You are working in the local repo `C:\Users\37963\Desktop\Camelia-Agent` (pnpm + Turborepo + Tauri 2 desktop). Machine is Windows; PowerShell uses `;` not `&&`. Do the entire sprint below in one continuous run. Prefer deep, correct changes over shallow stubs. Commit in logical chunks; rebuild and overwrite the desktop exe when UI changes land. Do not ask clarifying questions — decide using wireframe v2 already agreed with the user.
 
 ## Non-negotiable product rules (already decided)
@@ -12,9 +16,9 @@ You are working in the local repo `C:\Users\37963\Desktop\Camelia-Agent` (pnpm +
 - Confirm `packages/ui/src/state/local-prefs.ts` `LOCAL_PREFS_VERSION = 4` and `loadLocalPrefs` **always** returns `rightCollapsed: true` / `userSetRightRail: false` on boot (expand session-only).
 - Run `packages/ui` collapse-related tests (`local-prefs.test.ts`, app layout collapse test).
 - `pnpm --filter @camelia/ui build` then `pnpm --filter @camelia/desktop desktop:build`.
-- Kill any `camelia-desktop` processes; overwrite both:
-  - `%LOCALAPPDATA%\Camelia\camelia-desktop.exe`
-  - `%USERPROFILE%\Desktop\Camelia-Agent-new.exe`
+- Kill any `camelia-desktop` processes; overwrite both *(historical instruction — do not follow the Desktop path)*:
+  - `%LOCALAPPDATA%\Camelia\camelia-desktop.exe` (still a valid overwrite target)
+  - ~~`%USERPROFILE%\Desktop\Camelia-Agent-new.exe`~~ **Do not.** Use the single `Camelia.lnk` described in `apps/desktop/README.md`.
 - Report commit hash, paths, mtimes (Asia/Shanghai), SHA256.
 
 ## Work package B — Connection presets end-to-end (hard)
@@ -47,4 +51,4 @@ Do not leave placeholder nav items that open empty panes.
 - Connection presets survive restart in config.json and can be enabled from Settings.
 - Intervene UI is honest.
 - Settings has multiple working sections.
-- New exe hashes match the release build; user can open `Camelia-Agent-new.exe` and see the above without hunting old AppData binaries.
+- New exe hashes match the release build. *(Historical done-line named `Camelia-Agent-new.exe`. That file is not a current launch target.)*

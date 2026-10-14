@@ -1,6 +1,12 @@
 # Camelia-Agent 模式 / 信息架构计划书（2026-10-13）
 
-> **状态**：已批准并完成实施（Phase 1→5，2026-10-13）。UI 241 / core 122 / agent 313 / cli 87 全绿。
+> **已被取代（不要当成当前产品）。** 基准是 `main` `1b36ad2`（PR #4 squash-merge，2026-10-14）。下文保留 2026-10-13 当天的决定和原文，方便对照当时为什么这样做。下面几条已经过时，照着做会装错界面或装错 exe：
+>
+> - **模式只有 Work / Math、分段在顶栏。** 当前是会话栏上方的 **Work / Math / Term**，会话按模式隔离。旧 id `chat` / `plan` 会收成 `work`，界面上没有这两档。见 [`SHELL-UX.md`](SHELL-UX.md)。
+> - **Phase 5 覆盖桌面 `Camelia-Agent-new.exe`。** 不要再往桌面放这个文件，也不要新放 `Camelia.exe`。本地覆盖是 `D:\app\Camelia\camelia-desktop.exe`、`%LOCALAPPDATA%\Camelia\camelia-desktop.exe`，以及原地更新的单个 `Camelia.lnk`（目标与工作目录都是 `D:\app\Camelia`）。见 [`apps/desktop/README.md`](../apps/desktop/README.md)。
+> - **Phase 5 的打包步骤**只作历史验收记录。NSIS 的 `%LOCALAPPDATA%\Camelia\` 仍然有效，那是 `desktop:bundle`，不是桌面快捷方式。
+
+> **状态（历史）**：2026-10-13 当时记为已批准并完成实施（Phase 1→5）。UI 241 / core 122 / agent 313 / cli 87 全绿。该计数不是 `1b36ad2` 的测试结果。
 > **今日已做**：把对话模式重构与壳层改动入库（见文末 commit），并清理 `.tmp-*` 垃圾。  
 > **仓库**：`C:\Users\37963\Desktop\Camelia-Agent`  
 > **约束**：PowerShell 用 `;`；桌面引擎须 Node 22（ABI 127）；不 force-push。
@@ -195,7 +201,7 @@ TopBar: [品牌] [Work | Math] ………… [Live]
 
 | 项 | 内容 |
 | --- | --- |
-| 命令 | `pnpm turbo test`（或分 filter）；mock e2e 截图；`pnpm --filter @camelia/ui build`；`pnpm --filter @camelia/desktop desktop:build`；覆盖 `%LOCALAPPDATA%\Camelia\camelia-desktop.exe` 与桌面 `Camelia-Agent-new.exe` |
+| 命令 | `pnpm turbo test`（或分 filter）；mock e2e 截图；`pnpm --filter @camelia/ui build`；`pnpm --filter @camelia/desktop desktop:build`；覆盖 `%LOCALAPPDATA%\Camelia\camelia-desktop.exe` 与桌面 `Camelia-Agent-new.exe`。**后半句是历史命令，不要执行**：桌面不再放 `Camelia-Agent-new.exe`，见文首。 |
 | 验收 | ui 套件无 P0-1 那 22 红；chat-mode 绿；冷启 Live（Node 22）；手测 Work 任务卡 + 右栏 + Math |
 | 风险 | ABI：禁止在 Node 24 下 rebuild better-sqlite3 |
 

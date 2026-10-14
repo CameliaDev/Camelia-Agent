@@ -25,7 +25,7 @@ core  ←  harness  ←  agent  ←  ui
 
 | 路径 | 作用 |
 | --- | --- |
-| `src/App.tsx` | §6.4 布局网格：48px 顶栏 / 260px 会话栏 / 对话 / 360px 工程栏 / 底栏输入 |
+| `src/App.tsx` | 四列网格：48px 图标活动栏 / 会话栏（收起为 0）/ 工作区 / 右侧抽屉（关闭为 0）。顶栏是 36px 浮层，不是模式条。当前壳层见 [`docs/SHELL-UX.md`](../../docs/SHELL-UX.md) |
 | `src/components/` | 顶栏、会话栏、对话流、右栏、活动栏、步骤卡片、工具卡片、可靠性表面、代码/Diff 块、作曲家 |
 | `src/state/store.ts` | Zustand store：`snapshot + status + sessions`，事件归约为唯一状态源 |
 | `src/transport/` | 传输契约与实现：`fixture`（离线/截图/测试）与 `sse`（真实引擎，同一接口） |

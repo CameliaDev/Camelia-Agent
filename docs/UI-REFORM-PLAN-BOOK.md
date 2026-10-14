@@ -1,5 +1,9 @@
 # Camelia UI Reform · 计划设计书
 
+> **历史设计书（2026-10-12），不是当前壳。** 文中「现在顶栏是对话 / 计划模式 / 数模」已经过时。当前模式是会话栏上的 **Work / Math / Term**（`chat` / `plan` 归一为 `work`）。见 [`SHELL-UX.md`](SHELL-UX.md)（`main` `1b36ad2` / PR #4）。下文保留当时的改造记录。
+
+
+
 > 交付者：Claude Opus（UI 一刀流任务）
 > 日期：2026-10-12（Asia/Shanghai）
 > 代码基线：`5762b47` + 本次 UI 提交
