@@ -42,6 +42,14 @@ type StringKey =
   | 'skills.root'
   | 'skills.installed'
   | 'skills.failed'
+  | 'skills.search'
+  | 'skills.catalog'
+  | 'skills.catalogInstall'
+  | 'skills.installing'
+  | 'skills.installedBadge'
+  | 'skills.noMatch'
+  | 'skills.catalogError'
+  | 'skills.loading'
   | 'extensions.title'
   | 'extensions.empty'
   | 'extensions.empty.hint'
@@ -56,6 +64,14 @@ type StringKey =
   | 'extensions.loadedAtStart'
   | 'extensions.noMatch'
   | 'extensions.filterInstalled'
+  | 'extensions.filterCatalog'
+  | 'extensions.catalog'
+  | 'extensions.install'
+  | 'extensions.installing'
+  | 'extensions.installedBadge'
+  | 'extensions.restart'
+  | 'extensions.catalogError'
+  | 'extensions.loading'
   | 'workspace.title'
   | 'provider.title'
   | 'provider.primary'
@@ -586,20 +602,36 @@ const en: Record<StringKey, string> = {
   'skills.root': 'Folder',
   'skills.installed': 'Installed.',
   'skills.failed': 'Could not install that folder.',
+  'skills.search': 'Search the skill catalog',
+  'skills.catalog': 'Catalog',
+  'skills.catalogInstall': 'Install',
+  'skills.installing': 'Installing…',
+  'skills.installedBadge': 'Installed',
+  'skills.noMatch': 'No skill matches.',
+  'skills.catalogError': 'Could not load the skill catalog.',
+  'skills.loading': 'Loading the catalog…',
   'extensions.title': 'Plugins',
   'extensions.empty': 'No plugins installed.',
-  'extensions.empty.hint': 'On startup the engine reads directories under ~/.camelia/plugins that contain camelia.plugin.json. In-app install is not wired yet.',
+  'extensions.empty.hint': 'Install from the catalog. The engine reads ~/.camelia/plugins when the process starts, so restart after installing.',
   'extensions.installStub': 'How to install',
   'extensions.panelTitle': 'Extensions',
-  'extensions.search': 'Search installed extensions',
+  'extensions.search': 'Search the extension catalog',
   'extensions.refresh': 'Refresh',
   'extensions.more': 'More',
   'extensions.filter': 'Filter',
   'extensions.installed': 'Installed',
-  'extensions.loadedAtStart': 'This is the list loaded when Camelia started.',
-  'extensions.noMatch': 'No installed extension matches.',
+  'extensions.loadedAtStart': 'Refreshed the catalog and the folders under ~/.camelia/plugins. Plugins load into the engine on the next start.',
+  'extensions.noMatch': 'Nothing in the catalog or the installed list matches.',
   'extensions.filterInstalled': 'Installed',
-  'extensions.installBody': 'Create one folder per plugin under ~/.camelia/plugins and add camelia.plugin.json, then restart. There is no in-app download or enable switch — the engine loads plugins only when the process starts. The repo sample plugins/quiet-activity-bar is a theme stub for the quieter activity-bar direction; copy that folder in and restart. It does not replace the icon rail, which ships in the app. A marketplace and signed packages are not part of this build.',
+  'extensions.filterCatalog': 'Catalog',
+  'extensions.catalog': 'Catalog',
+  'extensions.install': 'Install',
+  'extensions.installing': 'Installing…',
+  'extensions.installedBadge': 'Installed',
+  'extensions.restart': 'Installed into ~/.camelia/plugins. Restart Camelia to load it.',
+  'extensions.catalogError': 'Could not load the catalog.',
+  'extensions.loading': 'Loading the catalog…',
+  'extensions.installBody': 'Search installs from the Camelia catalog (https://github.com/CameliaDev/camelia-extensions, catalog.json on main) into ~/.camelia/plugins with a shallow git clone. If that repository is unreachable, Camelia reads extensions-registry/catalog.json in Camelia-Agent. The engine still loads plugins only when the process starts — restart after install. You can also copy a folder that contains camelia.plugin.json. Override the document with CAMELIA_CATALOG_URL. The quiet-activity-bar sample is a theme stub and does not replace the icon rail.',
   'workspace.title': 'Workspace',
   'provider.title': 'Provider path',
   'provider.primary': 'primary',
@@ -1120,20 +1152,36 @@ const zh: Record<StringKey, string> = {
   'skills.root': '目录',
   'skills.installed': '已安装。',
   'skills.failed': '无法安装这个文件夹。',
+  'skills.search': '搜索技能目录',
+  'skills.catalog': '技能目录',
+  'skills.catalogInstall': '安装',
+  'skills.installing': '正在安装…',
+  'skills.installedBadge': '已安装',
+  'skills.noMatch': '没有匹配的技能。',
+  'skills.catalogError': '无法读取技能目录。',
+  'skills.loading': '正在读取目录…',
   'extensions.title': '插件',
   'extensions.empty': '还没有插件。',
-  'extensions.empty.hint': '引擎启动时会读取 ~/.camelia/plugins 下带 camelia.plugin.json 的目录。应用内安装尚未接通。',
+  'extensions.empty.hint': '从扩展目录安装。引擎在进程启动时读取 ~/.camelia/plugins，安装后需要重新启动。',
   'extensions.installStub': '如何安装',
   'extensions.panelTitle': '扩展',
-  'extensions.search': '搜索已安装的扩展',
+  'extensions.search': '搜索扩展目录',
   'extensions.refresh': '刷新',
   'extensions.more': '更多',
   'extensions.filter': '筛选',
   'extensions.installed': '已安装',
-  'extensions.loadedAtStart': '这是进程启动时读到的列表。',
-  'extensions.noMatch': '没有匹配的已安装扩展。',
+  'extensions.loadedAtStart': '已重新读取扩展目录和 ~/.camelia/plugins。插件要到下次启动才载入引擎。',
+  'extensions.noMatch': '目录和已安装列表里都没有匹配项。',
   'extensions.filterInstalled': '已安装',
-  'extensions.installBody': '在 ~/.camelia/plugins 下为每个插件建一个目录，放入 camelia.plugin.json，然后重新启动。当前没有应用内下载或启用开关，引擎只在进程启动时加载。仓库里的 plugins/quiet-activity-bar 是更安静活动栏方向的主题示例：复制该文件夹后重启。它不代替应用内的窄图标栏。签名与插件市场尚未接入。',
+  'extensions.filterCatalog': '扩展目录',
+  'extensions.catalog': '扩展目录',
+  'extensions.install': '安装',
+  'extensions.installing': '正在安装…',
+  'extensions.installedBadge': '已安装',
+  'extensions.restart': '已写入 ~/.camelia/plugins。重新启动 Camelia 后才会加载。',
+  'extensions.catalogError': '无法读取扩展目录。',
+  'extensions.loading': '正在读取目录…',
+  'extensions.installBody': '搜索会从 Camelia 维护的目录安装：https://github.com/CameliaDev/camelia-extensions 的 main 分支 catalog.json，浅克隆后写入 ~/.camelia/plugins。该仓库不可用时，改读本仓库 extensions-registry/catalog.json。引擎仍在进程启动时加载插件，安装后请重新启动。也可以自行放入含 camelia.plugin.json 的文件夹。目录地址用环境变量 CAMELIA_CATALOG_URL 覆盖。quiet-activity-bar 是主题示例，不代替应用内的窄图标栏。',
   'workspace.title': '工作区',
   'provider.title': '模型链路',
   'provider.primary': '主',

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "quiet-activity-bar",
+      "name": "Quiet activity bar",
+      "description": "Quieter ink tokens for the activity-bar direction. The 48px icon rail ships in the app; this theme does not draw or resize it.",
+      "repo": "https://github.com/CameliaDev/Camelia-Agent",
+      "path": "plugins/quiet-activity-bar",
+      "tags": ["theme", "sample"]
+    }
+  ],
+  "skills": [
+    {
+      "id": "catalog-maintainer",
+      "name": "Catalog maintainer",
+      "description": "Add or update a plugin or skill in the Camelia extension catalog.",
+      "repo": "https://github.com/CameliaDev/Camelia-Agent",
+      "path": "extensions-registry/skills/catalog-maintainer",
+      "tags": ["meta", "catalog"]
+    },
+    {
+      "id": "quiet-shell-notes",
+      "name": "Quiet shell notes",
+      "description": "Notes for the quieter Camelia shell. The 48px activity bar ships in the app.",
+      "repo": "https://github.com/CameliaDev/Camelia-Agent",
+      "path": "extensions-registry/skills/quiet-shell-notes",
+      "tags": ["shell", "sample"]
+    }
+  ]
+}

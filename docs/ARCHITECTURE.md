@@ -6,7 +6,7 @@
 
 `CameliaRuntime`（`packages/agent`）是唯一选具体实现的地方：模型链、Node 适配器、SQLite、`ToolEngine`、插件、MCP。`EngineServer`（`packages/cli`）把命令收成 HTTP `POST /command`，事件用 SSE 推回界面。界面不自己发明任务状态。
 
-一条命令进 `EngineServer.dispatch`。未识别的类型返回 `不支持的命令: <type>`，不会静默成功。`set_workspace`、`new_session`、`rename_session`、`delete_session`、`list_skills`、`install_skill`、`list_memories` 都在这条分发里。
+一条命令进 `EngineServer.dispatch`。未识别的类型返回 `不支持的命令: <type>`，不会静默成功。`set_workspace`、`new_session`、`rename_session`、`delete_session`、`list_skills`、`install_skill`、`list_plugins`、`fetch_extension_catalog`、`install_catalog_plugin`、`install_catalog_skill`、`list_memories` 都在这条分发里。扩展目录默认地址是 `https://raw.githubusercontent.com/CameliaDev/camelia-extensions/main/catalog.json`，可用 `CAMELIA_CATALOG_URL` 覆盖。
 
 ## 任务循环
 

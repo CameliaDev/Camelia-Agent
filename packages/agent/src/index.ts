@@ -33,6 +33,7 @@ export * from './presets/builtins.js';
 export * from './presets/PresetRegistry.js';
 export * from './plugins/PluginLoader.js';
 export * from './plugins/sandbox.js';
+export * from './catalog/catalog.js';
 
 // ---- runtime (composition root) --------------------------------------------
 export * from './runtime/CameliaRuntime.js';

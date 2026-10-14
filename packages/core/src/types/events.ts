@@ -366,6 +366,29 @@ export interface CommandMap {
   'list_skills': { workspace?: string; extraRoot?: string };
   /** Copy a skill folder (or a parent of skill folders) into `~/.camelia/skills`. */
   'install_skill': { path: string };
+  /**
+   * Plugin folders under `~/.camelia/plugins` that contain `camelia.plugin.json`.
+   * This is the on-disk list, not the set loaded into the running process.
+   * Response data: installed-plugin records.
+   */
+  'list_plugins': Record<string, never>;
+  /**
+   * The CameliaDev extension catalog (`catalog.json`).
+   * Response data: `{ version, plugins, skills, sourceUrl }`.
+   * `CAMELIA_CATALOG_URL` overrides the default raw.githubusercontent.com document.
+   */
+  'fetch_extension_catalog': Record<string, never>;
+  /**
+   * Shallow-clone one catalog plugin into `~/.camelia/plugins/<id>`.
+   * The engine still loads plugins only at process start. Response data:
+   * `{ id, dir, restartRequired: true }`.
+   */
+  'install_catalog_plugin': { id: string };
+  /**
+   * Shallow-clone one catalog skill and copy it with `install_skill`.
+   * Response data: the installed skill records.
+   */
+  'install_catalog_skill': { id: string };
   /** Read one memory. Response data: `MemoryView | null`. */
   'get_memory': { memoryId: Id };
   /** Audit trail of every forgetting decision. Response data: `ForgetLogView[]`. */

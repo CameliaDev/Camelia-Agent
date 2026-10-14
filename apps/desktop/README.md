@@ -101,11 +101,13 @@ pnpm --filter @camelia/desktop desktop:check    # cargo check
 
 ## 插件
 
-活动栏图标的名字是 **插件**。点开后左栏标题是 **扩展**，下面有搜索框（「搜索已安装的扩展」）、筛选和刷新。搜索过滤的是这一栏里的已安装列表；当前构建里这份列表是空的，所以会看到「还没有插件」。
+活动栏图标的名字是 **插件**。点开后左栏标题是 **扩展**，下面有搜索框（「搜索扩展目录」）、筛选和刷新。搜索同时过滤 Camelia 目录和本机已安装插件。
 
-引擎仍在进程启动时扫描 `~/.camelia/plugins` 下带 `camelia.plugin.json` 的目录。没有启用开关，也没有应用内下载。安装说明在标题栏「…」→「如何安装」里。放入目录后重新启动桌面才会加载。
+默认目录是 `https://raw.githubusercontent.com/CameliaDev/camelia-extensions/main/catalog.json`。仓库不可用时改读本仓库 `extensions-registry/catalog.json` 的 raw 地址。`CAMELIA_CATALOG_URL` 可覆盖，设了就不再回退。安装会浅克隆条目仓库，把 `path` 复制到 `~/.camelia/plugins/<id>`（须含 `camelia.plugin.json`）。Skills 栏用同一份目录的 `skills`，安装进 `~/.camelia/skills`。
 
-示例：把仓库里的 `plugins/quiet-activity-bar` 整夹复制到 `~/.camelia/plugins/quiet-activity-bar`，再启动桌面。这是主题存根（更安静的颜色记号），不是活动栏本身。48px 纯图标活动栏在应用里，不从插件里加载。
+引擎仍在进程启动时扫描 `~/.camelia/plugins`。没有启用开关。安装进磁盘后重新启动桌面才会加载。刷新会重新拉目录并重读已安装文件夹。说明在标题栏「…」→「如何安装」里。
+
+示例：目录里的 `quiet-activity-bar`，或把本仓库 `plugins/quiet-activity-bar` 整夹复制到 `~/.camelia/plugins/quiet-activity-bar`，再启动桌面。这是主题存根（更安静的颜色记号），不是活动栏本身。48px 纯图标活动栏在应用里，不从插件里加载。
 
 ## 截图
 

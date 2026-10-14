@@ -93,6 +93,13 @@ import { createLogger } from '../adapters/logger.js';
 import { loadConfig, type CameliaConfig } from '../config/load.js';
 import { ensureCameliaHome, paths } from '../config/paths.js';
 import { installSkillFolder, listSkillDirs, skillScanRoots, type SkillInfo } from '../skills/skills.js';
+import {
+  fetchExtensionCatalog as fetchCatalogDocument,
+  installCatalogPlugin as installCatalogPluginDir,
+  installCatalogSkill as installCatalogSkillDir,
+  listInstalledPlugins,
+  type InstalledPluginInfo,
+} from '../catalog/catalog.js';
 import { appendAbiMismatch, isAbiMismatchError, migrateAbiMismatch } from './abi.js';
 import { ChatLoop } from './ChatLoop.js';
 import { withEffort } from './effort.js';
@@ -1281,6 +1288,26 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
 
   installSkill(sourceDir: string): { ok: true; skills: SkillInfo[] } | { ok: false; error: string } {
     return installSkillFolder(sourceDir);
+  }
+
+  /** On-disk plugin folders. Does not execute plugin code or reload the process. */
+  listPlugins(): InstalledPluginInfo[] {
+    return listInstalledPlugins();
+  }
+
+  /** CameliaDev catalog document. `CAMELIA_CATALOG_URL` overrides the default URL. */
+  fetchExtensionCatalog(): ReturnType<typeof fetchCatalogDocument> {
+    return fetchCatalogDocument();
+  }
+
+  /** Copy one catalog plugin into `~/.camelia/plugins`. Loading still waits for a restart. */
+  installCatalogPlugin(id: string): ReturnType<typeof installCatalogPluginDir> {
+    return installCatalogPluginDir(id);
+  }
+
+  /** Copy one catalog skill into `~/.camelia/skills` via `installSkillFolder`. */
+  installCatalogSkill(id: string): ReturnType<typeof installCatalogSkillDir> {
+    return installCatalogSkillDir(id);
   }
 
   /** Switch the runtime's active session to an existing row. Returns false if not found. */
