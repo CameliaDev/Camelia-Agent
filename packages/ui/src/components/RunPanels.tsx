@@ -42,6 +42,7 @@ import { t } from '../i18n/strings.js';
 import type { PanelId } from '../panels.js';
 import { MathArtifactBody } from '../modes/math/MathPanels.js';
 import { MemoryPanel } from './MemoryPanel.js';
+import { HealthMetricsPanel } from './HealthMetricsPanel.js';
 import { Chip, Icon, ProgressBar, SectionHeader, StatusDot } from './primitives.js';
 
 function useTr() {
@@ -685,6 +686,8 @@ export function PanelBody({ id }: { id: PanelId }): ReactNode {
   switch (id) {
     case 'memory':
       return <MemoryPanel />;
+    case 'health':
+      return <HealthMetricsPanel />;
     case 'events':
       return <EventSection timeline={timeline} taskId={task?.id} />;
     case 'run':

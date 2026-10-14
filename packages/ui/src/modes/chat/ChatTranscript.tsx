@@ -22,6 +22,7 @@ import { Avatar, Icon, userAvatarSrc } from '../../components/primitives.js';
 import { providerAvatarSrc } from '../../lib/provider-avatars.js';
 import { splitThinking } from '../../lib/thinking.js';
 import { TaskRunCard } from '../../components/TaskRunCard.js';
+import { TeamOrchestrationCard, taskShowsTeamOrchestration } from '../team/TeamOrchestrationCard.js';
 import { CollapsibleBlock } from '../../components/CollapsibleBlock.js';
 import { ms } from '../../lib/format.js';
 
@@ -69,6 +70,9 @@ export function ChatTranscript(): ReactNode {
         {chat.turns.map((turn) => (
           <ChatBubble key={turn.id} turn={turn} />
         ))}
+        {taskShowsTeamOrchestration(task, snapshot.session?.kind) ? (
+          <TeamOrchestrationCard task={task!} />
+        ) : null}
         <TaskRunCard />
         {chat.pendingAsk ? (
           <AskUserCard

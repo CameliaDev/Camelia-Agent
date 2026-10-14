@@ -60,6 +60,7 @@ export * from './reliability/HallucinationGuard.js';
 
 // ---- recovery --------------------------------------------------------------
 export * from './recovery/ErrorRecovery.js';
+export * from './recovery/rollback-point.js';
 
 // ---- sub-agents ------------------------------------------------------------
 export * from './subagent/SubAgentOrchestrator.js';

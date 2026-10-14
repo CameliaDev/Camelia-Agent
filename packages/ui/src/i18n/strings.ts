@@ -565,7 +565,23 @@ type StringKey =
   | 'panel.run'
   | 'panel.context'
   | 'panel.sub'
+  | 'panel.health'
   | 'panel.model'
+  | 'health.tier.system'
+  | 'health.tier.diagnostics'
+  | 'health.humanGatePass'
+  | 'health.humanGatePass.hint'
+  | 'health.residualSpread'
+  | 'health.residualSpread.hint'
+  | 'health.escalations'
+  | 'health.routerA'
+  | 'health.routerB'
+  | 'health.translateReject'
+  | 'health.skillDaily'
+  | 'health.cognitionSkipped'
+  | 'team.title'
+  | 'composer.team'
+  | 'mode.term.deprecated'
   | 'panel.artifacts.hint'
   | 'panel.artifacts.empty'
   | 'panel.model.hint'
@@ -1115,7 +1131,23 @@ const en: Record<StringKey, string> = {
   'panel.run': 'Run',
   'panel.context': 'Context',
   'panel.sub': 'Sub-agents',
+  'panel.health': 'Health',
   'panel.model': 'Model',
+  'health.tier.system': 'System health',
+  'health.tier.diagnostics': 'Diagnostics',
+  'health.humanGatePass': 'Human gate pass rate',
+  'health.humanGatePass.hint': 'Share of human gates approved (stub until Phase 4 telemetry).',
+  'health.residualSpread': 'Residual signals',
+  'health.residualSpread.hint': 'Surprises / competence rows from cognition projection.',
+  'health.escalations': 'Gate escalations',
+  'health.routerA': 'Router track A hits',
+  'health.routerB': 'Router track B hits',
+  'health.translateReject': 'translate reject rate',
+  'health.skillDaily': 'SkillRecord daily adds',
+  'health.cognitionSkipped': 'Cognition skipped',
+  'team.title': 'Team orchestration',
+  'composer.team': 'Team',
+  'mode.term.deprecated': 'Team runs from Work — Term tab is legacy.',
   'panel.artifacts.hint': 'Deliverables from the current run — files, diffs, stdout.',
   'panel.artifacts.empty': 'No artifacts yet.',
   'panel.model.hint': 'Read-only model view. Editing lives in the math workspace.',
@@ -1666,7 +1698,23 @@ const zh: Record<StringKey, string> = {
   'panel.run': '运行',
   'panel.context': '上下文',
   'panel.sub': '子代理',
+  'panel.health': '健康',
   'panel.model': '模型',
+  'health.tier.system': '系统健康',
+  'health.tier.diagnostics': '诊断（折叠）',
+  'health.humanGatePass': '人闸通过率',
+  'health.humanGatePass.hint': '人闸批准占比（Phase 4 接真数据前为占位）。',
+  'health.residualSpread': '残差信号',
+  'health.residualSpread.hint': '认知投影中的惊奇 / 能力行数。',
+  'health.escalations': '升闸次数',
+  'health.routerA': 'Router 轨 A 命中',
+  'health.routerB': 'Router 轨 B 命中',
+  'health.translateReject': 'translate 拒绝率',
+  'health.skillDaily': 'SkillRecord 日增',
+  'health.cognitionSkipped': '认知跳过',
+  'team.title': '团队编排',
+  'composer.team': '团队',
+  'mode.term.deprecated': '团队编排请从 Work 进入 — Term 页签为遗留入口。',
   'panel.artifacts.hint': '当前运行的产物 — 文件、diff、stdout。',
   'panel.artifacts.empty': '还没有产物。',
   'panel.model.hint': '模型只读视图。编辑在主工作区进行。',

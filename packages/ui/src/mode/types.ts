@@ -31,4 +31,6 @@ export interface ModeDefinition {
   icon: string;
   available: boolean;
   unavailableReasonKey?: string;
+  /** Soft-deprecate in the mode switcher (stage 20 — team lives in Work). */
+  deprecated?: boolean;
 }

@@ -33,18 +33,24 @@ export function ModeTabs({
     >
       {MODE_REGISTRY.map((def) => {
         const active = def.id === mode;
+        const deprecated = def.deprecated === true;
         return (
           <button
             key={def.id}
             type="button"
             role="tab"
             data-mode-tab={def.id}
+            data-mode-deprecated={deprecated || undefined}
             aria-selected={active}
-            title={tr(def.descriptionKey as Parameters<typeof t>[1])}
+            title={
+              deprecated
+                ? `${tr(def.descriptionKey as Parameters<typeof t>[1])} — ${tr('mode.term.deprecated')}`
+                : tr(def.descriptionKey as Parameters<typeof t>[1])
+            }
             onClick={() => onSelect(def.id)}
             className={`rounded-md px-2 py-[3px] text-[11.5px] transition-colors ${
-              active ? 'bg-hover font-medium text-ink' : 'text-ink-3 hover:text-ink'
-            }`}
+              deprecated ? 'opacity-60' : ''
+            } ${active ? 'bg-hover font-medium text-ink' : 'text-ink-3 hover:text-ink'}`}
           >
             {tr(def.labelKey as Parameters<typeof t>[1])}
           </button>

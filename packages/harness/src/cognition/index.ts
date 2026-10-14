@@ -57,3 +57,7 @@ export type {
 } from './backtest.js';
 
 export { syntheticCognitionCorpus } from './synthetic-corpus.js';
+
+export { parseTranslateActionV1 } from './translate-schema.js';
+export { mayWriteMemoryFromVerifier } from './memory-write-gate.js';
+export type { MemoryWriteGateInput, MemoryWriteGateResult } from './memory-write-gate.js';

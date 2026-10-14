@@ -6,7 +6,7 @@
 import type { t } from './i18n/strings.js';
 import type { AppModeId } from './mode/types.js';
 
-export const PANEL_IDS = ['run', 'artifacts', 'memory', 'context', 'events', 'sub'] as const;
+export const PANEL_IDS = ['run', 'artifacts', 'memory', 'health', 'context', 'events', 'sub'] as const;
 
 export type PanelId = (typeof PANEL_IDS)[number];
 
@@ -22,6 +22,7 @@ export const PANELS: readonly PanelSpec[] = [
   { id: 'run', icon: 'layers', labelKey: 'panel.run', needsTask: true, mathOnly: false },
   { id: 'artifacts', icon: 'file', labelKey: 'panel.artifacts', needsTask: false, mathOnly: false },
   { id: 'memory', icon: 'star', labelKey: 'panel.memory', needsTask: false, mathOnly: false },
+  { id: 'health', icon: 'gauge', labelKey: 'panel.health', needsTask: false, mathOnly: false },
   { id: 'context', icon: 'gauge', labelKey: 'panel.context', needsTask: true, mathOnly: false },
   { id: 'events', icon: 'terminal', labelKey: 'panel.events', needsTask: false, mathOnly: false },
   { id: 'sub', icon: 'bot', labelKey: 'panel.sub', needsTask: true, mathOnly: false },
