@@ -57,6 +57,15 @@ export type SandboxResponse =
 export const DEFAULT_SANDBOX_TIMEOUT_MS = 5_000;
 
 /**
+ * Shortest deadline the host will actually arm.
+ *
+ * `timeoutMs: 0` used to become 250ms. On a busy CI runner the worker does not
+ * finish starting in that window, so a healthy empty plugin was reported as a
+ * timeout. 1.5s still stops a `while (true)` and leaves room for startup.
+ */
+const MIN_SANDBOX_TIMEOUT_MS = 1_500;
+
+/**
  * Locate the worker module.
  *
  * The worker is written in TypeScript, so under the test runner the sibling
@@ -79,7 +88,7 @@ function workerUrl(): URL {
  * a rejection and continue, and an exception would force that decision on it.
  */
 export function loadToolsInWorker(request: SandboxRequest): Promise<SandboxResponse> {
-  const timeoutMs = Math.max(250, request.timeoutMs);
+  const timeoutMs = Math.max(MIN_SANDBOX_TIMEOUT_MS, request.timeoutMs);
 
   return new Promise<SandboxResponse>((resolve) => {
     let settled = false;
