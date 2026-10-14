@@ -34,9 +34,10 @@ export function ModeShell(): ReactNode {
   }, [taskId]);
 
   // First time a task awaits approval, bring the user to Work (task card + PlanReview).
+  // Term keeps its own approve row so a team plan does not abandon the timeline.
   useEffect(() => {
     if (!awaitingApproval || !taskId) return;
-    if (mode === 'work') return;
+    if (mode === 'work' || mode === 'term') return;
     if (dismissed.current.has(taskId)) return;
     setMode('work');
   }, [awaitingApproval, taskId, mode, setMode]);

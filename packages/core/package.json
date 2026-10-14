@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./capabilities": {
+      "types": "./dist/utils/model-capabilities.d.ts",
+      "import": "./dist/utils/model-capabilities.js"
     }
   },
   "files": ["dist"],

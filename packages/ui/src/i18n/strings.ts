@@ -119,6 +119,11 @@ type StringKey =
   | 'composer.modelEmpty'
   | 'composer.modelVision'
   | 'composer.modelContext'
+  | 'composer.filter'
+  | 'composer.filter.all'
+  | 'composer.filter.vision'
+  | 'composer.filter.context'
+  | 'composer.filter.empty'
   | 'welcome.title'
   | 'welcome.body'
   | 'step.pending'
@@ -266,9 +271,15 @@ type StringKey =
   | 'feedback.repro'
   | 'feedback.submit'
   | 'feedback.needLogin'
+  | 'feedback.signIn'
   | 'feedback.success'
   | 'feedback.error'
   | 'feedback.repo'
+  | 'feedback.repoInput'
+  | 'feedback.includeMeta'
+  | 'feedback.missingRepo'
+  | 'feedback.unauthorized'
+  | 'feedback.invalidRepo'
   | 'composer.effort'
   | 'composer.effort.max'
   | 'composer.effort.high'
@@ -402,6 +413,10 @@ type StringKey =
   | 'term.phase.execute'
   | 'term.phase.verify'
   | 'term.phase.done'
+  | 'term.phase.failed'
+  | 'term.worker.running'
+  | 'term.worker.ok'
+  | 'term.worker.error'
   | 'term.composer'
   | 'math.setup.title'
   | 'math.setup.contest'
@@ -628,6 +643,11 @@ const en: Record<StringKey, string> = {
   'composer.modelEmpty': 'The model list did not come back. Type an id to use it.',
   'composer.modelVision': 'Vision — accepts images',
   'composer.modelContext': 'Context window',
+  'composer.filter': 'Filter models',
+  'composer.filter.all': 'All',
+  'composer.filter.vision': 'Vision',
+  'composer.filter.context': 'Long context',
+  'composer.filter.empty': 'No model in this list matches that filter.',
   'welcome.title': 'No task yet',
   'welcome.body': 'Describe what you want built, fixed or investigated. Camelia plans it, executes it step by step, verifies every acceptance point and shows you the whole run.',
   'step.pending': 'Pending',
@@ -750,9 +770,15 @@ const en: Record<StringKey, string> = {
   'feedback.repro': 'Steps to reproduce (optional)',
   'feedback.submit': 'Submit to GitHub',
   'feedback.needLogin': 'Sign in with GitHub to send feedback',
+  'feedback.signIn': 'Go to GitHub sign-in',
   'feedback.success': 'Opened issue',
   'feedback.error': 'Could not create issue',
   'feedback.repo': 'Feedback goes to',
+  'feedback.repoInput': 'Repository (owner/name)',
+  'feedback.includeMeta': 'Include app version and current mode',
+  'feedback.missingRepo': 'That repository does not exist, or this GitHub login cannot see it. Create an empty public repo (default CameliaDev/camelia-feedback) and sign in with a token that has public_repo. Camelia will not pretend the issue was created.',
+  'feedback.unauthorized': 'GitHub rejected this login. Sign in again with the device flow so the token includes public_repo.',
+  'feedback.invalidRepo': 'Repository must look like owner/name.',
   'composer.effort': 'Effort',
   'composer.effort.max': 'Max',
   'composer.effort.high': 'High',
@@ -897,8 +923,8 @@ const en: Record<StringKey, string> = {
   'mode.chat.desc': 'Describe a task — the agent plans, runs and verifies it.',
   'mode.plan.desc': 'Review and edit the plan before any step runs.',
   'mode.math.desc': 'Mathematical modeling: assumptions, variables, equations, solver.',
-  'mode.term.desc': 'Team mode — multi-agent collaboration (UI MVP).',
-  'mode.term.stub': 'Term (team mode) is a UI stub. Sessions are filtered and created; orchestration lands later.',
+  'mode.term.desc': 'Team mode — a coordinator assigns workers that run as sub-agents.',
+  'mode.term.stub': 'Term runs a coordinator and workers through the engine. Done means at least one worker succeeded.',
   'term.plan': 'Plan',
   'term.execute': 'Execute',
   'term.verify': 'Verify',
@@ -907,7 +933,11 @@ const en: Record<StringKey, string> = {
   'term.phase.plan': 'Splitting the goal into a plan.',
   'term.phase.execute': 'Carrying the plan out.',
   'term.phase.verify': 'Checking the result.',
-  'term.phase.done': 'This pass is finished.',
+  'term.phase.done': 'A worker finished and the team accepted the result.',
+  'term.phase.failed': 'This pass did not finish. No successful worker report.',
+  'term.worker.running': 'Running',
+  'term.worker.ok': 'Finished',
+  'term.worker.error': 'Failed',
   'term.composer': 'What should the team do?',
   'math.setup.title': 'New math session',
   'math.setup.contest': 'Contest',
@@ -1131,6 +1161,11 @@ const zh: Record<StringKey, string> = {
   'composer.modelEmpty': '模型列表没拉到。填一个模型 ID 就能用。',
   'composer.modelVision': '视觉 — 可看图',
   'composer.modelContext': '上下文窗口',
+  'composer.filter': '筛选模型',
+  'composer.filter.all': '全部',
+  'composer.filter.vision': '视觉',
+  'composer.filter.context': '长上下文',
+  'composer.filter.empty': '这个列表里没有符合条件的模型。',
   'welcome.title': '暂无任务',
   'welcome.body': '描述你想构建、修复或调查的内容。Camelia 会规划、逐步执行、校验每个验收点，并向你展示完整运行过程。',
   'step.pending': '待处理',
@@ -1252,9 +1287,15 @@ const zh: Record<StringKey, string> = {
   'feedback.repro': '复现步骤（可选）',
   'feedback.submit': '提交到 GitHub',
   'feedback.needLogin': '请先用 GitHub 登录再反馈',
+  'feedback.signIn': '去 GitHub 登录',
   'feedback.success': '已创建 Issue',
   'feedback.error': '无法创建 Issue',
   'feedback.repo': '反馈仓库',
+  'feedback.repoInput': '仓库（owner/name）',
+  'feedback.includeMeta': '附带应用版本和当前模式',
+  'feedback.missingRepo': '这个仓库不存在，或当前 GitHub 账号看不到它。请先建一个空的公开仓库（默认 CameliaDev/camelia-feedback），并用带 public_repo 权限的登录再提交。Camelia 不会假装已经创建了 Issue。',
+  'feedback.unauthorized': 'GitHub 拒绝了这次登录。请用设备码流程重新登录，令牌需要包含 public_repo。',
+  'feedback.invalidRepo': '仓库需要是 owner/name 这种形式。',
   'composer.effort': '力度',
   'composer.effort.max': 'Max',
   'composer.effort.high': 'High',
@@ -1399,8 +1440,8 @@ const zh: Record<StringKey, string> = {
   'mode.chat.desc': '描述一个任务，代理会规划、执行并校验。',
   'mode.plan.desc': '在任何步骤执行前审阅并编辑计划。',
   'mode.math.desc': '数学建模：假设、变量、方程与求解。',
-  'mode.term.desc': '团队模式 — 多智能体协作（界面 MVP）。',
-  'mode.term.stub': 'Term（团队模式）目前是界面占位：可切换、可建会话；编排后端稍后接入。',
+  'mode.term.desc': '团队模式 — 协调者分派工人，工人按子代理执行。',
+  'mode.term.stub': 'Term 由引擎编排协调者和工人。完成表示至少有一名工人成功返回。',
   'term.plan': '计划',
   'term.execute': '执行',
   'term.verify': '校验',
@@ -1409,7 +1450,11 @@ const zh: Record<StringKey, string> = {
   'term.phase.plan': '正在把目标拆成计划。',
   'term.phase.execute': '正在按计划执行。',
   'term.phase.verify': '正在校验结果。',
-  'term.phase.done': '这一轮结束了。',
+  'term.phase.done': '有工人完成，团队收下了结果。',
+  'term.phase.failed': '这一轮没有完成。没有成功的工人报告。',
+  'term.worker.running': '执行中',
+  'term.worker.ok': '已完成',
+  'term.worker.error': '失败',
   'term.composer': '团队要做什么？',
   'math.setup.title': '新建数学会话',
   'math.setup.contest': '赛制',

@@ -21,6 +21,10 @@ export interface SubAgentSpec {
   focusPaths?: string[];
   /** Hard cap on wall-clock time for the sub-agent. */
   timeoutMs?: number;
+  /** Model id for this worker. The parent decision model is used when omitted. */
+  model?: string;
+  /** Role label from the coordinator (researcher, writer, …). */
+  role?: string;
 }
 
 /** Implemented by whoever can run a nested agent (the AgentLoop). */
@@ -70,7 +74,17 @@ export class SubAgentOrchestrator {
   async spawn(spec: SubAgentSpec): Promise<SubAgentReport> {
     const meta = runMeta(this.ctx);
     const id = shortId(10);
-    this.ctx.infra.bus.emit('subagent.spawned', { id, goal: spec.goal, parentTaskId: this.ctx.taskId }, meta);
+    this.ctx.infra.bus.emit(
+      'subagent.spawned',
+      {
+        id,
+        goal: spec.goal,
+        parentTaskId: this.ctx.taskId,
+        ...(spec.model ? { model: spec.model } : {}),
+        ...(spec.role ? { role: spec.role } : {}),
+      },
+      meta,
+    );
     const release = await this.semaphore.acquire();
     this.peakConcurrency = Math.max(this.peakConcurrency, this.semaphore.inFlight);
     this.ctx.infra.metrics.gauge('subagent.concurrent_peak', this.peakConcurrency);
@@ -82,7 +96,9 @@ export class SubAgentOrchestrator {
 
     try {
       const report = await this.runner(spec, controller.signal);
-      const capped = this.capReport(report);
+      // The spawned id is the one the UI already rendered. The runner's own id
+      // would otherwise leave a stuck "running" row next to a second finished row.
+      const capped = this.capReport({ ...report, id });
       this.ctx.infra.metrics.observe('subagent.report_tokens', estimateTokens(capped.summary));
       this.ctx.infra.bus.emit('subagent.finished', { report: capped }, meta);
       return capped;

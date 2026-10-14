@@ -8,7 +8,23 @@
  * @module
  */
 
+import { resolveModelInfo } from '@camelia/core/capabilities';
+import type { ProviderModelDetail } from '@camelia/agent/view';
+
 import { PRESET_TEMPLATES } from '../window/provider-presets.js';
+
+export type ModelFilter = 'all' | 'vision' | 'context';
+
+/** Long-context filter. A generic 128k default does not count. */
+export const LONG_CONTEXT_TOKENS = 100_000;
+
+const GENERIC_CAPS = {
+  supportsTools: true,
+  supportsJson: true,
+  supportsStreaming: true,
+  maxContextWindow: 0,
+  quality: 0.5,
+};
 
 /** Known model ids for a provider, including `aliyun-2` style duplicates. */
 export function catalogModels(providerId: string | undefined): readonly string[] {
@@ -49,4 +65,38 @@ export function composerModelChoices(input: {
   for (const id of catalogModels(input.providerId)) push(id);
   push(input.activeModel);
   return out;
+}
+
+/**
+ * Caps for one picker row. Advertised engine details win; otherwise the id
+ * heuristic fills vision and context, and says when the window is only a default.
+ */
+export function describeModelChoice(input: {
+  id: string;
+  providerId?: string;
+  advertised?: ProviderModelDetail;
+}): ProviderModelDetail {
+  if (input.advertised) return input.advertised;
+  const info = resolveModelInfo({
+    id: input.id,
+    providerId: input.providerId || 'unknown',
+    providerCaps: GENERIC_CAPS,
+  });
+  return {
+    id: info.id,
+    label: info.label,
+    contextWindow: info.contextWindow,
+    supportsVision: info.supportsVision,
+    supportsTools: info.supportsTools,
+    supportsJson: info.supportsJson,
+    ...(info.capabilitySource ? { capabilitySource: info.capabilitySource } : {}),
+  };
+}
+
+export function modelPassesFilter(detail: ProviderModelDetail | undefined, filter: ModelFilter): boolean {
+  if (filter === 'all') return true;
+  if (!detail) return false;
+  if (filter === 'vision') return detail.supportsVision === true && detail.capabilitySource?.vision !== 'unknown';
+  if (detail.capabilitySource?.context === 'default') return false;
+  return detail.contextWindow >= LONG_CONTEXT_TOKENS;
 }

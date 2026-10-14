@@ -2,7 +2,7 @@
 
 > **以 `main` 为准，PR #4 squash-merge 之后。** 提交 `1b36ad2`（`feat(ui): shell controls, isolated modes, and preset portraits`）。
 >
-> 本文描述已经交付的桌面界面。2026-10-13 的模式计划（只有 Work/Math、顶栏分段、桌面 `Camelia-Agent-new.exe`）是历史，见 [`PLAN-2026-10-13-mode-ia.md`](PLAN-2026-10-13-mode-ia.md) 文首说明。引擎能力边界仍以代码和 [`ITERATION_LOG.md`](ITERATION_LOG.md) 为准，不要把界面上的时间线当成多智能体已经在跑。
+> 本文描述已经交付的桌面界面。2026-10-13 的模式计划（只有 Work/Math、顶栏分段、桌面 `Camelia-Agent-new.exe`）是历史，见 [`PLAN-2026-10-13-mode-ia.md`](PLAN-2026-10-13-mode-ia.md) 文首说明。引擎能力边界仍以代码和 [`ITERATION_LOG.md`](ITERATION_LOG.md) 为准。Term 的阶段跟引擎任务走，不再用窗口里的计时器冒充编排。
 
 中文界面字符串以 `packages/ui/src/i18n/strings.ts` 的 `zh` 为准。下面的英文是代码里的 id。
 
@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | `work` | Work | 日常对话。有任务时，任务卡嵌在聊天记录里。旧的 `chat` / `plan` 都归到这里。 |
 | `math` | Math | 数学建模聊天。引擎还没有数模命令；演示课题必须手动加载，并带演示标记。 |
-| `term` | Term | 团队模式的**本地**时间线。见下文「Term 的边界」。 |
+| `term` | Term | 团队模式。协调者拆工人，工人走已有的子代理。见下文「Term 的边界」。 |
 
 不在分段控件里的「评测 / 教学」（`mode.eval` / `mode.teach`）只是登记过的后续名字，界面上没有。
 
@@ -47,7 +47,7 @@
 
 模型芯片在输入框里。点它打开**输入框内的模型列表**（`data-composer-models`），不打开设置。列表是当前 provider 已配置的 id、该 provider 的预设目录、以及正在用的模型；也可以手打一个 id。选择发送 `select_provider`，**只换这个 provider 上的模型，不换厂商**。没有 provider 时芯片不打开列表。
 
-力度是一颗**显示当前档位**的按钮，默认 **High**（`localPrefs.effort`）。点开弹出 **Max / High / Low**（中文界面也是这三个词），点某一档就设上，**不会**按一下轮换。Work / Math 发送 `chat_message` 或 `submit_task` 时带上 `effort`。它只是提示词里的深度约束，**不切换模型**。Term 的发送不走这两条命令（见下）。
+力度是一颗**显示当前档位**的按钮，默认 **High**（`localPrefs.effort`）。点开弹出 **Max / High / Low**（中文界面也是这三个词），点某一档就设上，**不会**按一下轮换。Work / Math 发送 `chat_message` 或 `submit_task` 时带上 `effort`。Term 发送 `submit_term` 时也带上。它只是提示词里的深度约束，**不切换模型**。
 
 Work 的输入框另外保留权限策略下拉。
 
@@ -85,9 +85,38 @@ Work 的输入框另外保留权限策略下拉。
 
 ## Term 的边界
 
-Term 的时间线是 **plan → execute → verify → done**（界面文案：计划 / 执行 / 校验 / 完成）。它由输入框发送驱动：写入本地的 `termRun`，从 `plan` 开始，大约每 900ms 进下一站，直到 `done`。没有 Term 会话时会先 `new_session`，`kind: 'term'`。
+Term 的时间线是 **plan → execute → verify → done**（界面文案：计划 / 执行 / 校验 / 完成）。输入框发送 `submit_term`（没有 Term 会话时先 `new_session`，`kind: 'term'`）。引擎里的 `TeamOrchestrator` 做这些事：
 
-这一条**不**发送 `submit_task`。引擎**没有**团队多智能体编排。时间线是窗口自己的状态，不是任务快照，也不能当成多个 agent 已经分工做完。
+1. 协调者向当前决策模型要一份工人列表（JSON）。解析失败或列表为空，任务失败，**不会**假装完成。
+2. 按模型能力给每个工人选模型（见下）。有一个工人选不出来，整轮失败，工人不会开工。
+3. 工人走已经存在的 `SubAgentOrchestrator`（每个工人是隔离子代理，不是另一套运行时）。
+4. 校验工人报告。至少一名工人 `ok` 才发 `task.completed`，界面才到「完成」。全都失败、或一个都没跑，状态是失败，时间线停在「没有成功的工人报告」。
+
+界面对齐的是任务快照，不是本地计时器：`planning` / 待批准 → 计划，`executing` → 执行，`verifying` → 校验，`done` 且有成功工人 → 完成。`planApproval` 为 `always` 时，批准按钮留在 Term 里，不会把人拽回 Work。
+
+**选模型的规则**（`assignRoleModel`）：
+
+- 需要视觉：只要 `supportsVision` 为真，且来源不是 `unknown`。配置、接口广告、或从 id 推断（如 `qwen-vl`、`gpt-4o`）都算。推断不出的不算。
+- 需要最小上下文：窗口必须来自配置、接口或 id 推断，并且 ≥ 要求。泛用的 128k 默认值**不算**。
+- 需要工具：`supportsTools` 为真。
+- 当前选中的模型如果还满足条件，优先用它；否则用上下文更大的那一个。
+- 用户目标里出现截图 / 图片 / image 等，而协调者忘了标视觉，第一个工人会被标成需要视觉。没有视觉模型就失败，不把看不见的模型派上去。
+
+还不是这些东西：不是任意多个互聊的房间；工人内部仍是原来的计划—执行循环；能力没广告出来时只能靠 id 启发式，启发式也会错；协调者自己仍用当前决策模型写计划，不因为计划文本去换一个视觉模型。
+
+## 应用内反馈
+
+设置 → **反馈**。缺陷或建议，标题和正文，可选附带应用版本和当前模式。提交用本机已经登录的 GitHub 令牌（设备码流程，范围含 `public_repo`），调用 GitHub 创建 Issue。默认仓库 `CameliaDev/camelia-feedback`，输入框可以改成别的 `owner/name`。
+
+仓库不存在、或这个账号看不到它时，界面说明要先建一个**空的公开仓库**，并停在错误上。不会显示「已创建」。令牌不够（401/403）同样失败。新建仓库通常没有 `bug` 标签，所以请求**不带** labels，避免 422 被当成成功或含糊的失败。
+
+Cursor 的 GitHub App 不需要能访问这个反馈仓库；走的是用户自己的令牌。仓库要用户自己建好，应用不会代为创建。
+
+## 模型能力
+
+模型记录上有 `supportsVision`、`contextWindow`（token）、`supportsTools`，以及 `capabilitySource` 说明每个值是广告、配置、推断、提供方默认，还是未知。`/v1/models` 若带回 `context_length`、`architecture.input_modalities` 含 `image`、`supported_parameters` 含 `tools`，测试连接会解析并写入该 provider 的 `modelCapabilities`。没有这些字段时不编造，id 启发式只在认得出时使用。
+
+输入框的模型列表可以直接筛选「视觉 / 长上下文」，不必先打开设置。长上下文指已知窗口 ≥ 100k；来源是 `default` 的不计入。来源是 `default` 或 `unknown` 的窗口数字不会标在列表上，避免把泛用的 128k 说成这个模型的上下文。
 
 ## Math 新建
 

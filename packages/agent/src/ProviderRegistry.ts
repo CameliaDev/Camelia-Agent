@@ -22,6 +22,12 @@ export type HandleModelDetail = {
   supportsVision: boolean;
   supportsTools: boolean;
   supportsJson: boolean;
+  /** Present when resolveModelInfo could say where each flag came from. */
+  capabilitySource?: {
+    vision: string;
+    context: string;
+    tools: string;
+  };
 };
 
 export interface ProviderHandle {
@@ -51,6 +57,7 @@ function detailsFor(profile: ProviderProfile, providerCaps: ProviderCapabilities
       supportsVision: info.supportsVision,
       supportsTools: info.supportsTools,
       supportsJson: info.supportsJson,
+      ...(info.capabilitySource ? { capabilitySource: info.capabilitySource } : {}),
     };
   });
 }

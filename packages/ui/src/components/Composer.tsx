@@ -41,10 +41,9 @@ import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, t
 
 import type { ChatPolicy } from '@camelia/core';
 
-import { composerModelChoices } from '../lib/composer-models.js';
+import { composerModelChoices, describeModelChoice, modelPassesFilter, type ModelFilter } from '../lib/composer-models.js';
 import { projectionMatchesMode } from '../mode/session-kind.js';
 import { makeCommand } from '../state/store.js';
-import { setTermRun } from '../state/shell-extras.js';
 import { useUiState, useUiStore, useUiStoreApi } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
 import { useMode } from '../mode/useMode.js';
@@ -163,6 +162,13 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     advertised: models,
     advertisedFor: snapshot.provider.modelsFor,
   });
+  const [modelFilter, setModelFilter] = useState<ModelFilter>('all');
+  const visibleChoices = choices.filter((model) =>
+    modelPassesFilter(
+      describeModelChoice({ id: model, providerId: provider, advertised: detailById.get(model) }),
+      modelFilter,
+    ),
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [manualModel, setManualModel] = useState('');
   const [effortOpen, setEffortOpen] = useState(false);
@@ -277,11 +283,19 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     if (mode === 'term') {
       if (!intent) return;
       const state = store.getState();
-      const begin = (sessionId: string): void => {
-        setTermRun({ sessionId, intent, phase: 'plan' });
+      const workspace = state.snapshot.session?.workspace ?? '.';
+      const send = (sessionId: string): void => {
+        state.dispatch(
+          makeCommand('submit_term', {
+            sessionId,
+            intent,
+            workspace,
+            effort,
+          }),
+        );
       };
       if (projectionMatchesMode(state.snapshot, 'term') && state.snapshot.session) {
-        begin(state.snapshot.session.id);
+        send(state.snapshot.session.id);
       } else {
         void state
           .query<{ sessionId: string }>(makeCommand('new_session', { kind: 'term' }))
@@ -289,7 +303,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
             if (!res?.sessionId) return;
             state.setActiveSession(res.sessionId);
             state.dispatch(makeCommand('select_session', { sessionId: res.sessionId }));
-            begin(res.sessionId);
+            send(res.sessionId);
           })
           .catch(() => undefined);
       }
@@ -518,6 +532,22 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                   data-composer-models
                   className="absolute bottom-full left-0 z-30 mb-1 w-[280px] rounded-lg border border-line bg-elevated shadow-lg"
                 >
+                  <div className="flex gap-1 border-b border-line px-1 py-1" data-model-filters role="group" aria-label={tr('composer.filter')}>
+                    {(['all', 'vision', 'context'] as const).map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        data-model-filter={id}
+                        aria-pressed={modelFilter === id}
+                        className={`rounded-md px-2 py-0.5 text-[10.5px] ${
+                          modelFilter === id ? 'bg-hover font-medium text-ink' : 'text-ink-3 hover:text-ink'
+                        }`}
+                        onClick={() => setModelFilter(id)}
+                      >
+                        {tr(`composer.filter.${id}` as Parameters<typeof t>[1])}
+                      </button>
+                    ))}
+                  </div>
                   <ul
                     role="listbox"
                     aria-label={tr('composer.switchModel')}
@@ -526,9 +556,18 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                     {choices.length === 0 ? (
                       <li className="px-2 py-1.5 text-[11.5px] leading-5 text-ink-3">{tr('composer.modelEmpty')}</li>
                     ) : null}
-                    {choices.map((model) => {
+                    {choices.length > 0 && visibleChoices.length === 0 ? (
+                      <li className="px-2 py-1.5 text-[11.5px] leading-5 text-ink-3" data-model-filter-empty>
+                        {tr('composer.filter.empty')}
+                      </li>
+                    ) : null}
+                    {visibleChoices.map((model) => {
                       const selected = model === activeModel;
-                      const detail = detailById.get(model);
+                      const detail = describeModelChoice({
+                        id: model,
+                        providerId: provider,
+                        advertised: detailById.get(model),
+                      });
                       const ctxLabel = detail
                         ? detail.contextWindow >= 1_000_000
                           ? `${Math.round(detail.contextWindow / 1_000_000)}M`
@@ -552,8 +591,10 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                               <span className="block truncate font-mono">{model}</span>
                               {detail ? (
                                 <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-normal text-ink-3">
-                                  {ctxLabel ? <span title={tr('composer.modelContext')}>{ctxLabel} ctx</span> : null}
-                                  {detail.supportsVision ? (
+                                  {ctxLabel && detail.capabilitySource?.context !== 'default' && detail.capabilitySource?.context !== 'unknown' ? (
+                                    <span title={tr('composer.modelContext')}>{ctxLabel} ctx</span>
+                                  ) : null}
+                                  {detail.supportsVision && detail.capabilitySource?.vision !== 'unknown' ? (
                                     <span className="rounded bg-info/15 px-1 text-info" title={tr('composer.modelVision')}>
                                       vision
                                     </span>

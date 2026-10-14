@@ -5,6 +5,8 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { resolveModelInfo, type ParsedModelCaps } from '@camelia/core/capabilities';
+
 import { t } from '../i18n/strings.js';
 import { makeCommand } from '../state/store.js';
 import { useUiStore } from '../state/UiProvider.js';
@@ -28,20 +30,58 @@ import {
 } from '../window/provider-presets.js';
 import { providerAvatarSrc } from '../lib/provider-avatars.js';
 
-/** Infer persisted model caps so Term/composer pickers show vision + context without a second probe. */
-function buildModelCapabilities(models: string[]): Record<string, { supportsVision?: boolean; contextWindow?: number }> {
-  const out: Record<string, { supportsVision?: boolean; contextWindow?: number }> = {};
+/**
+ * Caps written into config.json.
+ *
+ * Advertised `/v1/models` fields win. Otherwise an id heuristic is saved only
+ * when it is specific (qwen-vl, qwen-plus, …). A generic 128k default is not
+ * stored, so Term does not treat an unknown model as long-context.
+ */
+function buildModelCapabilities(
+  models: string[],
+  advertised: ParsedModelCaps[] = [],
+): Record<string, { supportsVision?: boolean; contextWindow?: number; supportsTools?: boolean; supportsJson?: boolean; label?: string }> {
+  const byId = new Map(advertised.map((row) => [row.id, row]));
+  const out: Record<string, { supportsVision?: boolean; contextWindow?: number; supportsTools?: boolean; supportsJson?: boolean; label?: string }> = {};
   for (const id of models) {
-    const lower = id.toLowerCase();
-    const vision = /vision|-vl|vl-|gpt-4o|gpt-4\.1|llava|qwen-vl|qwen2\.5-vl|qwen2-vl|gemini-|claude-3|claude-4|minicpm-v|internvl/.test(lower);
-    const ctx = /qwen-long|gemini-1\.5-pro/.test(lower)
-      ? 1_000_000
-      : /claude/.test(lower)
-        ? 200_000
-        : /qwen/.test(lower)
-          ? 131_072
-          : 128_000;
-    out[id] = { ...(vision ? { supportsVision: true } : {}), contextWindow: ctx };
+    const ad = byId.get(id);
+    const info = resolveModelInfo({
+      id,
+      providerId: 'catalog',
+      providerCaps: {
+        supportsTools: true,
+        supportsJson: true,
+        supportsStreaming: true,
+        maxContextWindow: 0,
+        quality: 0.5,
+      },
+      advertised: ad
+        ? {
+            ...(ad.contextWindow ? { contextWindow: ad.contextWindow } : {}),
+            ...(ad.supportsVision !== undefined ? { supportsVision: ad.supportsVision } : {}),
+            ...(ad.supportsTools !== undefined ? { supportsTools: ad.supportsTools } : {}),
+            ...(ad.supportsJson !== undefined ? { supportsJson: ad.supportsJson } : {}),
+            ...(ad.label ? { label: ad.label } : {}),
+          }
+        : undefined,
+    });
+    const spec: {
+      supportsVision?: boolean;
+      contextWindow?: number;
+      supportsTools?: boolean;
+      supportsJson?: boolean;
+      label?: string;
+    } = {};
+    const contextOrigin = info.capabilitySource?.context;
+    if (contextOrigin === 'advertised' || contextOrigin === 'override' || contextOrigin === 'inferred') {
+      spec.contextWindow = info.contextWindow;
+    }
+    if (ad?.supportsVision !== undefined) spec.supportsVision = ad.supportsVision;
+    else if (info.supportsVision && info.capabilitySource?.vision === 'inferred') spec.supportsVision = true;
+    if (ad?.supportsTools !== undefined) spec.supportsTools = ad.supportsTools;
+    if (ad?.supportsJson !== undefined) spec.supportsJson = ad.supportsJson;
+    if (ad?.label) spec.label = ad.label;
+    if (Object.keys(spec).length > 0) out[id] = spec;
   }
   return out;
 }
@@ -68,6 +108,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [discoveredCaps, setDiscoveredCaps] = useState<ParsedModelCaps[]>([]);
   const [testing, setTesting] = useState(false);
 
   async function reload(): Promise<void> {
@@ -189,6 +230,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
       });
       if (!result.ok) {
         setDiscoveredModels([]);
+        setDiscoveredCaps([]);
         const detail =
           result.error === 'missing-key'
             ? tr('settings.presets.testMissingKey')
@@ -199,6 +241,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         return;
       }
       setDiscoveredModels(result.models);
+      setDiscoveredCaps(result.capabilities ?? []);
       if (result.models.length > 0 && !model.trim()) {
         setModel(result.models[0]!);
       }
@@ -244,7 +287,7 @@ export function ConnectionsSection({ tr }: { tr: Tr }): ReactNode {
         label: name.trim(),
         baseUrl: baseUrl.trim() || (localProvider ? 'http://127.0.0.1:11434/v1' : ''),
         models,
-        modelCapabilities: buildModelCapabilities(models),
+        modelCapabilities: buildModelCapabilities(models, discoveredCaps),
         defaultModel: model.trim(),
         activate,
         model: model.trim(),

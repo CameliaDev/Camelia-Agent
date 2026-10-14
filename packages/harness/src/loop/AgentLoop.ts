@@ -19,6 +19,7 @@ import type {
   Id,
   MemoryItem,
   Plan,
+  ModelInfo,
   Step,
   SubAgentReport,
   TaskStatus,
@@ -50,6 +51,8 @@ import {
   type SelfReviewResult,
 } from '../selfreview/PlanSelfReview.js';
 import type { SubAgentOrchestrator, SubAgentSpec } from '../subagent/SubAgentOrchestrator.js';
+import { TEAM_COORDINATOR_SYSTEM } from '../team/plan.js';
+import { TeamOrchestrator } from '../team/TeamOrchestrator.js';
 import type { Verifier } from '../verification/Verifier.js';
 import { writeRunRecord } from '../replay/run-record.js';
 import path from 'node:path';
@@ -428,6 +431,78 @@ export class AgentLoop {
     return this.finish('done', startedAt, artifacts, verdicts, plan, stepsCompleted, unverifiedSteps);
   }
 
+  /**
+   * Term team lifecycle.
+   *
+   * The coordinator asks the decision model for worker goals, assigns each one
+   * a catalog model, and runs them through the existing sub-agent orchestrator.
+   * `task.completed` is emitted only when at least one worker report is `ok`.
+   */
+  async runTeam(intent: ClarifiedIntent, catalog: ModelInfo[] = []): Promise<TaskOutcome> {
+    const meta = runMeta(this.ctx);
+    const startedAt = this.ctx.ports.clock.now();
+    this.recalledMemoryIds = new Set();
+    this.state = TaskStateMachine.restore('received');
+    this.transition('clarifying', 'team goal accepted');
+    this.intentInput = intent;
+    this.deps.context.setGoal(intent.goal);
+    for (const constraint of intent.constraints) this.deps.context.addConstraint(constraint);
+    this.transition('planning', 'coordinator splits the goal');
+
+    if (!this.deps.subAgents) {
+      const empty = fallbackPlan(this.ctx.taskId, intent.goal, [], 'fast');
+      return this.finish('failed', startedAt, [], [], empty, 0, 0, 'sub-agent orchestrator is not configured');
+    }
+
+    const team = new TeamOrchestrator({
+      ctx: this.ctx,
+      subAgents: this.deps.subAgents,
+      catalog: catalog.length > 0 ? catalog : [this.fallbackCatalogModel()],
+      preferredModel: this.ctx.model,
+      planText: async (goal) => {
+        const result = await this.deps.gateway.call({
+          purpose: 'plan',
+          system: TEAM_COORDINATOR_SYSTEM,
+          messages: [{ role: 'user', content: goal }],
+          responseFormat: 'json',
+          temperature: 0,
+        });
+        return result.text;
+      },
+      transition: (to, reason) => this.transition(to, reason),
+      approve: (plan) => this.approvePlan(plan, 'team plan ready'),
+    });
+    const outcome = await team.run(intent.goal);
+    await this.savePlan(outcome.plan);
+    if (outcome.status === 'done') {
+      this.ctx.infra.bus.emit('task.completed', { summary: outcome.summary, artifacts: outcome.artifacts }, meta);
+      return this.finish('done', startedAt, outcome.artifacts, outcome.verdicts, outcome.plan, outcome.workersOk, 0);
+    }
+    if (outcome.status === 'cancelled') {
+      return this.finish('cancelled', startedAt, [], [], outcome.plan, 0, 0, outcome.reason);
+    }
+    return this.finish('failed', startedAt, outcome.artifacts, outcome.verdicts, outcome.plan, 0, 0, outcome.reason);
+  }
+
+  /** Catalog stand-in when the provider advertised nothing. Context is not evidence. */
+  private fallbackCatalogModel(): ModelInfo {
+    const caps = this.deps.gateway.capabilities();
+    return {
+      id: this.ctx.model,
+      providerId: 'active',
+      label: this.ctx.model,
+      contextWindow: this.deps.config.contextWindow,
+      supportsTools: caps.supportsTools,
+      supportsJson: caps.supportsJson,
+      supportsVision: caps.supportsVision === true,
+      capabilitySource: {
+        vision: caps.supportsVision === true ? 'provider' : 'unknown',
+        context: 'default',
+        tools: 'provider',
+      },
+    };
+  }
+
   /** Roll the workspace back to the state captured before `checkpointId`. */
   async rollback(checkpointId?: Id): Promise<number> {
     const meta = runMeta(this.ctx);
@@ -447,6 +522,7 @@ export class AgentLoop {
       taskId: `sub-${shortId(8)}`,
       traceId: shortId(12),
       signal,
+      model: spec.model?.trim() || this.ctx.model,
     };
     const meta = runMeta(childCtx);
     const artifacts: Artifact[] = [];

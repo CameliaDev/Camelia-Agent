@@ -88,6 +88,8 @@ describe('localPrefs', () => {
       displayName: '阿离',
       chatPolicy: 'ask',
       effort: 'high',
+      feedbackRepo: '',
+      includeFeedbackMeta: true,
     });
     const store = createUiStore(new FixtureTransport({ scene: 'empty' }));
     expect(store.getState().localPrefs.leftWidth).toBe(300);

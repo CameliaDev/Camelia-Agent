@@ -15,12 +15,16 @@ import { DEFAULT_FEEDBACK_REPO, submitFeedback, type FeedbackType } from '../win
 export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const github = useUiStore((s) => s.localPrefs.githubAccount);
+  const feedbackRepo = useUiStore((s) => s.localPrefs.feedbackRepo);
+  const includeMeta = useUiStore((s) => s.localPrefs.includeFeedbackMeta);
+  const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const { mode } = useMode();
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [type, setType] = useState<FeedbackType>('bug');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [repro, setRepro] = useState('');
+  const [repo, setRepo] = useState(feedbackRepo);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [issueUrl, setIssueUrl] = useState('');
@@ -28,7 +32,6 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
   async function submit(): Promise<void> {
     if (!github) {
       setNote(tr('feedback.needLogin'));
-      onNeedLogin?.();
       return;
     }
     setBusy(true);
@@ -43,11 +46,19 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
         appVersion: productVersion(),
         mode,
         os: typeof navigator !== 'undefined' ? navigator.platform || navigator.userAgent : 'unknown',
+        includeMeta,
+        repo: repo.trim() || undefined,
       });
       if (!result.ok) {
         if (result.error === 'need-login') {
           setNote(tr('feedback.needLogin'));
           onNeedLogin?.();
+        } else if (result.error === 'missing-repo') {
+          setNote(tr('feedback.missingRepo'));
+        } else if (result.error === 'unauthorized') {
+          setNote(tr('feedback.unauthorized'));
+        } else if (result.error === 'invalid-repo') {
+          setNote(tr('feedback.invalidRepo'));
         } else {
           setNote(`${tr('feedback.error')}: ${result.error ?? ''}`);
         }
@@ -55,6 +66,9 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
       }
       setIssueUrl(result.url ?? '');
       setNote(tr('feedback.success'));
+      if (!repo.trim() || /^[\w.-]+\/[\w.-]+$/.test(repo.trim())) {
+        setLocalPrefs({ feedbackRepo: repo.trim() });
+      }
       setTitle('');
       setBody('');
       setRepro('');
@@ -112,6 +126,32 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
           data-feedback-repro
         />
       </label>
+      <label className="block text-[11px] text-ink-3">
+        {tr('feedback.repoInput')}
+        <input
+          className={field}
+          value={repo}
+          placeholder={DEFAULT_FEEDBACK_REPO}
+          data-feedback-repo
+          onChange={(e) => {
+            const next = e.target.value;
+            setRepo(next);
+            const trimmed = next.trim();
+            if (!trimmed || /^[\w.-]+\/[\w.-]+$/.test(trimmed)) {
+              setLocalPrefs({ feedbackRepo: trimmed });
+            }
+          }}
+        />
+      </label>
+      <label className="flex items-center gap-2 text-[12px] text-ink-2">
+        <input
+          type="checkbox"
+          checked={includeMeta}
+          data-feedback-meta
+          onChange={(e) => setLocalPrefs({ includeFeedbackMeta: e.target.checked })}
+        />
+        {tr('feedback.includeMeta')}
+      </label>
       <div className="flex items-center gap-3 pt-1">
         <button
           type="button"
@@ -125,10 +165,20 @@ export function FeedbackForm({ onNeedLogin }: { onNeedLogin?: () => void }): Rea
           {tr('feedback.submit')}
         </button>
         <p className="min-w-0 truncate text-[11px] text-ink-3">
-          {tr('feedback.repo')} <span className="font-mono">{DEFAULT_FEEDBACK_REPO}</span>
+          {tr('feedback.repo')} <span className="font-mono">{repo.trim() || DEFAULT_FEEDBACK_REPO}</span>
         </p>
       </div>
       {note ? <p className="text-[11.5px] text-ink-2" data-feedback-note>{note}</p> : null}
+      {!github ? (
+        <button
+          type="button"
+          className="text-[12px] text-accent underline"
+          data-feedback-login
+          onClick={() => onNeedLogin?.()}
+        >
+          {tr('feedback.signIn')}
+        </button>
+      ) : null}
       {issueUrl ? (
         <button
           type="button"

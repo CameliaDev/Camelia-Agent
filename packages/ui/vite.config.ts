@@ -6,8 +6,9 @@ import { defineConfig } from 'vitest/config';
  * One config for both `vite build` and `vitest run`.
  *
  * The UI is a pure projection layer: it imports `@camelia/agent/view` (browser-safe)
- * and `@camelia/core` types only. `@camelia/agent`'s main entry is never referenced
- * from here, so no Node-only code can leak into the bundle.
+ * and `@camelia/core` types. The one value import is `@camelia/core/capabilities`
+ * (model caps). It does not pull SQLite. `@camelia/agent`'s main entry is never
+ * referenced from here, so no Node-only code can leak into the bundle.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
