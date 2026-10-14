@@ -324,17 +324,21 @@ describe('materializeCatalogEntry', () => {
       expect(fs.existsSync(result.value.root)).toBe(false);
     }
 
-    const rejected = await materializeCatalogEntry({
-      ...quietPlugin,
-      repo: 'https://evil.example/plugins.git',
-    });
-    expect(rejected.ok).toBe(false);
-    if (!rejected.ok) expect(rejected.error).toMatch(/github\.com/);
-
-    const fileUrl = await materializeCatalogEntry({
-      ...quietPlugin,
-      url: 'file:///tmp/plugins',
-    });
-    expect(fileUrl.ok).toBe(false);
+    // Host checks must return before git. A real clone on Windows can sit in
+    // Git Credential Manager until the test timeout.
+    const refuse = async (entry: CatalogEntry): Promise<void> => {
+      let spawned = false;
+      const refused = await materializeCatalogEntry(entry, {
+        runGit: async () => {
+          spawned = true;
+          throw new Error('git must not run');
+        },
+      });
+      expect(spawned).toBe(false);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error).toMatch(/github\.com/);
+    };
+    await refuse({ ...quietPlugin, repo: 'https://evil.example/plugins.git', url: undefined });
+    await refuse({ ...quietPlugin, repo: undefined, url: 'file:///tmp/plugins' });
   });
 });
