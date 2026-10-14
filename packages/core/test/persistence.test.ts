@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
-import { SCHEMA_VERSION, V1_SCHEMA, migrate } from '../src/persistence/schema.js';
+import { SCHEMA_VERSION, V1_SCHEMA, V5_SCHEMA, migrate } from '../src/persistence/schema.js';
+import type { Prediction, Residual, SkillRecord, SituationStat } from '../src/types/cognition.js';
 import type {
   Checkpoint,
   Message,
@@ -507,6 +508,138 @@ describe('migration', () => {
       // … and the update path round-trips evidence too.
       await migrated.updateMemory('new-v3-1', { evidence: { taskId: 'tsk_v3b', verdict: 'unknown', at: now + 1 } });
       expect((await migrated.getMemory('new-v3-1'))?.evidence?.taskId).toBe('tsk_v3b');
+      migrated.close();
+    } finally {
+      cleanup(file);
+    }
+  });
+
+  it('migrates a V5 database to V6, keeps old rows, and can run again', async () => {
+    const file = tmpFile();
+    try {
+      const legacy = new Database(file);
+      legacy.exec(V5_SCHEMA);
+      legacy.pragma('user_version = 5');
+      legacy
+        .prepare(
+          `INSERT INTO sessions (id, title, workspace, provider, model, created_at, updated_at, kind)
+           VALUES ('s-v5', 'legacy', '/ws', 'mock', 'm', 1, 1, 'work')`,
+        )
+        .run();
+      legacy
+        .prepare(
+          `INSERT INTO memories (id, scope, kind, content, keywords, created_at, updated_at)
+           VALUES ('mem-v5', 'global', 'procedural', 'keep the rollback note', 'rollback', 2, 2)`,
+        )
+        .run();
+      legacy
+        .prepare(
+          `INSERT INTO events (session_id, task_id, type, payload, trace_id, ts)
+           VALUES ('s-v5', NULL, 'log', '{"message":"v5"}', 'tr-v5', 3)`,
+        )
+        .run();
+      legacy.close();
+
+      const migrated = new SqliteSessionStore(file);
+      expect(Number(migrated.raw.pragma('user_version', { simple: true }))).toBe(SCHEMA_VERSION);
+      expect(SCHEMA_VERSION).toBe(6);
+      expect((await migrated.getSession('s-v5'))?.title).toBe('legacy');
+      expect((await migrated.getMemory('mem-v5'))?.content).toBe('keep the rollback note');
+      expect((await migrated.listEvents({ sessionId: 's-v5' })).map((event) => event.type)).toEqual(['log']);
+
+      const tables = migrated.raw
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('predictions','residuals','situation_stats','skills')`)
+        .all() as { name: string }[];
+      expect(tables.map((row) => row.name).sort()).toEqual(['predictions', 'residuals', 'situation_stats', 'skills']);
+
+      const prediction: Prediction = {
+        id: 'pred-v6',
+        taskId: 'tsk-v6',
+        sessionId: 's-v5',
+        stepId: 'stp-v6',
+        subject: { kind: 'verdict', stepId: 'stp-v6' },
+        signature: {
+          capability: 'tool-calling',
+          archetype: 'edit',
+          scope: 'few-files',
+          toolset: ['fs.write'],
+          inDegree: 2,
+        },
+        signatureKey: 'tool-calling|edit|few-files|2',
+        value: { kind: 'categorical-multi', probs: { pass: 0.75, fail: 0.2, unknown: 0.05 } },
+        confidence: 0.75,
+        source: 'empirical-backoff',
+        basis: 'L3 n=4, pass 3/4',
+        level: 3,
+        at: 40,
+      };
+      await migrated.insertPrediction(prediction);
+      const residual: Residual = {
+        predictionId: 'pred-v6',
+        taskId: 'tsk-v6',
+        signatureKey: 'tool-calling|edit|few-files|2',
+        observed: { kind: 'categorical', label: 'fail' },
+        score: 0.2,
+        rule: 'categorical-brier',
+        surprise: false,
+        threshold: null,
+        contrast: 'expected pass (0.75) → observed fail',
+        at: 41,
+      };
+      await migrated.insertResidual(residual);
+      const stat: SituationStat = {
+        signatureKey: 'tool-calling|edit|few-files|2',
+        subjectKind: 'verdict',
+        n: 4,
+        sumScore: 0.8,
+        sumScoreSq: 0.2,
+        sumConfidence: 3,
+        estimate: prediction.value,
+        updatedAt: 41,
+      };
+      await migrated.upsertSituationStat(stat);
+      const skill: SkillRecord = {
+        memoryId: 'mem-v5',
+        steps: ['read', 'edit', 'verify'],
+        signatureKey: 'tool-calling|edit|few-files|*',
+        attempts: 3,
+        successes: 2,
+        meanResidual: 0.25,
+        lastAttemptAt: 42,
+      };
+      await migrated.upsertLearnedSkill(skill);
+
+      const loaded = await migrated.getPrediction('pred-v6');
+      expect(loaded?.signatureKey).toBe('tool-calling|edit|few-files|2');
+      expect(loaded?.signature.archetype).toBe('edit');
+      expect(loaded?.signature.scope).toBe('few-files');
+      expect(loaded?.signature.inDegree).toBe(2);
+      // Toolset is not a V6 column. Read-back does not invent one.
+      expect(loaded?.signature.toolset).toEqual([]);
+      expect(loaded?.value).toEqual(prediction.value);
+      expect(loaded?.subject).toEqual({ kind: 'verdict', stepId: 'stp-v6' });
+      expect(await migrated.getResidual('pred-v6')).toMatchObject({ surprise: false, score: 0.2, threshold: null });
+      expect((await migrated.listPredictions({ onlySurprised: true }))).toHaveLength(0);
+      expect((await migrated.getSituationStat('tool-calling|edit|few-files|2', 'verdict'))?.n).toBe(4);
+      expect(await migrated.getLearnedSkill('mem-v5')).toMatchObject({
+        attempts: 3,
+        successes: 2,
+        meanResidual: 0.25,
+        steps: ['read', 'edit', 'verify'],
+      });
+
+      // Replaying V6 after the version is wound back must not throw or drop rows.
+      migrated.raw.pragma('user_version = 5');
+      expect(migrate(migrated.raw)).toBe(6);
+      expect(migrate(migrated.raw)).toBe(6);
+      expect(await migrated.getPrediction('pred-v6')).toBeTruthy();
+      expect((await migrated.getMemory('mem-v5'))?.content).toBe('keep the rollback note');
+
+      await migrated.deleteMemory('mem-v5');
+      expect(await migrated.getLearnedSkill('mem-v5')).toBeUndefined();
+
+      migrated.raw.prepare('DELETE FROM predictions WHERE id = ?').run('pred-v6');
+      expect(await migrated.getResidual('pred-v6')).toBeUndefined();
       migrated.close();
     } finally {
       cleanup(file);

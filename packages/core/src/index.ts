@@ -13,6 +13,7 @@
 // ---- types -----------------------------------------------------------------
 export * from './types/common.js';
 export * from './types/domain.js';
+export * from './types/cognition.js';
 export * from './types/events.js';
 export * from './types/plugins.js';
 export * from './types/presets.js';
@@ -24,6 +25,7 @@ export * from './state/TaskStateMachine.js';
 
 // ---- ports -----------------------------------------------------------------
 export * from './ports/llm.js';
+export * from './ports/cognition.js';
 export * from './ports/fs.js';
 export * from './ports/shell.js';
 export * from './ports/search.js';

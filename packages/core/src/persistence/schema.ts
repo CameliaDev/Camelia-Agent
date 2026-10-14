@@ -7,7 +7,7 @@
 
 import type BetterSqlite3 from 'better-sqlite3';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** V1 DDL — exported so tests can build a legacy database and exercise the V1→V2 migration. */
 export const V1_SCHEMA = `
@@ -201,6 +201,85 @@ const V5 = `
 ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'work';
 `;
 
+/**
+ * V6 — cognition: prediction–error loop (ARCH-COGNITION §7.3).
+ *
+ * `situation_stats` is keyed by `(signature_key, subject_kind)`. The design
+ * text lists `signature_key` alone as PRIMARY KEY, but a signature level keeps
+ * a separate estimate per observable kind (verdict vs tool-outcome). A
+ * single-column key would keep only one of them. Every column from §7.3 is
+ * present; the key is the pair.
+ *
+ * `CREATE TABLE IF NOT EXISTS` makes a replay of this migration a no-op, so
+ * resetting `user_version` and calling `migrate` again does not throw.
+ */
+const V6 = `
+CREATE TABLE IF NOT EXISTS predictions (
+  id             TEXT PRIMARY KEY,
+  task_id        TEXT NOT NULL,
+  session_id     TEXT NOT NULL,
+  step_id        TEXT,
+  signature_key  TEXT NOT NULL,
+  level          INTEGER NOT NULL,
+  subject_kind   TEXT NOT NULL,
+  subject_key    TEXT,
+  value_json     TEXT NOT NULL,
+  confidence     REAL NOT NULL,
+  source         TEXT NOT NULL,
+  basis          TEXT NOT NULL DEFAULT '',
+  at             INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_predictions_signature ON predictions(signature_key, at);
+CREATE INDEX IF NOT EXISTS idx_predictions_task      ON predictions(task_id, at);
+
+CREATE TABLE IF NOT EXISTS residuals (
+  prediction_id  TEXT PRIMARY KEY REFERENCES predictions(id) ON DELETE CASCADE,
+  task_id        TEXT NOT NULL,
+  signature_key  TEXT NOT NULL,
+  score          REAL NOT NULL,
+  rule           TEXT NOT NULL,
+  surprise       INTEGER NOT NULL DEFAULT 0,
+  threshold      REAL,
+  observed_json  TEXT NOT NULL,
+  contrast       TEXT NOT NULL DEFAULT '',
+  at             INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_residuals_signature ON residuals(signature_key, at);
+CREATE INDEX IF NOT EXISTS idx_residuals_surprise  ON residuals(surprise, at);
+
+CREATE TABLE IF NOT EXISTS situation_stats (
+  signature_key  TEXT NOT NULL,
+  subject_kind   TEXT NOT NULL,
+  n              INTEGER NOT NULL DEFAULT 0,
+  sum_score      REAL NOT NULL DEFAULT 0,
+  sum_score_sq   REAL NOT NULL DEFAULT 0,
+  sum_confidence REAL NOT NULL DEFAULT 0,
+  estimate_json  TEXT NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  PRIMARY KEY (signature_key, subject_kind)
+);
+
+CREATE TABLE IF NOT EXISTS skills (
+  memory_id       TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+  signature_key   TEXT NOT NULL,
+  steps_json      TEXT NOT NULL,
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  successes       INTEGER NOT NULL DEFAULT 0,
+  sum_residual    REAL NOT NULL DEFAULT 0,
+  last_attempt_at INTEGER,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_skills_signature ON skills(signature_key);
+`;
+
+/**
+ * Full DDL of a user_version=5 database.
+ *
+ * Tests exec this, set `user_version = 5`, and reopen through {@link migrate}
+ * to prove the V5→V6 upgrade. Same role as {@link V1_SCHEMA} for V1→V2.
+ */
+export const V5_SCHEMA = `${V1_SCHEMA}\n${V2}\n${V3}\n${V4}\n${V5}`;
+
 /** Apply pending migrations. Idempotent and forward-only. */
 export function migrate(db: BetterSqlite3.Database): number {
   db.pragma('journal_mode = WAL');
@@ -226,6 +305,10 @@ export function migrate(db: BetterSqlite3.Database): number {
   if (current < 5) {
     db.exec(V5);
     db.pragma(`user_version = 5`);
+  }
+  if (current < 6) {
+    db.exec(V6);
+    db.pragma(`user_version = 6`);
   }
   return Number(db.pragma('user_version', { simple: true }) ?? SCHEMA_VERSION);
 }

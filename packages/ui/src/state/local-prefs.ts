@@ -12,7 +12,7 @@
  * @module
  */
 
-import type { ChatPolicy } from '@camelia/core';
+import type { ChatPolicy, CognitionMode } from '@camelia/core';
 
 import { applyThemeTokens, clearThemeTokens, type ThemeApplyResult } from '../theme/apply-theme.js';
 import { applyPreset, type ThemeId } from '../theme/presets.js';
@@ -145,6 +145,12 @@ export interface LocalPrefs {
   installDir: string;
   /** Workspace chosen on the first-launch gate. Empty skips `set_workspace`. */
   workspaceDir: string;
+  /**
+   * Prediction–error loop. Window chrome, like `themeId`: it is not folded into
+   * `snapshot`. Default `observe` records estimates and does not change a run.
+   * The panel that edits this is not built yet; the value still round-trips.
+   */
+  cognitionMode: CognitionMode;
   window?: WindowGeometry;
 }
 
@@ -171,6 +177,7 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   includeFeedbackMeta: true,
   installDir: '',
   workspaceDir: '',
+  cognitionMode: 'observe',
 };
 
 const THEME_IDS: readonly ThemeId[] = ['warm-dark', 'cool-dark', 'light', 'high-contrast'];
@@ -180,6 +187,7 @@ const MOTION_PREFS: readonly MotionPref[] = ['system', 'reduce'];
 const USER_AVATAR_MODES: readonly UserAvatarMode[] = ['mascot', 'letter'];
 const CHAT_POLICIES: readonly ChatPolicy[] = ['readonly-sandbox', 'ask', 'full'];
 const EFFORTS: readonly EffortPref[] = ['max', 'high', 'low'];
+const COGNITION_MODES: readonly CognitionMode[] = ['off', 'observe', 'advise', 'drive'];
 
 /**
  * Clamp a session-column width to the resizable range.
@@ -265,6 +273,9 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
     includeFeedbackMeta: raw?.includeFeedbackMeta !== false,
     installDir: sanitizeDirNote(raw?.installDir),
     workspaceDir: sanitizeDirNote(raw?.workspaceDir),
+    cognitionMode: COGNITION_MODES.includes(raw?.cognitionMode as CognitionMode)
+      ? (raw?.cognitionMode as CognitionMode)
+      : DEFAULT_LOCAL_PREFS.cognitionMode,
     ...(window ? { window } : {}),
   };
 }

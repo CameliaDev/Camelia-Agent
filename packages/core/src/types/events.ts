@@ -8,6 +8,14 @@
 
 import type { Id, JsonValue, Timestamp } from './common.js';
 import type {
+  CognitionMode,
+  CognitiveAction,
+  CompetenceReport,
+  Prediction,
+  Residual,
+  SkillRecord,
+} from './cognition.js';
+import type {
   Artifact,
   Checkpoint,
   ClarifiedIntent,
@@ -226,6 +234,32 @@ export interface DomainEventMap {
   'chat.failed': { turnId: Id; error: string };
   'chat.policy_changed': { policy: ChatPolicy };
 
+  // ---- Cognition (prediction–error loop) -----------------------------------
+  /** 动作之前作出的可证伪承诺。事件本身即审计记录。预测不是判决。 */
+  'cognition.predicted': { prediction: Prediction };
+  /** 承诺的结算：残差与是否惊讶。 */
+  'cognition.scored': { residual: Residual };
+  /**
+   * 惊讶导致的行为改变。
+   * 与 cognition.scored 分开，因为「记下误差」与「因此改变行为」是两件事，
+   * 混在一个事件里会让「机制开着但没影响任何决策」无法被观测。
+   */
+  'cognition.surprised': {
+    signatureKey: string;
+    score: number;
+    contrast: string;
+    action: CognitiveAction;
+  };
+  /** 某签名层面的胜任度快照（任务结束时写，不逐次写，避免事件洪泛）。 */
+  'cognition.competence': { report: CompetenceReport };
+  /**
+   * 已学策略更新（经验）。不是 SKILL.md 的安装事件。
+   * `skill` 是带样本数的策略记录，见 §4.6。
+   */
+  'cognition.skill_updated': { skill: SkillRecord };
+  /** 机制被跳过时的如实记录——与 selfreview.skipped 同款纪律。 */
+  'cognition.skipped': { reason: string; detail?: string };
+
   // ---- Observability passthrough -------------------------------------------
   'log': { level: 'debug' | 'info' | 'warn' | 'error'; message: string; meta?: JsonValue };
   'metric': { name: string; value: number; tags?: Record<string, string> };
@@ -364,6 +398,21 @@ export interface CommandMap {
   'chat_answer': { sessionId: Id; askId: Id; optionIdx: number };
   /** Abort the in-flight chat turn (and clear any pending ask). */
   'chat_cancel': { sessionId: Id };
+
+  // ---- Cognition panel -----------------------------------------------------
+  // These are predictions and learned strategies (经验 / 已学策略).
+  // They are not `list_skills` / `install_skill`, which discover SKILL.md folders.
+  /** 响应数据 Prediction[]。 */
+  'list_predictions': { taskId?: Id; sessionId?: Id; onlySurprised?: boolean; limit?: number };
+  /** 单条预测的完整解释（含回退层与统计依据）。响应数据 ExplainedPrediction。 */
+  'explain_prediction': { predictionId: Id };
+  /** 胜任度报表。响应数据 CompetenceReport[]。 */
+  'get_competence': { workspace?: string; signatureKey?: string; limit?: number };
+  /**
+   * 认知模式。分级自主是部署的前提：在机制被证明校准良好之前，
+   * 不允许它改变行为。默认 `'observe'`（见 DEFAULT_COGNITION_MODE）。
+   */
+  'set_cognition_mode': { mode: CognitionMode };
 }
 
 export type CommandType = keyof CommandMap;
