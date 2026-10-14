@@ -26,7 +26,7 @@ export interface HarnessConfig {
   maxSteps: number;
   /** Model/tool iterations allowed inside a single step. */
   maxIterationsPerStep: number;
-  /** Tool calls allowed inside a single step. */
+  /** Tool calls allowed inside a single step. Default matches `maxIterationsPerStep`. */
   maxToolCallsPerStep: number;
   /** Per-tool wall-clock timeout. */
   toolTimeoutMs: number;
@@ -119,8 +119,8 @@ export const defaultApprovalPolicy: ApprovalPolicy = {
 
 export const defaultHarnessConfig: HarnessConfig = {
   maxSteps: 24,
-  maxIterationsPerStep: 8,
-  maxToolCallsPerStep: 12,
+  maxIterationsPerStep: 1000,
+  maxToolCallsPerStep: 1000,
   toolTimeoutMs: 30_000,
   shellTimeoutMs: 60_000,
   contextWindow: 128_000,

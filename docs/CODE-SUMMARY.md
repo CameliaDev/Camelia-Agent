@@ -179,7 +179,7 @@ SQLite（better-sqlite3），WAL + `foreign_keys=ON`，`SCHEMA_VERSION = 4`（V1
 
 ### 4.15 配置默认值（`config.ts`）
 
-`maxSteps 24`、`maxIterationsPerStep 8`、`maxToolCallsPerStep 12`、`toolTimeoutMs 30s`、`shellTimeoutMs 60s`、`contextWindow 128000`、`softLimitRatio 0.8`、`driftThreshold 0.45`、`loopRepeatThreshold 3`、`noProgressThreshold 3`、`maxRetries 3`、`maxSubAgents 3`、`plannerMode 'auto'`、`temperature 0`、`memoryBudget 200`、`planApproval 'always'`、`profileDir`/`runRecordDir` 默认 `undefined`。
+`maxSteps 24`、`maxIterationsPerStep 1000`、`maxToolCallsPerStep 1000`、`toolTimeoutMs 30s`、`shellTimeoutMs 60s`、`contextWindow 128000`、`softLimitRatio 0.8`、`driftThreshold 0.45`、`loopRepeatThreshold 3`、`noProgressThreshold 3`、`maxRetries 3`、`maxSubAgents 3`、`plannerMode 'auto'`、`temperature 0`、`memoryBudget 200`、`planApproval 'always'`、`profileDir`/`runRecordDir` 默认 `undefined`。
 
 ---
 
