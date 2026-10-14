@@ -23,6 +23,7 @@ import {
   phaseOf,
   systemClock,
   type AgentPreset,
+  type ChatFolderPayload,
   type ChatImagePayload,
   type ChatPolicy,
   type EffortLevel,
@@ -40,6 +41,7 @@ import {
   type SessionStore,
   type Span,
   type StoredEvent,
+  newId,
   resolveModelInfo,
   isCuratedMemory,
   type CapabilityOrigin,
@@ -66,7 +68,14 @@ import {
   Planner,
   PlanGate,
   SubAgentOrchestrator,
+  TeamOrchestrator,
   ToolEngine,
+  WorkTokenGate,
+  delegateWork,
+  parseWorkThought,
+  runTokenGatedWorker,
+  SUB_AI_THINK_SYSTEM,
+  TEAM_COORDINATOR_SYSTEM,
   Verifier,
   WorkspaceJournal,
   builtinTools,
@@ -77,6 +86,7 @@ import {
   resolveConfig,
   type ApprovalResponder,
   type HarnessConfig,
+  type WorkToken,
   type HarnessPorts,
   type McpClient,
   type McpServerStatus,
@@ -543,6 +553,7 @@ export class CameliaRuntime {
       model: () => this.decision.model,
       responder: init.responder,
       allowedTools: init.preset?.allowedTools,
+      delegate: (input) => this.delegateToSubAIs(input),
     });
   }
 
@@ -774,9 +785,204 @@ export class CameliaRuntime {
    * One chat turn. While a task run is active the chat is refused — one
    * workspace-mutation stream at a time keeps both paths honest.
    */
-  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel, images?: ChatImagePayload[]): Promise<void> {
+  async chat(
+    sessionId: Id,
+    text: string,
+    policy: ChatPolicy,
+    effort?: EffortLevel,
+    images?: ChatImagePayload[],
+    folders?: ChatFolderPayload[],
+  ): Promise<void> {
     if (this.activeLoop) throw new Error('a task run is active — chat is unavailable until it finishes');
-    await this.chatLoop.chat(sessionId, text, policy, effort, images);
+    await this.chatLoop.chat(sessionId, text, policy, effort, images, folders);
+  }
+
+  /** Work scaffold: chat / plan / goal. This does not start a task. */
+  setWorkPosture(posture: 'chat' | 'plan' | 'goal'): void {
+    this.bus.emit('work.mode_set', { posture }, { traceId: 'work-posture', sessionId: this.session.id });
+  }
+
+  /**
+   * Store one plan or goal note. Empty text is refused. This is not the
+   * task-machine plan gate.
+   */
+  saveWorkPlan(input: {
+    sessionId: Id;
+    mode: 'plan' | 'goal';
+    title: string;
+    goal: string;
+    constraints: string[];
+    body: string;
+  }): { ok: true; id: Id } | { ok: false; error: string } {
+    const body = input.body.trim();
+    const goal = input.goal.trim();
+    if (input.mode !== 'plan' && input.mode !== 'goal') return { ok: false, error: '无效的计划模式' };
+    if (!body || !goal) return { ok: false, error: '计划正文不能为空' };
+    const sessionId = input.sessionId || this.session.id;
+    const id = newId();
+    const title = input.title.trim().slice(0, 72) || goal.slice(0, 72);
+    const constraints = input.constraints.map((item) => item.trim()).filter(Boolean).slice(0, 12);
+    this.bus.emit(
+      'work.plan_saved',
+      { id, sessionId, mode: input.mode, title, goal, constraints, body: body.slice(0, 8000) },
+      { traceId: 'work-plan', sessionId },
+    );
+    return { ok: true, id };
+  }
+
+  /**
+   * Main AI → sub-AIs. Recalls shared memory, then `delegateWork`, which
+   * reuses `TeamOrchestrator.dispatch` so workers run only after a token.
+   */
+  private async delegateToSubAIs(input: {
+    sessionId: Id;
+    goal: string;
+    constraints: string[];
+    signal: AbortSignal;
+  }): Promise<string> {
+    const gate = new WorkTokenGate();
+    const tokens = new Map<string, WorkToken>();
+    let memory = '';
+    try {
+      const items = await this.panelMemory.recall({ text: input.goal, sessionId: input.sessionId, limit: 8 });
+      memory = items.map((item) => `- ${item.content}`).join('\n');
+    } catch {
+      memory = '';
+    }
+
+    const traceId = `w-${Date.now().toString(36)}`;
+    const ctx: RunContext = {
+      taskId: `work-${Date.now().toString(36)}`,
+      sessionId: input.sessionId,
+      workspace: this.workspace,
+      traceId,
+      model: this.decision.model,
+      gruntModel: this.decision.gruntModel,
+      ports: this.ports,
+      infra: {
+        bus: this.bus,
+        store: this.store,
+        tracer: this.tracer,
+        metrics: this.metrics,
+        logger: this.logger,
+      },
+      config: this.harnessConfig,
+      ...(this.preset?.allowedTools ? { allowedTools: this.preset.allowedTools } : {}),
+      signal: input.signal,
+    };
+    const journal = new WorkspaceJournal(paths.backups(), ctx.taskId, this.ports.fs, this.logger);
+    const allowed = this.preset?.allowedTools?.length ? this.preset.allowedTools : ['*'];
+    const subAgents = new SubAgentOrchestrator(
+      async (spec, signal) => {
+        const token = tokens.get(spec.goal);
+        const names = token?.bounds.allowedTools ?? [];
+        const tools = this.tools.schemas(this.preset?.allowedTools).filter((schema) => names.includes('*') || names.includes(schema.name));
+        return runTokenGatedWorker({
+          spec,
+          token,
+          gate,
+          memory,
+          model: spec.model?.trim() || this.decision.model,
+          llm: this.fallback,
+          tools,
+          invoke: async (name, args) => {
+            const result = await this.tools.invoke(name, args, {
+              workspace: this.workspace,
+              fs: this.ports.fs,
+              shell: this.ports.shell,
+              search: this.ports.search,
+              logger: this.logger,
+              clock: this.ports.clock,
+              journal,
+              signal,
+            });
+            if (result.ok) {
+              try {
+                return JSON.stringify(result.output);
+              } catch {
+                return String(result.output);
+              }
+            }
+            return `ERROR: ${result.error}`;
+          },
+          parentTaskId: ctx.taskId,
+          now: () => this.ports.clock.now(),
+          signal,
+          onToken: (notice) => {
+            this.bus.emit('work.token', notice, { traceId, sessionId: input.sessionId, taskId: ctx.taskId });
+          },
+        });
+      },
+      ctx,
+      this.harnessConfig,
+    );
+    const team = new TeamOrchestrator({
+      ctx,
+      subAgents,
+      catalog: this.delegationCatalog(),
+      preferredModel: this.decision.model,
+      planText: async () => '',
+      transition: () => undefined,
+      approve: async (plan) => ({ ok: true, plan }),
+    });
+    const report = await delegateWork({
+      goal: input.goal,
+      constraints: input.constraints,
+      memory,
+      planText: (prompt) => this.completeText(TEAM_COORDINATOR_SYSTEM, prompt, input.signal),
+      think: async (worker, recalled) => {
+        const text = await this.completeText(
+          SUB_AI_THINK_SYSTEM,
+          [`Assignment: ${worker.goal}`, recalled ? `Shared memory:\n${recalled}` : ''].filter(Boolean).join('\n\n'),
+          input.signal,
+        );
+        return parseWorkThought(text);
+      },
+      gate,
+      tokens,
+      allowedTools: allowed,
+      team,
+      onToken: (notice) => {
+        this.bus.emit('work.token', notice, { traceId, sessionId: input.sessionId });
+      },
+    });
+    this.bus.emit(
+      'work.delegated',
+      { goal: input.goal, workers: report.workers, handedBack: report.handedBack, summary: report.summary },
+      { traceId, sessionId: input.sessionId },
+    );
+    return report.summary;
+  }
+
+  private delegationCatalog(): ModelInfo[] {
+    const catalog = this.teamCatalog();
+    if (catalog.length > 0) return catalog;
+    return [
+      resolveModelInfo({
+        id: this.decision.model || 'work-model',
+        providerId: this.fallback.active.id,
+        providerCaps: this.fallback.capabilities(),
+      }),
+    ];
+  }
+
+  private async completeText(system: string, user: string, signal: AbortSignal): Promise<string> {
+    let text = '';
+    for await (const chunk of this.fallback.chat(
+      {
+        model: this.decision.model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        temperature: 0,
+      },
+      signal,
+    )) {
+      if (chunk.type === 'text-delta') text += chunk.text;
+      else if (chunk.type === 'error') throw new Error(chunk.message);
+    }
+    return text;
   }
 
   /** Answer an open `ask_user` picker from the chat path. */

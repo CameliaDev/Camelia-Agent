@@ -67,6 +67,7 @@ import { useMathSetupOpen } from './state/shell-extras.js';
 import { useUiStore } from './state/UiProvider.js';
 import { loginGatePassed, markLoginGatePassed } from './window/login-gate.js';
 import { ModeShell } from './modes/ModeShell.js';
+import { WorkPlanList } from './modes/chat/WorkPlanList.js';
 import { readModelSettings } from './window/model-settings.js';
 import { shellIsFresh } from './mode/aligned-view.js';
 import { useMode } from './mode/useMode.js';
@@ -200,6 +201,9 @@ export function App(): ReactNode {
   // Transport failures must keep the error surface visible — not the centred empty hero.
   const fresh = shellIsFresh(snapshot, mode, Boolean(transportError));
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const workPosture = snapshot.work?.posture ?? 'chat';
+  const workPlans = snapshot.work?.plans ?? [];
+  const showWorkPlans = mode === 'work' && (workPosture !== 'chat' || workPlans.length > 0);
 
   return (
     <div
@@ -253,9 +257,13 @@ export function App(): ReactNode {
               <div className="mb-6 flex max-w-md flex-col items-center text-center" data-chat-empty-hero>
                 <Mascot size={88} />
                 <p className="mt-4 text-[18px] font-medium tracking-tight text-ink">{tr('welcome.title')}</p>
-                <p className="mt-1.5 text-[13px] leading-5 text-ink-3">
-                  {tr(mode === 'math' ? 'math.composer.placeholder' : 'chat.empty')}
-                </p>
+                {showWorkPlans ? (
+                  <WorkPlanList plans={workPlans} />
+                ) : (
+                  <p className="mt-1.5 text-[13px] leading-5 text-ink-3">
+                    {tr(mode === 'math' ? 'math.composer.placeholder' : 'chat.empty')}
+                  </p>
+                )}
               </div>
             ) : null}
             <div className={fresh ? 'w-full max-w-3xl' : undefined}>

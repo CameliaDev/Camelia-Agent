@@ -528,19 +528,21 @@ export class EngineServer {
 
       // ---- chat (对话 mode): direct conversation, no task machinery --------
       case 'chat_message': {
-        const { sessionId, text, policy, effort: rawEffort, images: rawImages } = command.payload;
+        const { sessionId, text, policy, effort: rawEffort, images: rawImages, folders: rawFolders } = command.payload;
         if (this.activeRun) return { ok: false, error: '已有任务正在运行，聊天暂不可用' };
         if (this.activeChat) return { ok: false, error: '已有对话正在处理，请稍候' };
         const images = Array.isArray(rawImages) ? rawImages : undefined;
+        const folders = Array.isArray(rawFolders) ? rawFolders : undefined;
         const hasImages = Boolean(images?.length);
-        if (typeof text !== 'string' || (!text.trim() && !hasImages)) return { ok: false, error: '消息不能为空' };
+        const hasFolders = Boolean(folders?.some((folder) => folder && typeof folder.name === 'string' && folder.name.trim()));
+        if (typeof text !== 'string' || (!text.trim() && !hasImages && !hasFolders)) return { ok: false, error: '消息不能为空' };
         if (!isChatPolicy(policy)) return { ok: false, error: `无效的聊天权限策略: ${String(policy)}` };
         const effort = parseEffort(rawEffort);
         if (effort === null) return { ok: false, error: `无效的力度: ${String(rawEffort)}` };
         const chatSessionId =
           typeof sessionId === 'string' && sessionId ? sessionId : this.options.runtime.session.id;
         this.activeChat = this.options.runtime
-          .chat(chatSessionId, text ?? '', policy, effort, images)
+          .chat(chatSessionId, text ?? '', policy, effort, images, folders)
           .catch((error: unknown) => {
             this.options.logger?.error('chat turn failed', { error: String(error) });
           })
@@ -556,6 +558,28 @@ export class EngineServer {
       case 'chat_cancel': {
         this.options.runtime.cancelChat();
         return { ok: true };
+      }
+      case 'set_work_posture': {
+        const posture = command.payload?.posture;
+        if (posture !== 'chat' && posture !== 'plan' && posture !== 'goal') {
+          return { ok: false, error: '无效的 Work 姿态' };
+        }
+        this.options.runtime.setWorkPosture(posture);
+        return { ok: true };
+      }
+      case 'save_work_plan': {
+        const { sessionId, mode, title, goal, constraints, body } = command.payload;
+        if (mode !== 'plan' && mode !== 'goal') return { ok: false, error: '无效的计划模式' };
+        if (typeof goal !== 'string' || typeof body !== 'string') return { ok: false, error: '计划正文不能为空' };
+        const saved = this.options.runtime.saveWorkPlan({
+          sessionId: typeof sessionId === 'string' && sessionId ? sessionId : this.options.runtime.session.id,
+          mode,
+          title: typeof title === 'string' ? title : goal,
+          goal,
+          constraints: Array.isArray(constraints) ? constraints.filter((item): item is string => typeof item === 'string') : [],
+          body,
+        });
+        return saved.ok ? { ok: true, data: { id: saved.id } } : saved;
       }
       case 'rename_session': {
         const { sessionId, title } = command.payload;

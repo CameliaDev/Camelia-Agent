@@ -1,11 +1,14 @@
 /**
- * ChatLoop — the direct conversation path (对话 mode).
+ * ChatLoop — the direct conversation path (Work chat).
  *
- * A chat turn never enters the task state machine: no clarify, no plan, no
- * gate, no verify. It streams model deltas straight into the event bus, runs
- * tools through the same ToolEngine/ApprovalGate pair as the executor, and can
- * pause mid-turn to ask the user a fixed-option question (`ask_user`), which
- * the UI renders as a picker.
+ * A chat turn never enters the task state machine: no clarify, no approval
+ * gate, no verify. The model thinks first — goal, constraints, a short plan —
+ * and only then calls tools. That short plan is part of the reply.
+ *
+ * It streams model deltas straight into the event bus, runs tools through the
+ * same ToolEngine/ApprovalGate pair as the executor, and can pause mid-turn to
+ * ask the user a fixed-option question (`ask_user`), which the UI renders as a
+ * picker. `invoke_subagents` hands a goal to the work-token delegation path.
  *
  * Permission posture is the user's per-session choice (`ChatPolicy`):
  * - `readonly-sandbox` — read tools run, everything else is denied (V1 sandbox:
@@ -17,6 +20,7 @@
 
 import {
   newId,
+  type ChatFolderPayload,
   type ChatImagePayload,
   type ChatPolicy,
   type ChatRequest,
@@ -69,6 +73,25 @@ const FEEDBACK_CAP = 4000;
  * Schema-only: it is intercepted here before any ToolEngine lookup, so it must
  * not be registered as a real tool.
  */
+const INVOKE_SUBAGENTS_SCHEMA: LLMToolSchema = {
+  name: 'invoke_subagents',
+  description:
+    'Delegate a goal to one or more sub-AIs. The coordinator splits the work and shares recalled memory. Each sub-AI must think (goal, constraints, short plan) before it receives a work token. Without a token it cannot use tools. Out-of-bounds work is handed back.',
+  parameters: {
+    type: 'object',
+    properties: {
+      goal: { type: 'string', description: 'The outcome the sub-AIs must deliver.' },
+      constraints: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Bounds the sub-AIs must keep. Omit when the user named none.',
+      },
+    },
+    required: ['goal'],
+    additionalProperties: false,
+  },
+};
+
 const ASK_USER_SCHEMA: LLMToolSchema = {
   name: 'ask_user',
   description:
@@ -88,8 +111,13 @@ const ASK_USER_SCHEMA: LLMToolSchema = {
   },
 };
 
-/** English system prompt, in the spirit of the harness prompts (§5.1). */
-function chatSystemPrompt(policy: ChatPolicy, workspace: string, effort?: EffortLevel): string {
+/**
+ * Work chat system prompt.
+ *
+ * Think, then a short plan, then tools. The short plan stays in the reply.
+ * It does not open the task state machine.
+ */
+export function workChatSystemPrompt(policy: ChatPolicy, workspace: string, effort?: EffortLevel): string {
   const posture =
     policy === 'full'
       ? 'Permission mode: FULL — every tool runs directly.'
@@ -97,12 +125,18 @@ function chatSystemPrompt(policy: ChatPolicy, workspace: string, effort?: Effort
         ? 'Permission mode: ASK — read-only tools run directly; any tool that writes, executes or reaches the network opens an approval prompt the user must answer.'
         : 'Permission mode: READ-ONLY SANDBOX — only read-only tools run; anything else is denied by policy.';
   const lines = [
-    'You are Camelia in conversation mode: reply directly and concisely, like a normal chat app.',
-    'No goal restatement, no plans, no task machinery, no acceptance checks — just the answer.',
+    'You are Camelia in Work mode.',
+    'Think before you act. Do not call a tool until the goal, the constraints, and a short plan are clear.',
+    'For each request:',
+    '1. Name the goal in one sentence.',
+    '2. Name the constraints that bound the work (permission mode, the workspace, and anything the user said must not change).',
+    '3. Write a short plan: a few ordered steps. If the answer needs no tools, the plan is one step: answer.',
+    '4. Then call tools, and only for steps that need the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',
+    'The short plan is part of the reply. It does not open the task state machine and it does not wait on a separate approval ritual.',
+    'When the work should be split across sub-AIs, call invoke_subagents. Each sub-AI must think first and hold a work token before it can use tools. Out-of-bounds work is handed back to you.',
     localNowPromptLine(),
     `Workspace: ${workspace}`,
     posture,
-    'You may call tools when the user asks something that needs the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',
     'If a tool is denied or fails, say plainly what you were trying to do and what you need — do not retry silently.',
     'When you cannot proceed without the user\'s input, call ask_user with one short question and 2-4 concrete options.',
   ];
@@ -138,6 +172,11 @@ export interface ChatLoopOptions {
   responder?: ApprovalResponder;
   /** Preset allowlist, same semantics as `RunContext.allowedTools`. */
   allowedTools?: string[];
+  /**
+   * Main-AI delegation. When omitted, `invoke_subagents` reports that
+   * sub-AIs are not configured and does not pretend the work ran.
+   */
+  delegate?: (input: { sessionId: Id; goal: string; constraints: string[]; signal: AbortSignal }) => Promise<string>;
 }
 
 export class ChatLoop {
@@ -173,7 +212,14 @@ export class ChatLoop {
    * never throws for model/tool failures (they surface as `chat.failed`).
    * Throws only when another turn is already running.
    */
-  async chat(sessionId: Id, text: string, policy: ChatPolicy, effort?: EffortLevel, images?: ChatImagePayload[]): Promise<void> {
+  async chat(
+    sessionId: Id,
+    text: string,
+    policy: ChatPolicy,
+    effort?: EffortLevel,
+    images?: ChatImagePayload[],
+    folders?: ChatFolderPayload[],
+  ): Promise<void> {
     if (this.active.current) throw new Error('A chat turn is already in progress.');
     const controller = new AbortController();
     this.active.current = controller;
@@ -193,19 +239,24 @@ export class ChatLoop {
 
     try {
       const safeImages = sanitizeImages(images);
-      this.opts.bus.emit('chat.received', { turnId: userTurnId, text, ...(safeImages.length ? { images: safeImages } : {}) }, meta);
+      const safeFolders = sanitizeFolders(folders);
+      const userText = appendFolders(text, safeFolders);
+      this.opts.bus.emit('chat.received', { turnId: userTurnId, text: userText, ...(safeImages.length ? { images: safeImages } : {}) }, meta);
       if (policy !== this.lastPolicy) {
         this.lastPolicy = policy;
         this.opts.bus.emit('chat.policy_changed', { policy }, meta);
       }
-      await this.maybeTitle(sessionId, text.trim() || (safeImages.length ? `Image (${safeImages.length})` : text));
+      await this.maybeTitle(
+        sessionId,
+        text.trim() || safeFolders[0]?.name || (safeImages.length ? `Image (${safeImages.length})` : text),
+      );
 
       const messages = this.historyFor(sessionId);
-      messages.push({ role: 'user', content: buildUserContent(text, safeImages) });
+      messages.push({ role: 'user', content: buildUserContent(userText, safeImages) });
       this.trimHistory(messages);
 
-      const system: LLMMessage = { role: 'system', content: chatSystemPrompt(policy, this.opts.workspace, effort) };
-      const tools: LLMToolSchema[] = [...this.opts.tools.schemas(this.allowedTools()), ASK_USER_SCHEMA];
+      const system: LLMMessage = { role: 'system', content: workChatSystemPrompt(policy, this.opts.workspace, effort) };
+      const tools: LLMToolSchema[] = [...this.opts.tools.schemas(this.allowedTools()), ASK_USER_SCHEMA, INVOKE_SUBAGENTS_SCHEMA];
 
       for (let iteration = 0; iteration < MAX_CHAT_ITERATIONS; iteration += 1) {
         turnId = newId();
@@ -306,7 +357,9 @@ export class ChatLoop {
           const feedback =
             call.name === 'ask_user'
               ? await this.handleAskUser(call, meta, signal)
-              : await this.runTool(call, turnId, gate, journal, signal, meta);
+              : call.name === 'invoke_subagents'
+                ? await this.handleInvokeSubagents(call, meta, signal)
+                : await this.runTool(call, turnId, gate, journal, signal, meta);
           if (signal.aborted) return;
           messages.push({ role: 'tool', name: call.name, toolCallId: call.id, content: feedback });
         }
@@ -400,6 +453,25 @@ export class ChatLoop {
       this.opts.logger.warn('failed to set session title from chat', {
         error: err instanceof Error ? err.message : String(err),
       });
+    }
+  }
+
+  /** Intercept `invoke_subagents`: the delegate owns the token gate and TeamOrchestrator. */
+  private async handleInvokeSubagents(call: LLMToolCall, meta: EmitMeta, signal: AbortSignal): Promise<string> {
+    const args = parseToolArguments(call.arguments) as { goal?: unknown; constraints?: unknown };
+    const goal = typeof args?.goal === 'string' ? args.goal.trim() : '';
+    if (!goal) return 'ERROR: invoke_subagents needs a goal.';
+    const constraints = Array.isArray(args?.constraints)
+      ? (args.constraints as unknown[]).filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : [];
+    if (!this.opts.delegate || !meta.sessionId) {
+      return 'ERROR: sub-AI delegation is not configured. Say so to the user instead of inventing a worker result.';
+    }
+    try {
+      return await this.opts.delegate({ sessionId: meta.sessionId, goal, constraints, signal });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `ERROR from invoke_subagents: ${message}`;
     }
   }
 
@@ -558,6 +630,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 const MAX_CHAT_IMAGES = 4;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
+
+const MAX_CHAT_FOLDERS = 8;
+
+function sanitizeFolders(folders: ChatFolderPayload[] | undefined): ChatFolderPayload[] {
+  if (!folders?.length) return [];
+  const out: ChatFolderPayload[] = [];
+  for (const folder of folders) {
+    if (out.length >= MAX_CHAT_FOLDERS) break;
+    if (!folder || typeof folder.name !== 'string') continue;
+    const name = folder.name.trim().replace(/^[/\\]+|[/\\]+$/g, '').slice(0, 120);
+    if (!name || name === '.' || name === '..') continue;
+    const folderPath = typeof folder.path === 'string' ? folder.path.trim().slice(0, 500) : '';
+    out.push(folderPath ? { name, path: folderPath } : { name });
+  }
+  return out;
+}
+
+function appendFolders(text: string, folders: ChatFolderPayload[]): string {
+  if (folders.length === 0) return text;
+  const lines = folders.map((folder) => `- ${folder.name}${folder.path ? ` (${folder.path})` : ''}`);
+  const trailer = `Attached folders:\n${lines.join('\n')}`;
+  const trimmed = text.trim();
+  return trimmed ? `${trimmed}\n\n${trailer}` : trailer;
+}
 
 function sanitizeImages(images: ChatImagePayload[] | undefined): ChatImagePayload[] {
   if (!images?.length) return [];

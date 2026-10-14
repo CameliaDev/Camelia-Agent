@@ -1014,3 +1014,32 @@ describe('chat projection (对话 mode)', () => {
     expect(snapshot.chat.turns.at(-1)).toMatchObject({ id: 'a40', role: 'assistant' });
   });
 });
+
+describe('work scaffold projection', () => {
+  it('folds a saved plan without inventing an empty-plan claim', () => {
+    const idle = initialSnapshot();
+    expect(idle.work).toBeUndefined();
+
+    const switched = reduceEvents(idle, [env('work.mode_set', { posture: 'plan' }, 10)]);
+    expect(switched.work).toEqual({ posture: 'plan', plans: [] });
+
+    const saved = reduceEvents(switched, [
+      env(
+        'work.plan_saved',
+        {
+          id: 'wpl_1',
+          sessionId: 'ses_1',
+          mode: 'goal',
+          title: 'ship the gate',
+          goal: 'ship the gate',
+          constraints: ['stay in docs/'],
+          body: 'ship the gate',
+        },
+        20,
+      ),
+    ]);
+    expect(saved.work?.plans).toHaveLength(1);
+    expect(saved.work?.plans[0]).toMatchObject({ id: 'wpl_1', mode: 'goal', title: 'ship the gate' });
+    expect(saved.work?.posture).toBe('plan');
+  });
+});
