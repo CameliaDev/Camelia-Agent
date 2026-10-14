@@ -1,8 +1,8 @@
 /**
  * Cognition estimator (ARCH-COGNITION Phase 0–2).
  *
- * Pure functions plus an in-memory backoff table. No AgentLoop wiring, no
- * model calls, no embeddings.
+ * Pure functions, an in-memory backoff table, and the observe-only port.
+ * The port records predictions. It does not call a model or change a plan.
  * @module
  */
 
@@ -43,6 +43,9 @@ export type { BackoffHit, BackoffTableOptions } from './BackoffTable.js';
 
 export { ObserveOnlyPolicy } from './CognitivePolicy.js';
 export type { CognitivePolicy } from './CognitivePolicy.js';
+
+export { CognitionService, acceptancePathsOf } from './CognitionService.js';
+export type { CognitionServiceOptions } from './CognitionService.js';
 
 export { formatBacktestReport, runCognitionBacktest } from './backtest.js';
 export type {

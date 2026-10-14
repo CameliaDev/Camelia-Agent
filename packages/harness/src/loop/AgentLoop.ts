@@ -15,18 +15,30 @@ import type {
   Artifact,
   Checkpoint,
   ClarifiedIntent,
+  CognitiveAction,
+  CognitionPort,
   FsManifest,
   Id,
   MemoryItem,
   Plan,
   ModelInfo,
+  Observable,
+  Prediction,
+  PredictionContext,
+  Residual,
+  SituationSignature,
   Step,
   SubAgentReport,
   TaskStatus,
+  ToolCall,
   Verdict,
 } from '@camelia/core';
 import { TaskStateMachine, estimateTokens, newId, phaseOf, shortId } from '@camelia/core';
 
+import type { CognitivePolicy } from '../cognition/CognitivePolicy.js';
+import { ObserveOnlyPolicy } from '../cognition/CognitivePolicy.js';
+import { acceptancePathsOf } from '../cognition/CognitionService.js';
+import { buildSignature, capabilityClass, inDegreeOf } from '../cognition/signature.js';
 import type { WorkspaceJournal } from '../checkpoint/WorkspaceJournal.js';
 import type { ContextManager } from '../context/ContextManager.js';
 import type { RunContext } from '../context/RunContext.js';
@@ -75,6 +87,16 @@ export interface AgentLoopDeps {
   memory: MemoryService;
   /** Present when a person can approve the plan. Absent in in-process tests. */
   planGate?: PlanGate;
+  /**
+   * Prediction–error loop (ARCH-COGNITION Phase 3). Absent in tests that
+   * predate the port, which keeps those runs free of cognition events.
+   */
+  cognition?: CognitionPort;
+  /**
+   * Defaults to {@link ObserveOnlyPolicy}. A non-`proceed` action is emitted
+   * as `cognition.skipped` and is not applied. Phase 4 is what may apply one.
+   */
+  cognitivePolicy?: CognitivePolicy;
 }
 
 export interface RunOptions {
@@ -117,6 +139,8 @@ export class AgentLoop {
    * procedural recipes that influenced the run.
    */
   private recalledMemoryIds = new Set<string>();
+  /** Skip reasons already emitted for this task, so a fast plan is recorded once. */
+  private readonly cognitionSkips = new Set<string>();
   /**
    * Tool-call records from every executed step (Iteration 24 — run record).
    * Sub-agent calls share the gateway but are not part of the parent's record.
@@ -176,6 +200,7 @@ export class AgentLoop {
     const verdicts: Verdict[] = [];
 
     this.recalledMemoryIds = new Set(); // fresh task → fresh memory feedback window
+    this.cognitionSkips.clear();
     this.state = TaskStateMachine.restore('received');
     this.transition('clarifying', 'intent accepted');
     this.intentInput = intent;
@@ -258,6 +283,10 @@ export class AgentLoop {
       await this.persistStep(step);
       this.syncTodos(plan);
 
+      const stepCalls: ToolCall[] = [];
+      const stepArtifacts: Artifact[] = [];
+      await this.beforeStepCognition(step, plan);
+
       const firstRoute = await this.routeStep(step, plan, 0);
       const result = await this.deps.executor.execute(step, {
         stepIndex: step.idx + 1,
@@ -267,7 +296,10 @@ export class AgentLoop {
         reflect: firstRoute.reflect,
       });
       artifacts.push(...result.artifacts);
+      stepCalls.push(...result.toolCalls);
+      stepArtifacts.push(...result.artifacts);
       this.runToolResults.push(result.toolCalls);
+      await this.afterToolsCognition(step, plan, result.toolCalls);
 
       // ---- verifying -------------------------------------------------------
       this.transition('verifying', `verify step ${step.idx + 1}`);
@@ -297,7 +329,10 @@ export class AgentLoop {
           reflect: retryRoute.reflect,
         });
         artifacts.push(...fixResult.artifacts);
+        stepCalls.push(...fixResult.toolCalls);
+        stepArtifacts.push(...fixResult.artifacts);
         this.runToolResults.push(fixResult.toolCalls);
+        await this.afterToolsCognition(step, plan, fixResult.toolCalls);
         lastStepResult = fixResult;
         verdict = await this.deps.verifier.verify(step, fixResult);
         verdicts.push(verdict);
@@ -311,6 +346,8 @@ export class AgentLoop {
         // escalation decide — a bounded mechanism, not a prompt rule.
         if (fixResult.toolCalls.length === 0) break;
       }
+
+      await this.afterVerdictCognition(step, plan, stepCalls, stepArtifacts, verdict);
 
       if (verdict.status === 'fail') {
         // Zero-tool-calls (Iteration 24, failure mode wiring): the step failed
@@ -442,6 +479,7 @@ export class AgentLoop {
     const meta = runMeta(this.ctx);
     const startedAt = this.ctx.ports.clock.now();
     this.recalledMemoryIds = new Set();
+    this.cognitionSkips.clear();
     this.state = TaskStateMachine.restore('received');
     this.transition('clarifying', 'team goal accepted');
     this.intentInput = intent;
@@ -561,13 +599,17 @@ export class AgentLoop {
     const summaryLines: string[] = [];
     for (const step of ordered) {
       if (signal.aborted) { ok = false; summaryLines.push('aborted'); break; }
+      step.startedAt = this.ctx.ports.clock.now();
+      await this.beforeStepCognition(step, plan);
       const result = await this.deps.executor.execute(step, {
         stepIndex: step.idx + 1,
         stepTotal: ordered.length,
         completedSummaries: [],
       });
       artifacts.push(...result.artifacts);
+      await this.afterToolsCognition(step, plan, result.toolCalls);
       const verdict = await this.deps.verifier.verify(step, result);
+      await this.afterVerdictCognition(step, plan, result.toolCalls, result.artifacts, verdict);
       verdicts.push(verdict);
       if (verdict.status === 'fail') ok = false;
       summaryLines.push(`${step.title}: ${result.summary.slice(0, 200)}`);
@@ -613,6 +655,7 @@ export class AgentLoop {
       step.startedAt = this.ctx.ports.clock.now();
       await this.persistStep(step);
       this.syncTodos(plan);
+      await this.beforeStepCognition(step, plan);
       const resumedRoute = await this.routeStep(step, plan, 0);
       const result = await this.deps.executor.execute(step, {
         stepIndex: step.idx + 1,
@@ -623,7 +666,9 @@ export class AgentLoop {
       });
       artifacts.push(...result.artifacts);
       this.runToolResults.push(result.toolCalls);
+      await this.afterToolsCognition(step, plan, result.toolCalls);
       const verdict = await this.deps.verifier.verify(step, result);
+      await this.afterVerdictCognition(step, plan, result.toolCalls, result.artifacts, verdict);
       verdicts.push(verdict);
       this.iterations += 1;
 
@@ -664,6 +709,159 @@ export class AgentLoop {
     this.transition('reflecting', 'capture lessons');
     await this.reflect(intent, plan, artifacts, unverifiedSteps);
     return { status: 'done', artifacts, verdicts, stepsCompleted, unverifiedSteps };
+  }
+
+  /**
+   * Record predictions for one step. Fast plans and `off` emit
+   * `cognition.skipped` and return. A missing port returns without an event,
+   * so runs that never opted in stay unchanged.
+   */
+  private cognitionEnabled(plan: Plan): boolean {
+    if (!this.deps.cognition) return false;
+    if (this.deps.config.cognitionMode === 'off') {
+      this.emitCognitionSkip('mode-off', 'CognitionMode is off');
+      return false;
+    }
+    if (plan.mode === 'fast') {
+      this.emitCognitionSkip('fast-path', 'fast plans do not pay for a prediction', plan.id);
+      return false;
+    }
+    return true;
+  }
+
+  private emitCognitionSkip(reason: string, detail?: string, planId?: string): void {
+    const key = `${reason}:${planId ?? ''}`;
+    if (this.cognitionSkips.has(key)) return;
+    this.cognitionSkips.add(key);
+    const payload = detail ? { reason, detail } : { reason };
+    this.ctx.infra.bus.emit('cognition.skipped', payload, runMeta(this.ctx));
+  }
+
+  private policy(): CognitivePolicy {
+    return this.deps.cognitivePolicy ?? new ObserveOnlyPolicy();
+  }
+
+  private signatureFor(step: Step, plan: Plan): SituationSignature {
+    return buildSignature({
+      title: step.title,
+      goal: step.goal,
+      acceptancePaths: acceptancePathsOf(step),
+      inDegree: inDegreeOf(step.id, plan.steps),
+      capability: capabilityClass(this.deps.gateway.capabilities()),
+    });
+  }
+
+  private predictionContext(step: Step, plan: Plan): PredictionContext {
+    return {
+      taskId: this.ctx.taskId,
+      sessionId: this.ctx.sessionId,
+      workspace: this.ctx.workspace,
+      stepId: step.id,
+      capabilities: this.deps.gateway.capabilities(),
+      model: this.ctx.model,
+      step,
+      plan,
+      now: this.ctx.ports.clock.now(),
+    };
+  }
+
+  private async beforeStepCognition(step: Step, plan: Plan): Promise<void> {
+    if (!this.cognitionEnabled(plan)) return;
+    const port = this.deps.cognition;
+    if (!port) return;
+    try {
+      const signature = this.signatureFor(step, plan);
+      const ctx = this.predictionContext(step, plan);
+      const verdict = await port.predict({ kind: 'verdict', stepId: step.id }, signature, ctx);
+      this.emitPredicted(verdict);
+      this.deferAction(this.policy().beforeStep(verdict, ctx));
+      const subjects: Observable[] = [
+        { kind: 'tool-call-count', stepId: step.id },
+        { kind: 'duration-ms', stepId: step.id },
+        { kind: 'touched-paths', stepId: step.id },
+      ];
+      for (const subject of subjects) {
+        this.emitPredicted(await port.predict(subject, signature, ctx));
+      }
+    } catch (error) {
+      this.ctx.infra.logger.debug('cognition predict skipped', { error: String(error) });
+    }
+  }
+
+  private async afterToolsCognition(step: Step, plan: Plan, calls: readonly ToolCall[]): Promise<void> {
+    if (!this.cognitionEnabled(plan)) return;
+    const port = this.deps.cognition;
+    if (!port) return;
+    try {
+      const signature = this.signatureFor(step, plan);
+      const ctx = this.predictionContext(step, plan);
+      for (const call of calls) {
+        const subject: Observable = { kind: 'tool-outcome', tool: call.name };
+        this.emitPredicted(await port.predict(subject, signature, ctx));
+        const residual = await port.observe(
+          subject,
+          { kind: 'categorical', label: call.status === 'ok' ? 'ok' : 'error' },
+          ctx,
+        );
+        this.emitScored(residual);
+        this.deferAction(this.policy().afterResidual(residual, ctx));
+      }
+    } catch (error) {
+      this.ctx.infra.logger.debug('cognition tool score skipped', { error: String(error) });
+    }
+  }
+
+  private async afterVerdictCognition(
+    step: Step,
+    plan: Plan,
+    calls: readonly ToolCall[],
+    artifacts: readonly Artifact[],
+    verdict: Verdict,
+  ): Promise<void> {
+    if (!this.cognitionEnabled(plan)) return;
+    const port = this.deps.cognition;
+    if (!port) return;
+    try {
+      const ctx = this.predictionContext(step, plan);
+      const observations: { subject: Observable; observed: Residual['observed'] }[] = [
+        { subject: { kind: 'verdict', stepId: step.id }, observed: { kind: 'categorical', label: verdict.status } },
+        {
+          subject: { kind: 'tool-call-count', stepId: step.id },
+          observed: { kind: 'numeric', value: calls.length },
+        },
+        {
+          subject: { kind: 'duration-ms', stepId: step.id },
+          observed: { kind: 'numeric', value: observedDuration(calls, step.startedAt, ctx.now) },
+        },
+        {
+          subject: { kind: 'touched-paths', stepId: step.id },
+          observed: { kind: 'set', items: touchedPaths(calls, artifacts) },
+        },
+      ];
+      for (const item of observations) {
+        const residual = await port.observe(item.subject, item.observed, ctx);
+        this.emitScored(residual);
+        this.deferAction(this.policy().afterResidual(residual, ctx));
+      }
+    } catch (error) {
+      this.ctx.infra.logger.debug('cognition verdict score skipped', { error: String(error) });
+    }
+  }
+
+  private emitPredicted(prediction: Prediction | undefined): void {
+    if (!prediction) return;
+    this.ctx.infra.bus.emit('cognition.predicted', { prediction }, runMeta(this.ctx));
+  }
+
+  private emitScored(residual: Residual | undefined): void {
+    if (!residual) return;
+    this.ctx.infra.bus.emit('cognition.scored', { residual }, runMeta(this.ctx));
+  }
+
+  /** Phase 3 records the action and does not take it. */
+  private deferAction(action: CognitiveAction): void {
+    if (action.kind === 'proceed') return;
+    this.emitCognitionSkip('action-deferred', action.kind);
   }
 
   private async checkDrift(intent: ClarifiedIntent, currentOutput: string, noProgressStreak: number): Promise<void> {
@@ -1190,4 +1388,28 @@ export class AgentLoop {
     const usage = this.deps.gateway.usage;
     return usage.promptTokens + usage.completionTokens;
   }
+}
+
+/** Sum of tool durations when any call recorded one; otherwise the step wall clock. */
+function observedDuration(calls: readonly ToolCall[], startedAt: number | undefined, now: number): number {
+  const summed = calls.reduce((sum, call) => sum + (call.durationMs && call.durationMs > 0 ? call.durationMs : 0), 0);
+  if (summed > 0) return summed;
+  if (startedAt === undefined) return 0;
+  return Math.max(0, now - startedAt);
+}
+
+function touchedPaths(calls: readonly ToolCall[], artifacts: readonly Artifact[]): string[] {
+  const found = new Set<string>();
+  for (const call of calls) {
+    if (!call.input || typeof call.input !== 'object' || Array.isArray(call.input)) continue;
+    const record = call.input as Record<string, unknown>;
+    for (const key of ['path', 'file', 'filePath']) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) found.add(value.replace(/\\/g, '/'));
+    }
+  }
+  for (const artifact of artifacts) {
+    if (artifact.path.trim()) found.add(artifact.path.replace(/\\/g, '/'));
+  }
+  return [...found];
 }

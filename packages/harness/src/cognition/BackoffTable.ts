@@ -123,10 +123,97 @@ export class BackoffTable {
   n(signatureKey: string, kind: ObservableKind): number {
     return this.rows.get(rowKey(signatureKey, kind))?.n ?? 0;
   }
+
+  /** One persisted level. `estimate` is the value `lookup` would emit from this row. */
+  snapshot(signatureKey: string, kind: ObservableKind): LevelStat | undefined {
+    const row = this.rows.get(rowKey(signatureKey, kind));
+    if (!row || row.n <= 0) return undefined;
+    return {
+      signatureKey,
+      n: row.n,
+      sumScore: row.sumScore,
+      sumScoreSq: row.sumScoreSq,
+      sumConfidence: row.sumConfidence,
+      estimate: toPredictionValue(row),
+    };
+  }
+
+  /**
+   * Reload a level from `situation_stats`.
+   *
+   * Counts are reconstructed from the stored estimate (`p × n`, numeric mean × n,
+   * set items at frequency 1). The surprise window stays empty: a restarted
+   * process records new residuals before it may call anything a surprise.
+   * An existing in-memory row is left alone.
+   */
+  restore(kind: ObservableKind, stat: LevelStat): void {
+    const key = rowKey(stat.signatureKey, kind);
+    if (this.rows.has(key)) return;
+    const n = Math.max(0, Math.trunc(stat.n));
+    if (n <= 0) return;
+    const row = rowFromEstimate(stat.estimate, n);
+    row.sumScore = stat.sumScore;
+    row.sumScoreSq = stat.sumScoreSq;
+    row.sumConfidence = stat.sumConfidence;
+    this.rows.set(key, row);
+  }
+}
+
+export interface LevelStat {
+  readonly signatureKey: string;
+  readonly n: number;
+  readonly sumScore: number;
+  readonly sumScoreSq: number;
+  readonly sumConfidence: number;
+  readonly estimate: PredictionValue;
 }
 
 function rowKey(signatureKey: string, kind: ObservableKind): string {
   return `${kind}\u0000${signatureKey}`;
+}
+
+function rowFromEstimate(estimate: PredictionValue, n: number): StatRow {
+  if (estimate.kind === 'numeric') {
+    return {
+      n,
+      estimate: { kind: 'numeric', sum: estimate.value * n, unit: estimate.unit },
+      residualScores: [],
+      sumScore: 0,
+      sumScoreSq: 0,
+      sumConfidence: 0,
+    };
+  }
+  if (estimate.kind === 'set') {
+    const elementCounts: Record<string, number> = {};
+    for (const item of estimate.items) elementCounts[item] = n;
+    return {
+      n,
+      estimate: { kind: 'set', elementCounts },
+      residualScores: [],
+      sumScore: 0,
+      sumScoreSq: 0,
+      sumConfidence: 0,
+    };
+  }
+  const counts: Record<string, number> = {};
+  if (estimate.kind === 'categorical') {
+    const p = clamp01(estimate.p);
+    counts[estimate.label] = p * n;
+    if (estimate.label === 'ok' || estimate.label === 'error') {
+      const other = estimate.label === 'ok' ? 'error' : 'ok';
+      counts[other] = (1 - p) * n;
+    }
+  } else {
+    for (const [label, p] of Object.entries(estimate.probs)) counts[label] = p * n;
+  }
+  return {
+    n,
+    estimate: { kind: 'categorical', counts },
+    residualScores: [],
+    sumScore: 0,
+    sumScoreSq: 0,
+    sumConfidence: 0,
+  };
 }
 
 function emptyRow(observed: ObservedValue, unit?: string): StatRow {

@@ -386,7 +386,7 @@ export function formatBacktestReport(report: BacktestReport): string {
           .join(', ')}.`;
   const gateNote =
     report.gate === 'PASS'
-      ? `L2+ mean residual is at least 0.1 below the L-1 prior on the same observations. Phase 3 (wiring \`AgentLoop\`) is allowed by this gate. This change set does not wire it.${weakNote}`
+      ? `L2+ mean residual is at least 0.1 below the L-1 prior on the same observations. Phase 3 observe-only wiring is allowed: predictions are recorded and the policy is not allowed to change a plan, a model, or a tool call. Phase 4 stays unwired.${weakNote}`
       : `L2+ mean residual is not at least 0.1 below the L-1 prior. The signature does not yet carry enough information on this log. Redesign the signature before wiring \`AgentLoop\`. Phase 3/4 stay unwired.${weakNote}`;
   return `# Cognition Phase 0 backtest
 

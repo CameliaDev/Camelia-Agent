@@ -51,6 +51,7 @@ import {
   AgentLoop,
   ApprovalGate,
   Clarifier,
+  CognitionService,
   ContextManager,
   connectAll,
   disconnectAll,
@@ -60,6 +61,7 @@ import {
   LoopDetector,
   MemoryService,
   ModelGateway,
+  ObserveOnlyPolicy,
   PlanSelfReview,
   Planner,
   PlanGate,
@@ -885,6 +887,17 @@ export class CameliaRuntime {
         config: this.harnessConfig,
         planGate: this.planGate,
         selfReview: new PlanSelfReview(),
+        cognition:
+          this.harnessConfig.cognitionMode === 'off'
+            ? undefined
+            : new CognitionService({
+                store: this.store,
+                minLevelSamples: this.harnessConfig.cognitionLevelSamples,
+                minSamples: this.harnessConfig.cognitionMinSamples,
+                surprisePercentile: this.harnessConfig.cognitionSurprisePercentile,
+                logger: this.logger,
+              }),
+        cognitivePolicy: this.harnessConfig.cognitionMode === 'off' ? undefined : new ObserveOnlyPolicy(),
         memory: new MemoryService({
           store: this.store,
           bus: this.bus,

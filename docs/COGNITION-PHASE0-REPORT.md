@@ -15,7 +15,7 @@ The replay builds (signature, prediction, observation) triples with §4.3 hierar
 | threshold | 0.1 |
 | **gate** | **PASS** |
 
-L2+ mean residual is at least 0.1 below the L-1 prior on the same observations. Phase 3 (wiring `AgentLoop`) is allowed by this gate. This change set does not wire it.
+L2+ mean residual is at least 0.1 below the L-1 prior on the same observations. Phase 3 observe-only wiring is allowed: predictions are recorded and the policy is not allowed to change a plan, a model, or a tool call. Phase 4 stays unwired.
 
 Pooled gate aside, these observables do not clear 0.1 on their own: verdict Δ=0.0424.
 

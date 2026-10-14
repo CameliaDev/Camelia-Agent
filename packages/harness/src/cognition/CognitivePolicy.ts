@@ -2,10 +2,10 @@
  * Cognitive policy (ARCH-COGNITION §5.3).
  *
  * Pure: no model, no randomness, no hidden state. The five decision paths in
- * §3.5 are not armed here. Phase 2 returns `proceed` for every input so an
- * observe-mode estimator cannot change a plan, a model choice, or a tool call.
- * Phase 4 is what may return anything else, and only after the Phase 0 gate
- * and the §6.3 recovery/rollback gaps.
+ * §3.5 are not armed here. `ObserveOnlyPolicy` returns `proceed` for every
+ * input. Phase 3 calls the policy and, when it returns anything else, records
+ * `cognition.skipped` and leaves the plan, model, and tools alone. Phase 4 is
+ * what may apply another action, after the §6.3 recovery gap is closed.
  * @module
  */
 

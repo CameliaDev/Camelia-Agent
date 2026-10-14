@@ -88,9 +88,10 @@ export interface HarnessConfig {
    */
   runRecordDir?: string;
   /**
-   * Prediction–error loop (ARCH-COGNITION §7.4). Default `observe`: once the
-   * port is wired, record predictions and do not change behaviour. Phase 2
-   * does not read this field. `AgentLoop` is not wired yet.
+   * Prediction–error loop (ARCH-COGNITION §7.4). Default `observe`: when the
+   * port is injected, record predictions and residuals and do not change a
+   * plan, a model choice, or a tool call. `off` skips the port. `advise` and
+   * `drive` are stored but not acted on until Phase 4.
    */
   cognitionMode: CognitionMode;
   /** Residuals below this sample count never set surprise. */
