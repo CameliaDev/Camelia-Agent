@@ -39,7 +39,6 @@ import { useMode } from '../mode/useMode.js';
 import { MODE_HEADER_H } from '../modes/ModeHeader.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { ExtensionsPanel } from './ExtensionsPanel.js';
-import { LeftSidebarToggle } from './PanelIcons.js';
 import { Chip, Icon, SectionHeader } from './primitives.js';
 
 function SessionGroup({
@@ -255,8 +254,9 @@ export function SessionRail(): ReactNode {
 
   /*
     There is no collapsed branch here any more. This column now closes to zero width and
-    the permanent `IconRail` outside it owns re-opening, searching and the account entry —
-    so keeping a 48px strip here as well would have put two re-open controls side by side
+    the permanent `IconRail` outside it owns closing and re-opening — click the open
+    chats or plugins icon. Search and new chat stay in this header; the account entry
+    stays on the rail. A 48px strip here would put two re-open controls side by side
     for one panel. See `railWidth`.
   */
   return (
@@ -317,7 +317,6 @@ export function SessionRail(): ReactNode {
           >
             <Icon name="plus" size={14} strokeWidth={1.6} />
           </button>
-          {collapsed ? null : <LeftSidebarToggle />}
         </div>
       </div>
       {searchOpen ? (

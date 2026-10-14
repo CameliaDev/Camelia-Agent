@@ -9,8 +9,9 @@
  * ## The right drawer
  *
  * The fourth track is the right drawer (`RightRail`). It stays at width 0 until the
- * mode header's single panel toggle opens it. Artifacts, memory, context and the
- * other run sections are tabs inside that drawer, not icons in the header.
+ * top bar's single panel toggle opens it. That toggle stays in the top bar while
+ * the drawer is open. Artifacts is the drawer body; the other sections are the
+ * top bar's 更多 menu, not a second header inside the drawer.
  *
  * One row, four columns, and no left-side footer: the account entry belongs to the icon
  * rail, which is the only left-side surface that never collapses. Putting it anywhere else

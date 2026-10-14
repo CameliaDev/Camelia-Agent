@@ -1,10 +1,11 @@
 /**
  * Top bar — logo and product name, the session title, window controls.
  *
- * Sidebar toggles are not parked here while their panel is open. Each one
- * lives in that panel's header, and only returns to this bar when the panel
- * is closed so it can be opened again. Connection status is a status-bar
- * readout that opens Settings → Engine.
+ * The right drawer toggle stays here while the drawer is open, with 更多
+ * beside it. It does not move into the drawer header. The left column's
+ * collapse control is the activity bar; this bar only offers expand once
+ * that column is already closed. Connection status is a status-bar readout
+ * that opens Settings → Engine.
  * @module
  */
 
@@ -14,6 +15,7 @@ import { PRODUCT_NAME } from '../transport/boot.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { isTauri, windowClose, windowMinimize, windowStartDragging, windowToggleMaximize } from '../window/shell.js';
 import { LeftSidebarToggle, PanelDrawerToggle } from './PanelIcons.js';
+import { PanelSectionMenu } from './PanelSectionMenu.js';
 import { Icon, Mascot } from './primitives.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
@@ -53,7 +55,8 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-1">
         {leftOpen ? null : <LeftSidebarToggle />}
-        {panelId ? null : <PanelDrawerToggle />}
+        {panelId ? <PanelSectionMenu /> : null}
+        <PanelDrawerToggle />
         {desktop ? (
           <div className="ml-1 flex shrink-0 items-center">
             <button type="button" aria-label="Minimize" className="grid h-7 w-8 place-items-center text-ink-3 hover:bg-hover hover:text-ink" onClick={() => void windowMinimize()}>

@@ -8,7 +8,7 @@ The left edge is a 48px icon strip, the same job as the VS Code activity bar:
 
 - Chats, Plugins, account, and settings are icons. Search and new chat live in the session list, not on this strip.
 - The words are tooltips and accessible names.
-- The session list is the sidebar to the right of that strip. Its header collapses it the same way the artifacts drawer collapses.
+- The session list is the sidebar to the right of that strip. Click the open chats or plugins icon on this strip to tuck that column away. The right drawer opens and closes from the top bar.
 
 Copying this plugin does not change that layout.
 
