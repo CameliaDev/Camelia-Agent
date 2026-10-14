@@ -26,6 +26,7 @@ export const MODE_REGISTRY: readonly ModeDefinition[] = [
     descriptionKey: 'mode.term.desc',
     icon: 'bot',
     available: true,
+    deprecated: true,
   },
 ];
 

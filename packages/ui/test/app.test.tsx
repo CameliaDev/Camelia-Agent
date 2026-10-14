@@ -285,7 +285,7 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-panel-tab]')).toBeNull();
     fireEvent.click(container.querySelector('[data-panel-more]') as HTMLElement);
     const tabs = [...container.querySelectorAll('[data-panel-tab]')].map((n) => n.getAttribute('data-panel-tab'));
-    expect(tabs).toEqual(['run', 'memory', 'context', 'events', 'sub']);
+    expect(tabs).toEqual(['run', 'memory', 'health', 'context', 'events', 'sub']);
     fireEvent.click(container.querySelector('[data-panel-tab="memory"]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck="memory"]')).not.toBeNull();
     fireEvent.click(container.querySelector('[data-panel-home]') as HTMLElement);

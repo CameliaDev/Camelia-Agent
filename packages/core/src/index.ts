@@ -14,6 +14,7 @@
 export * from './types/common.js';
 export * from './types/domain.js';
 export * from './types/cognition.js';
+export * from './types/translate-v1.js';
 export * from './types/events.js';
 export * from './types/plugins.js';
 export * from './types/presets.js';

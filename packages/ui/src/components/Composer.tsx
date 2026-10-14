@@ -106,6 +106,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const effort = useUiStore((s) => s.localPrefs.effort);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const [policyOpen, setPolicyOpen] = useState(false);
+  const [teamRun, setTeamRun] = useState(false);
   const policyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -279,35 +280,46 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     setImageNotice(null);
   };
 
+  const submitTermRun = (intent: string): void => {
+    const state = store.getState();
+    const workspace = state.snapshot.session?.workspace ?? '.';
+    const send = (sessionId: string): void => {
+      state.dispatch(
+        makeCommand('submit_term', {
+          sessionId,
+          intent,
+          workspace,
+          effort,
+        }),
+      );
+    };
+    if (projectionMatchesMode(state.snapshot, 'term') && state.snapshot.session) {
+      send(state.snapshot.session.id);
+      return;
+    }
+    void state
+      .query<{ sessionId: string }>(makeCommand('new_session', { kind: 'term' }))
+      .then((res) => {
+        if (!res?.sessionId) return;
+        state.setActiveSession(res.sessionId);
+        state.dispatch(makeCommand('select_session', { sessionId: res.sessionId }));
+        send(res.sessionId);
+      })
+      .catch(() => undefined);
+  };
+
   const submit = (): void => {
     const intent = value.trim();
+    if (mode === 'work' && teamRun && !running) {
+      if (!intent) return;
+      submitTermRun(intent);
+      setValue('');
+      setPendingImages([]);
+      return;
+    }
     if (mode === 'term') {
       if (!intent) return;
-      const state = store.getState();
-      const workspace = state.snapshot.session?.workspace ?? '.';
-      const send = (sessionId: string): void => {
-        state.dispatch(
-          makeCommand('submit_term', {
-            sessionId,
-            intent,
-            workspace,
-            effort,
-          }),
-        );
-      };
-      if (projectionMatchesMode(state.snapshot, 'term') && state.snapshot.session) {
-        send(state.snapshot.session.id);
-      } else {
-        void state
-          .query<{ sessionId: string }>(makeCommand('new_session', { kind: 'term' }))
-          .then((res) => {
-            if (!res?.sessionId) return;
-            state.setActiveSession(res.sessionId);
-            state.dispatch(makeCommand('select_session', { sessionId: res.sessionId }));
-            send(res.sessionId);
-          })
-          .catch(() => undefined);
-      }
+      submitTermRun(intent);
       setValue('');
       setPendingImages([]);
       return;
@@ -431,11 +443,13 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 ? 'math.composer.placeholder'
                 : mode === 'term'
                   ? 'term.composer'
-                  : mode === 'work'
-                    ? 'composer.chatPlaceholder'
-                    : running
-                      ? 'composer.steerPlaceholder'
-                      : 'composer.placeholder',
+                  : mode === 'work' && teamRun
+                    ? 'term.composer'
+                    : mode === 'work'
+                      ? 'composer.chatPlaceholder'
+                      : running
+                        ? 'composer.steerPlaceholder'
+                        : 'composer.placeholder',
             )}
             className="max-h-60 min-h-[56px] w-full resize-none bg-transparent px-1.5 py-1 text-[14px] leading-6 text-ink outline-none placeholder:text-ink-3"
           />
@@ -469,6 +483,21 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               inside a chat turn may do. Same listbox shape as the model chip, same
               outside-click contract, and the choice persists window-locally.
             */}
+            {mode === 'work' && !running ? (
+              <button
+                type="button"
+                data-composer-team
+                aria-pressed={teamRun}
+                title={tr('composer.team')}
+                onClick={() => setTeamRun((on) => !on)}
+                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11.5px] ${
+                  teamRun ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
+                }`}
+              >
+                <Icon name="bot" size={12} className="shrink-0" />
+                <span>{tr('composer.team')}</span>
+              </button>
+            ) : null}
             {conversational ? (
               <div ref={policyRef} className="relative shrink-0">
                 <button
