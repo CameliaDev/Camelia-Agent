@@ -20,6 +20,7 @@ import type {
   FsPort,
   Id,
   JsonValue,
+  LearnedSkillQuery,
   LLMPort,
   LLMToolCall,
   LoggerPort,
@@ -28,6 +29,13 @@ import type {
   MemoryPatch,
   MemoryQuery,
   Message,
+  ObservableKind,
+  Prediction,
+  PredictionQuery,
+  Residual,
+  ResidualQuery,
+  SkillRecord,
+  SituationStat,
   ModelInfo,
   ProviderCapabilities,
   SearchPort,
@@ -241,6 +249,10 @@ export class MemoryStore implements SessionStore {
   readonly events: StoredEvent[] = [];
   readonly metrics: { name: string; value: number; taskId?: Id }[] = [];
   readonly failureModes: { kind: string; mechanism: string; workspace: string }[] = [];
+  readonly predictions: Prediction[] = [];
+  readonly residuals: Residual[] = [];
+  readonly situationStats: SituationStat[] = [];
+  readonly learnedSkills: SkillRecord[] = [];
   private seq = 0;
 
   async createSession(input: CreateSessionInput): Promise<Session> {
@@ -389,6 +401,8 @@ export class MemoryStore implements SessionStore {
   async deleteMemory(id: Id): Promise<void> {
     const idx = this.memories.findIndex((m) => m.id === id);
     if (idx >= 0) this.memories.splice(idx, 1);
+    const skill = this.learnedSkills.findIndex((row) => row.memoryId === id);
+    if (skill >= 0) this.learnedSkills.splice(skill, 1);
   }
   async listAllMemories(limit = 5_000): Promise<MemoryItem[]> {
     return this.memories.slice(0, limit);
@@ -421,6 +435,68 @@ export class MemoryStore implements SessionStore {
   }
   async countFailureModes(workspace: string, kind?: string): Promise<number> {
     return this.failureModes.filter((row) => row.workspace === workspace && (kind === undefined || row.kind === kind)).length;
+  }
+
+  async insertPrediction(prediction: Prediction): Promise<void> {
+    this.predictions.push(prediction);
+  }
+  async getPrediction(id: Id): Promise<Prediction | undefined> {
+    return this.predictions.find((row) => row.id === id);
+  }
+  async listPredictions(query: PredictionQuery = {}): Promise<Prediction[]> {
+    return this.predictions
+      .filter((row) => {
+        if (query.taskId && row.taskId !== query.taskId) return false;
+        if (query.sessionId && row.sessionId !== query.sessionId) return false;
+        if (query.signatureKey && row.signatureKey !== query.signatureKey) return false;
+        if (query.onlySurprised) {
+          const residual = this.residuals.find((item) => item.predictionId === row.id);
+          if (!residual?.surprise) return false;
+        }
+        return true;
+      })
+      .slice(0, query.limit ?? 200);
+  }
+  async insertResidual(residual: Residual): Promise<void> {
+    this.residuals.push(residual);
+  }
+  async getResidual(predictionId: Id): Promise<Residual | undefined> {
+    return this.residuals.find((row) => row.predictionId === predictionId);
+  }
+  async listResiduals(query: ResidualQuery = {}): Promise<Residual[]> {
+    return this.residuals
+      .filter((row) => {
+        if (query.taskId && row.taskId !== query.taskId) return false;
+        if (query.signatureKey && row.signatureKey !== query.signatureKey) return false;
+        return true;
+      })
+      .slice(0, query.limit ?? 200);
+  }
+  async upsertSituationStat(stat: SituationStat): Promise<void> {
+    const idx = this.situationStats.findIndex(
+      (row) => row.signatureKey === stat.signatureKey && row.subjectKind === stat.subjectKind,
+    );
+    if (idx >= 0) this.situationStats[idx] = stat;
+    else this.situationStats.push(stat);
+  }
+  async getSituationStat(signatureKey: string, subjectKind: ObservableKind): Promise<SituationStat | undefined> {
+    return this.situationStats.find((row) => row.signatureKey === signatureKey && row.subjectKind === subjectKind);
+  }
+  async listSituationStats(subjectKind?: ObservableKind): Promise<SituationStat[]> {
+    return subjectKind ? this.situationStats.filter((row) => row.subjectKind === subjectKind) : [...this.situationStats];
+  }
+  async upsertLearnedSkill(skill: SkillRecord): Promise<void> {
+    const idx = this.learnedSkills.findIndex((row) => row.memoryId === skill.memoryId);
+    if (idx >= 0) this.learnedSkills[idx] = skill;
+    else this.learnedSkills.push(skill);
+  }
+  async getLearnedSkill(memoryId: Id): Promise<SkillRecord | undefined> {
+    return this.learnedSkills.find((row) => row.memoryId === memoryId);
+  }
+  async listLearnedSkills(query: LearnedSkillQuery = {}): Promise<SkillRecord[]> {
+    return this.learnedSkills
+      .filter((row) => !query.signatureKey || row.signatureKey === query.signatureKey)
+      .slice(0, query.limit ?? 200);
   }
 
   close(): void {}

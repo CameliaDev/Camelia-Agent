@@ -11,6 +11,22 @@ import type BetterSqlite3 from 'better-sqlite3';
 
 import type { Id, JsonValue } from '../types/common.js';
 import type {
+  CapabilityClass,
+  Observable,
+  ObservableKind,
+  ObservedValue,
+  Prediction,
+  PredictionSource,
+  PredictionValue,
+  Residual,
+  ScopeClass,
+  ScoringRule,
+  SituationSignature,
+  SkillRecord,
+  SituationStat,
+  StepArchetype,
+} from '../types/cognition.js';
+import type {
   Checkpoint,
   ClarifiedIntent,
   ForgetLogEntry,
@@ -35,9 +51,12 @@ import type {
   CreateSessionInput,
   CreateTaskInput,
   EventQuery,
+  LearnedSkillQuery,
   MemoryPatch,
   MemoryQuery,
   MetricRecord,
+  PredictionQuery,
+  ResidualQuery,
   SessionStore,
   TaskPatch,
   ToolCallPatch,
@@ -797,6 +816,213 @@ export class SqliteSessionStore implements SessionStore {
       .run(newId(), input.kind, input.mechanism, input.workspace, Date.now());
   }
 
+  // ---- cognition (V6) -----------------------------------------------------
+
+  async insertPrediction(prediction: Prediction): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO predictions (
+           id, task_id, session_id, step_id, signature_key, level,
+           subject_kind, subject_key, value_json, confidence, source, basis, at
+         ) VALUES (
+           @id, @taskId, @sessionId, @stepId, @signatureKey, @level,
+           @subjectKind, @subjectKey, @valueJson, @confidence, @source, @basis, @at
+         )`,
+      )
+      .run({
+        id: prediction.id,
+        taskId: prediction.taskId,
+        sessionId: prediction.sessionId,
+        stepId: prediction.stepId ?? null,
+        signatureKey: prediction.signatureKey,
+        level: prediction.level,
+        subjectKind: prediction.subject.kind,
+        subjectKey: subjectKeyOf(prediction.subject),
+        valueJson: JSON.stringify(prediction.value),
+        confidence: prediction.confidence,
+        source: prediction.source,
+        basis: prediction.basis,
+        at: prediction.at,
+      });
+  }
+
+  async getPrediction(id: Id): Promise<Prediction | undefined> {
+    const row = this.db.prepare('SELECT * FROM predictions WHERE id = ?').get(id) as PredictionRow | undefined;
+    return row ? mapPrediction(row) : undefined;
+  }
+
+  async listPredictions(query: PredictionQuery = {}): Promise<Prediction[]> {
+    const clauses: string[] = [];
+    const params: Record<string, unknown> = { limit: query.limit ?? 200 };
+    if (query.taskId) {
+      clauses.push('p.task_id = @taskId');
+      params.taskId = query.taskId;
+    }
+    if (query.sessionId) {
+      clauses.push('p.session_id = @sessionId');
+      params.sessionId = query.sessionId;
+    }
+    if (query.signatureKey) {
+      clauses.push('p.signature_key = @signatureKey');
+      params.signatureKey = query.signatureKey;
+    }
+    if (query.onlySurprised) clauses.push('r.surprise = 1');
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const rows = this.db
+      .prepare(
+        `SELECT p.* FROM predictions p
+         LEFT JOIN residuals r ON r.prediction_id = p.id
+         ${where}
+         ORDER BY p.at ASC, p.id ASC
+         LIMIT @limit`,
+      )
+      .all(params) as PredictionRow[];
+    return rows.map(mapPrediction);
+  }
+
+  async insertResidual(residual: Residual): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO residuals (
+           prediction_id, task_id, signature_key, score, rule, surprise,
+           threshold, observed_json, contrast, at
+         ) VALUES (
+           @predictionId, @taskId, @signatureKey, @score, @rule, @surprise,
+           @threshold, @observedJson, @contrast, @at
+         )`,
+      )
+      .run({
+        predictionId: residual.predictionId,
+        taskId: residual.taskId,
+        signatureKey: residual.signatureKey,
+        score: residual.score,
+        rule: residual.rule,
+        surprise: residual.surprise ? 1 : 0,
+        threshold: residual.threshold,
+        observedJson: JSON.stringify(residual.observed),
+        contrast: residual.contrast,
+        at: residual.at,
+      });
+  }
+
+  async getResidual(predictionId: Id): Promise<Residual | undefined> {
+    const row = this.db.prepare('SELECT * FROM residuals WHERE prediction_id = ?').get(predictionId) as
+      | ResidualRow
+      | undefined;
+    return row ? mapResidual(row) : undefined;
+  }
+
+  async listResiduals(query: ResidualQuery = {}): Promise<Residual[]> {
+    const clauses: string[] = [];
+    const params: Record<string, unknown> = { limit: query.limit ?? 200 };
+    if (query.taskId) {
+      clauses.push('task_id = @taskId');
+      params.taskId = query.taskId;
+    }
+    if (query.signatureKey) {
+      clauses.push('signature_key = @signatureKey');
+      params.signatureKey = query.signatureKey;
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const rows = this.db
+      .prepare(`SELECT * FROM residuals ${where} ORDER BY at ASC LIMIT @limit`)
+      .all(params) as ResidualRow[];
+    return rows.map(mapResidual);
+  }
+
+  async upsertSituationStat(stat: SituationStat): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO situation_stats (
+           signature_key, subject_kind, n, sum_score, sum_score_sq, sum_confidence, estimate_json, updated_at
+         ) VALUES (
+           @signatureKey, @subjectKind, @n, @sumScore, @sumScoreSq, @sumConfidence, @estimateJson, @updatedAt
+         )
+         ON CONFLICT(signature_key, subject_kind) DO UPDATE SET
+           n = excluded.n,
+           sum_score = excluded.sum_score,
+           sum_score_sq = excluded.sum_score_sq,
+           sum_confidence = excluded.sum_confidence,
+           estimate_json = excluded.estimate_json,
+           updated_at = excluded.updated_at`,
+      )
+      .run({
+        signatureKey: stat.signatureKey,
+        subjectKind: stat.subjectKind,
+        n: stat.n,
+        sumScore: stat.sumScore,
+        sumScoreSq: stat.sumScoreSq,
+        sumConfidence: stat.sumConfidence,
+        estimateJson: JSON.stringify(stat.estimate),
+        updatedAt: stat.updatedAt,
+      });
+  }
+
+  async getSituationStat(signatureKey: string, subjectKind: ObservableKind): Promise<SituationStat | undefined> {
+    const row = this.db
+      .prepare('SELECT * FROM situation_stats WHERE signature_key = ? AND subject_kind = ?')
+      .get(signatureKey, subjectKind) as SituationStatRow | undefined;
+    return row ? mapSituationStat(row) : undefined;
+  }
+
+  async listSituationStats(subjectKind?: ObservableKind): Promise<SituationStat[]> {
+    const rows = (
+      subjectKind
+        ? this.db.prepare('SELECT * FROM situation_stats WHERE subject_kind = ? ORDER BY signature_key ASC').all(subjectKind)
+        : this.db.prepare('SELECT * FROM situation_stats ORDER BY signature_key ASC, subject_kind ASC').all()
+    ) as SituationStatRow[];
+    return rows.map(mapSituationStat);
+  }
+
+  async upsertLearnedSkill(skill: SkillRecord): Promise<void> {
+    const attempts = Math.max(0, Math.trunc(skill.attempts));
+    this.db
+      .prepare(
+        `INSERT INTO skills (
+           memory_id, signature_key, steps_json, attempts, successes, sum_residual, last_attempt_at, updated_at
+         ) VALUES (
+           @memoryId, @signatureKey, @stepsJson, @attempts, @successes, @sumResidual, @lastAttemptAt, @updatedAt
+         )
+         ON CONFLICT(memory_id) DO UPDATE SET
+           signature_key = excluded.signature_key,
+           steps_json = excluded.steps_json,
+           attempts = excluded.attempts,
+           successes = excluded.successes,
+           sum_residual = excluded.sum_residual,
+           last_attempt_at = excluded.last_attempt_at,
+           updated_at = excluded.updated_at`,
+      )
+      .run({
+        memoryId: skill.memoryId,
+        signatureKey: skill.signatureKey,
+        stepsJson: JSON.stringify([...skill.steps]),
+        attempts,
+        successes: Math.max(0, Math.trunc(skill.successes)),
+        sumResidual: skill.meanResidual * attempts,
+        lastAttemptAt: skill.lastAttemptAt,
+        updatedAt: skill.lastAttemptAt,
+      });
+  }
+
+  async getLearnedSkill(memoryId: Id): Promise<SkillRecord | undefined> {
+    const row = this.db.prepare('SELECT * FROM skills WHERE memory_id = ?').get(memoryId) as SkillRow | undefined;
+    return row ? mapSkill(row) : undefined;
+  }
+
+  async listLearnedSkills(query: LearnedSkillQuery = {}): Promise<SkillRecord[]> {
+    const clauses: string[] = [];
+    const params: Record<string, unknown> = { limit: query.limit ?? 200 };
+    if (query.signatureKey) {
+      clauses.push('signature_key = @signatureKey');
+      params.signatureKey = query.signatureKey;
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const rows = this.db
+      .prepare(`SELECT * FROM skills ${where} ORDER BY updated_at DESC LIMIT @limit`)
+      .all(params) as SkillRow[];
+    return rows.map(mapSkill);
+  }
+
   async countFailureModes(workspace: string, kind?: string): Promise<number> {
     if (kind) {
       const row = this.db
@@ -919,6 +1145,191 @@ function mapCheckpoint(row: CheckpointRow): Checkpoint {
     ctxSummary: row.ctx_summary,
     fsManifest: parseJson<FsManifest>(row.fs_manifest, { entries: {} }),
     createdAt: row.created_at,
+  };
+}
+
+interface PredictionRow {
+  id: string;
+  task_id: string;
+  session_id: string;
+  step_id: string | null;
+  signature_key: string;
+  level: number;
+  subject_kind: string;
+  subject_key: string | null;
+  value_json: string;
+  confidence: number;
+  source: string;
+  basis: string;
+  at: number;
+}
+
+interface ResidualRow {
+  prediction_id: string;
+  task_id: string;
+  signature_key: string;
+  score: number;
+  rule: string;
+  surprise: number;
+  threshold: number | null;
+  observed_json: string;
+  contrast: string;
+  at: number;
+}
+
+interface SituationStatRow {
+  signature_key: string;
+  subject_kind: string;
+  n: number;
+  sum_score: number;
+  sum_score_sq: number;
+  sum_confidence: number;
+  estimate_json: string;
+  updated_at: number;
+}
+
+interface SkillRow {
+  memory_id: string;
+  signature_key: string;
+  steps_json: string;
+  attempts: number;
+  successes: number;
+  sum_residual: number;
+  last_attempt_at: number | null;
+  updated_at: number;
+}
+
+const CAPABILITIES = new Set<CapabilityClass>(['tool-calling', 'text-tool-calls', 'no-tools']);
+const ARCHETYPES = new Set<StepArchetype>(['read', 'write', 'edit', 'exec', 'verify', 'research']);
+const SCOPES = new Set<ScopeClass>(['single-file', 'few-files', 'many-files', 'unknown']);
+const SOURCES = new Set<PredictionSource>(['empirical-backoff', 'prior', 'model', 'user']);
+const RULES = new Set<ScoringRule>(['brier', 'categorical-brier', 'nrmse', 'jaccard']);
+const KINDS = new Set<ObservableKind>([
+  'verdict',
+  'tool-outcome',
+  'tool-call-count',
+  'duration-ms',
+  'cost-usd',
+  'touched-paths',
+  'failure-mode',
+]);
+
+/**
+ * §7.3 stores the backoff key, not the full signature. Toolset is not a column
+ * (§4.3 asked for it on the row; the DDL does not have one), so a read-back
+ * signature has `toolset: []`. Wildcard segments become the neutral defaults.
+ */
+function signatureFromKey(key: string): SituationSignature {
+  if (key === '*') {
+    return { capability: 'no-tools', archetype: 'read', scope: 'unknown', toolset: [], inDegree: 0 };
+  }
+  const [cap, arch, scope, deg] = key.split('|');
+  const inDegree = deg && deg !== '*' && Number.isFinite(Number(deg)) ? Number(deg) : 0;
+  return {
+    capability: CAPABILITIES.has(cap as CapabilityClass) ? (cap as CapabilityClass) : 'no-tools',
+    archetype: ARCHETYPES.has(arch as StepArchetype) ? (arch as StepArchetype) : 'read',
+    scope: SCOPES.has(scope as ScopeClass) ? (scope as ScopeClass) : 'unknown',
+    toolset: [],
+    inDegree,
+  };
+}
+
+function subjectKeyOf(subject: Observable): string | null {
+  switch (subject.kind) {
+    case 'tool-outcome':
+      return subject.tool;
+    case 'cost-usd':
+      return subject.taskId;
+    case 'failure-mode':
+      return subject.workspace;
+    case 'verdict':
+    case 'tool-call-count':
+    case 'duration-ms':
+    case 'touched-paths':
+      return subject.stepId;
+    default:
+      return null;
+  }
+}
+
+function subjectFrom(kind: string, subjectKey: string | null, stepId: string | null, taskId: string): Observable {
+  const step = stepId ?? subjectKey ?? '';
+  switch (kind) {
+    case 'tool-outcome':
+      return { kind: 'tool-outcome', tool: subjectKey ?? '' };
+    case 'cost-usd':
+      return { kind: 'cost-usd', taskId: subjectKey ?? taskId };
+    case 'failure-mode':
+      return { kind: 'failure-mode', workspace: subjectKey ?? '' };
+    case 'tool-call-count':
+      return { kind: 'tool-call-count', stepId: step };
+    case 'duration-ms':
+      return { kind: 'duration-ms', stepId: step };
+    case 'touched-paths':
+      return { kind: 'touched-paths', stepId: step };
+    default:
+      return { kind: 'verdict', stepId: step };
+  }
+}
+
+function mapPrediction(row: PredictionRow): Prediction {
+  const prediction: Prediction = {
+    id: row.id,
+    taskId: row.task_id,
+    sessionId: row.session_id,
+    subject: subjectFrom(row.subject_kind, row.subject_key, row.step_id, row.task_id),
+    signature: signatureFromKey(row.signature_key),
+    signatureKey: row.signature_key,
+    value: parseJson<PredictionValue>(row.value_json, { kind: 'numeric', value: 0, unit: '' }),
+    confidence: row.confidence,
+    source: SOURCES.has(row.source as PredictionSource) ? (row.source as PredictionSource) : 'prior',
+    basis: row.basis,
+    level: row.level,
+    at: row.at,
+  };
+  if (row.step_id) return { ...prediction, stepId: row.step_id };
+  return prediction;
+}
+
+function mapResidual(row: ResidualRow): Residual {
+  return {
+    predictionId: row.prediction_id,
+    taskId: row.task_id,
+    signatureKey: row.signature_key,
+    observed: parseJson<ObservedValue>(row.observed_json, { kind: 'categorical', label: '' }),
+    score: row.score,
+    rule: RULES.has(row.rule as ScoringRule) ? (row.rule as ScoringRule) : 'brier',
+    surprise: row.surprise === 1,
+    threshold: row.threshold,
+    contrast: row.contrast,
+    at: row.at,
+  };
+}
+
+function mapSituationStat(row: SituationStatRow): SituationStat {
+  const kind = KINDS.has(row.subject_kind as ObservableKind) ? (row.subject_kind as ObservableKind) : 'verdict';
+  return {
+    signatureKey: row.signature_key,
+    subjectKind: kind,
+    n: row.n,
+    sumScore: row.sum_score,
+    sumScoreSq: row.sum_score_sq,
+    sumConfidence: row.sum_confidence,
+    estimate: parseJson<PredictionValue>(row.estimate_json, { kind: 'numeric', value: 0, unit: '' }),
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapSkill(row: SkillRow): SkillRecord {
+  const attempts = row.attempts;
+  return {
+    memoryId: row.memory_id,
+    steps: parseJson<string[]>(row.steps_json, []),
+    signatureKey: row.signature_key,
+    attempts,
+    successes: row.successes,
+    meanResidual: attempts > 0 ? row.sum_residual / attempts : 0,
+    lastAttemptAt: row.last_attempt_at ?? row.updated_at,
   };
 }
 

@@ -9,6 +9,13 @@
 
 import type { Id } from '../types/common.js';
 import type {
+  ObservableKind,
+  Prediction,
+  Residual,
+  SkillRecord,
+  SituationStat,
+} from '../types/cognition.js';
+import type {
   Checkpoint,
   ClarifiedIntent,
   ForgetLogEntry,
@@ -173,7 +180,43 @@ export interface SessionStore {
   recordFailureMode(input: FailureModeInput): Promise<void>;
   countFailureModes(workspace: string, kind?: FailureModeKind): Promise<number>;
 
+  // ---- cognition (schema V6, ARCH-COGNITION §7.3) -------------------------
+  // Learned strategies live in the `skills` table. Method names say "learned"
+  // so they are not mistaken for SKILL.md discovery (`list_skills`).
+  insertPrediction(prediction: Prediction): Promise<void>;
+  getPrediction(id: Id): Promise<Prediction | undefined>;
+  listPredictions(query?: PredictionQuery): Promise<Prediction[]>;
+  insertResidual(residual: Residual): Promise<void>;
+  getResidual(predictionId: Id): Promise<Residual | undefined>;
+  listResiduals(query?: ResidualQuery): Promise<Residual[]>;
+  upsertSituationStat(stat: SituationStat): Promise<void>;
+  getSituationStat(signatureKey: string, subjectKind: ObservableKind): Promise<SituationStat | undefined>;
+  listSituationStats(subjectKind?: ObservableKind): Promise<SituationStat[]>;
+  upsertLearnedSkill(skill: SkillRecord): Promise<void>;
+  getLearnedSkill(memoryId: Id): Promise<SkillRecord | undefined>;
+  listLearnedSkills(query?: LearnedSkillQuery): Promise<SkillRecord[]>;
+
   close(): void;
+}
+
+export interface PredictionQuery {
+  taskId?: Id;
+  sessionId?: Id;
+  signatureKey?: string;
+  /** When true, only predictions that already have `residuals.surprise = 1`. */
+  onlySurprised?: boolean;
+  limit?: number;
+}
+
+export interface ResidualQuery {
+  taskId?: Id;
+  signatureKey?: string;
+  limit?: number;
+}
+
+export interface LearnedSkillQuery {
+  signatureKey?: string;
+  limit?: number;
 }
 
 /** A recorded way a run failed. The row points at a mechanism, not a prompt sentence. */

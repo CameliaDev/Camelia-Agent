@@ -438,6 +438,19 @@ export class FixtureTransport implements Transport {
         return;
       case 'chat_cancel':
         return;
+      case 'list_predictions':
+        // No predictions in the fixture. An empty list is the honest empty state.
+        this.answer(command.commandId, []);
+        return;
+      case 'explain_prediction':
+        this.answer(command.commandId, null);
+        return;
+      case 'get_competence':
+        this.answer(command.commandId, []);
+        return;
+      case 'set_cognition_mode':
+        this.answer(command.commandId, { mode: command.payload.mode });
+        return;
       case 'submit_term': {
         // Same events a live team run folds: plan, a worker, verify, then done.
         // Done is only honest here because the worker report is `ok`.

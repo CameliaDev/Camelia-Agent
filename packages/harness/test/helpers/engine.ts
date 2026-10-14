@@ -18,6 +18,8 @@ import {
   LoopDetector,
   MemoryService,
   ModelGateway,
+  CognitionService,
+  ObserveOnlyPolicy,
   PlanGate,
   PlanSelfReview,
   Planner,
@@ -30,6 +32,9 @@ import {
 } from '../../src/index.js';
 import { runMeta } from '../../src/context/RunContext.js';
 
+import type { CognitionPort } from '@camelia/core';
+
+import type { CognitivePolicy } from '../../src/index.js';
 import type { Harness } from './context.js';
 
 export interface Engine {
@@ -52,6 +57,9 @@ export interface EngineOptions {
   /** Extra tools registered on top of the built-ins. */
   extraTools?: Parameters<ToolEngine['registerAll']>[0];
   planGate?: PlanGate;
+  /** When set, the loop records predictions. Omit it to keep a run free of cognition events. */
+  cognition?: CognitionPort | 'on';
+  cognitivePolicy?: CognitivePolicy;
 }
 
 /**
@@ -109,6 +117,17 @@ export function buildEngine(h: Harness, options: EngineOptions = {}): Engine {
       config: ctx.config,
       planGate: options.planGate,
       selfReview: new PlanSelfReview(),
+      cognition:
+        options.cognition === 'on'
+          ? new CognitionService({
+              store: ctx.infra.store,
+              minLevelSamples: ctx.config.cognitionLevelSamples,
+              minSamples: ctx.config.cognitionMinSamples,
+              surprisePercentile: ctx.config.cognitionSurprisePercentile,
+              logger: h.logger,
+            })
+          : options.cognition,
+      cognitivePolicy: options.cognition ? (options.cognitivePolicy ?? new ObserveOnlyPolicy()) : options.cognitivePolicy,
       memory: new MemoryService({
         store: ctx.infra.store,
         bus: ctx.infra.bus,

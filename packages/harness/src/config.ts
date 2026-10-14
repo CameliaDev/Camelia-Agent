@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { RiskLevel } from '@camelia/core';
+import type { CognitionMode, RiskLevel } from '@camelia/core';
 
 /** How the approval gate treats a given risk level. */
 export type ApprovalMode = 'auto' | 'ask' | 'deny';
@@ -87,6 +87,21 @@ export interface HarnessConfig {
    * the loop record-free (the pre-24 behaviour).
    */
   runRecordDir?: string;
+  /**
+   * Prediction–error loop (ARCH-COGNITION §7.4). Default `observe`: when the
+   * port is injected, record predictions and residuals and do not change a
+   * plan, a model choice, or a tool call. `off` skips the port. `advise` and
+   * `drive` are stored but not acted on until Phase 4.
+   */
+  cognitionMode: CognitionMode;
+  /** Residuals below this sample count never set surprise. */
+  cognitionMinSamples: number;
+  /** Percentile of the recent residual window used as the surprise threshold. */
+  cognitionSurprisePercentile: number;
+  /** Samples a backoff level needs before its estimate is used. */
+  cognitionLevelSamples: number;
+  /** Read-only probes allowed per task once `drive` exists. Unused in Phase 2. */
+  cognitionMaxProbesPerTask: number;
 }
 
 export const defaultApprovalPolicy: ApprovalPolicy = {
@@ -124,6 +139,11 @@ export const defaultHarnessConfig: HarnessConfig = {
   promoteShortTermThreshold: 0.6,
   planApproval: 'always',
   maxCostPerTask: 0,
+  cognitionMode: 'observe',
+  cognitionMinSamples: 8,
+  cognitionSurprisePercentile: 80,
+  cognitionLevelSamples: 3,
+  cognitionMaxProbesPerTask: 2,
 };
 
 /** Shallow-merge a partial config over the defaults, keeping nested approval policy intact. */

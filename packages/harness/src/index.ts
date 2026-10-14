@@ -77,6 +77,9 @@ export * from './memory/recallNoise.js';
 // ---- self-review (Iteration 20) ---------------------------------------------
 export * from './selfreview/PlanSelfReview.js';
 
+// ---- cognition (prediction–error loop, Phase 0–3 observe) -------------------
+export * from './cognition/index.js';
+
 // ---- MCP (Model Context Protocol) ------------------------------------------
 export * from './mcp/transport.js';
 export * from './mcp/McpClient.js';

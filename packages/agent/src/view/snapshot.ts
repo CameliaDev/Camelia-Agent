@@ -20,11 +20,15 @@ import type {
   DroppedMessage,
   Id,
   JsonValue,
+  CompetenceReport,
   MemoryEvidence,
   MemoryItem,
   MemoryKind,
   MemoryLayer,
+  Prediction,
+  Residual,
   RiskLevel,
+  SkillRecord,
   StepStatus,
   TaskPhase,
   TaskStatus,
@@ -396,6 +400,41 @@ export interface TimelineEntry {
   traceId: string;
 }
 
+/**
+ * One prediction as the projection stores it.
+ *
+ * This is an estimate, not a verdict. It lives on `snapshot.cognition`, never
+ * on the step's `verdict` field.
+ */
+export interface CognitionPredictionView {
+  id: Id;
+  taskId: Id;
+  stepId?: Id;
+  signatureKey: string;
+  level: number;
+  subjectKind: string;
+  confidence: number;
+  source: string;
+  basis: string;
+  contrast?: string;
+  score?: number;
+  surprise?: boolean;
+  at: number;
+}
+
+/** Fold of cognition events. Absent until one arrives — the UI must not invent rows. */
+export interface CognitionView {
+  predictions: CognitionPredictionView[];
+  surprises: { signatureKey: string; score: number; contrast: string; actionKind: string; at: number }[];
+  skipped: { reason: string; detail?: string; at: number }[];
+  competence: { signatureKey: string; n: number; meanResidual: number; calibrationGap: number; at: number }[];
+  /**
+   * Learned strategies (经验 / 已学策略) from `cognition.skill_updated`.
+   * Not installed SKILL.md packages.
+   */
+  strategies: { memoryId: Id; signatureKey: string; attempts: number; successes: number; meanResidual: number; at: number }[];
+}
+
 export interface ProjectionSnapshot {
   session?: SessionView;
   task?: TaskView;
@@ -403,6 +442,11 @@ export interface ProjectionSnapshot {
   chat: ChatView;
   provider: ProviderView;
   metrics: Record<string, number>;
+  /**
+   * Prediction–error loop. Omitted until a cognition event arrives, so an empty
+   * task is not dressed up with fabricated predictions.
+   */
+  cognition?: CognitionView;
   /** Raw event trail for the audit / replay drawer. */
   timeline: TimelineEntry[];
 }
@@ -685,6 +729,18 @@ function summarise(event: DomainEvent): string {
       return `记忆批判: ${String(p.discounted)} 条跨会话降权, ${String(p.kept)} 条保留`;
     case 'tool.usage_injected':
       return `${String(p.name)} usage injected`;
+    case 'cognition.predicted':
+      return `predict ${(p.prediction as { basis?: string } | undefined)?.basis ?? ''}`;
+    case 'cognition.scored':
+      return `score ${(p.residual as { contrast?: string } | undefined)?.contrast ?? ''}`;
+    case 'cognition.surprised':
+      return `surprise ${String(p.contrast)}`;
+    case 'cognition.competence':
+      return `competence ${(p.report as { signatureKey?: string } | undefined)?.signatureKey ?? ''}`;
+    case 'cognition.skill_updated':
+      return `learned strategy ${(p.skill as { signatureKey?: string } | undefined)?.signatureKey ?? ''}`;
+    case 'cognition.skipped':
+      return `cognition skipped (${String(p.reason)})`;
     default:
       return '';
   }
@@ -695,6 +751,62 @@ function withTimeline(snapshot: ProjectionSnapshot, event: DomainEvent): Project
   return {
     ...snapshot,
     timeline: next.length > MAX_TIMELINE ? next.slice(next.length - MAX_TIMELINE) : next,
+  };
+}
+
+function emptyCognition(): CognitionView {
+  return { predictions: [], surprises: [], skipped: [], competence: [], strategies: [] };
+}
+
+function withCognition(
+  snapshot: ProjectionSnapshot,
+  event: DomainEvent,
+  update: (cognition: CognitionView) => CognitionView,
+): ProjectionSnapshot {
+  const cognition = update(snapshot.cognition ?? emptyCognition());
+  return withTimeline({ ...snapshot, cognition }, event);
+}
+
+function predictionView(prediction: Prediction): CognitionPredictionView {
+  const view: CognitionPredictionView = {
+    id: prediction.id,
+    taskId: prediction.taskId,
+    signatureKey: prediction.signatureKey,
+    level: prediction.level,
+    subjectKind: prediction.subject.kind,
+    confidence: prediction.confidence,
+    source: prediction.source,
+    basis: prediction.basis,
+    at: prediction.at,
+  };
+  return prediction.stepId ? { ...view, stepId: prediction.stepId } : view;
+}
+
+function applyResidual(predictions: CognitionPredictionView[], residual: Residual): CognitionPredictionView[] {
+  const idx = predictions.findIndex((row) => row.id === residual.predictionId);
+  const patch = { contrast: residual.contrast, score: residual.score, surprise: residual.surprise };
+  if (idx < 0) return predictions;
+  return predictions.map((row, index) => (index === idx ? { ...row, ...patch } : row));
+}
+
+function competenceView(report: CompetenceReport, at: number): CognitionView['competence'][number] {
+  return {
+    signatureKey: report.signatureKey,
+    n: report.n,
+    meanResidual: report.meanResidual,
+    calibrationGap: report.calibrationGap,
+    at,
+  };
+}
+
+function strategyView(skill: SkillRecord, at: number): CognitionView['strategies'][number] {
+  return {
+    memoryId: skill.memoryId,
+    signatureKey: skill.signatureKey,
+    attempts: skill.attempts,
+    successes: skill.successes,
+    meanResidual: skill.meanResidual,
+    at,
   };
 }
 
@@ -1353,6 +1465,48 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
     case 'memory.critiqued':
     case 'tool.usage_injected':
       return withTimeline(snapshot, event);
+
+    // ---- Cognition. Estimates stay on their own slice, never inside `task`. --
+    case 'cognition.predicted':
+      return withCognition(snapshot, event, (cog) => ({
+        ...cog,
+        predictions: push(cog.predictions, predictionView(event.payload.prediction), 200),
+      }));
+    case 'cognition.scored':
+      return withCognition(snapshot, event, (cog) => ({
+        ...cog,
+        predictions: applyResidual(cog.predictions, event.payload.residual),
+      }));
+    case 'cognition.surprised':
+      return withCognition(snapshot, event, (cog) => ({
+        ...cog,
+        surprises: push(cog.surprises, {
+          signatureKey: event.payload.signatureKey,
+          score: event.payload.score,
+          contrast: event.payload.contrast,
+          actionKind: event.payload.action.kind,
+          at: event.ts,
+        }),
+      }));
+    case 'cognition.competence':
+      return withCognition(snapshot, event, (cog) => ({
+        ...cog,
+        competence: push(cog.competence, competenceView(event.payload.report, event.ts)),
+      }));
+    case 'cognition.skill_updated':
+      return withCognition(snapshot, event, (cog) => ({
+        ...cog,
+        strategies: push(cog.strategies, strategyView(event.payload.skill, event.ts)),
+      }));
+    case 'cognition.skipped':
+      return withCognition(snapshot, event, (cog) => ({
+        ...cog,
+        skipped: push(cog.skipped, {
+          reason: event.payload.reason,
+          ...(event.payload.detail ? { detail: event.payload.detail } : {}),
+          at: event.ts,
+        }),
+      }));
 
     // ---- Chat (direct conversation path) ---------------------------------
     case 'chat.received':

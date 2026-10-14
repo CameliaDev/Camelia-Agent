@@ -16,7 +16,8 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "dev": "turbo run dev",
-    "acceptance": "tsx scripts/acceptance-report.ts"
+    "acceptance": "tsx scripts/acceptance-report.ts",
+    "cognition:backtest": "tsx packages/harness/scripts/cognition-backtest.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
