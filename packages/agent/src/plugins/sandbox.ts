@@ -114,13 +114,18 @@ export function loadToolsInWorker(request: SandboxRequest): Promise<SandboxRespo
     // available the moment the worker's first line runs. Sending it via
     // `postMessage` races the module's own initialisation, and a worker that
     // reads before the message lands sees nothing at all.
-    worker = new Worker(workerUrl(), {
+    const url = workerUrl();
+    worker = new Worker(url, {
       workerData: request,
       // The worker needs no environment of its own; give it the minimum so a
       // plugin cannot read process-level secrets through it.
       env: {},
       stdout: true,
       stderr: true,
+      // Vitest loads this module from source. Node 22.14 does not strip types
+      // in a worker unless the flag is passed through; the compiled `.js`
+      // sibling does not need it.
+      ...(url.pathname.endsWith('.ts') ? { execArgv: ['--experimental-strip-types'] } : {}),
     });
     } catch (error) {
       // Constructing a Worker can fail on its own — a bad path, a policy

@@ -275,7 +275,11 @@ describe('run controls are reachable from every mode', () => {
       // the session title and the panel icons.
       expect(container.querySelectorAll('[data-run-dock]')).toHaveLength(1);
       expect(container.querySelector(`[data-mode-shell="${mode}"] [data-mode-header]`)).toBeNull();
-      expect(container.querySelector('[data-topbar-title]')?.textContent).toContain('Add --json output');
+      if (mode === 'work') {
+        expect(container.querySelector('[data-topbar-title]')?.textContent).toContain('Add --json output');
+      } else {
+        expect(container.querySelector('[data-topbar-title]')?.textContent ?? '').not.toContain('Add --json output');
+      }
 
       // Stepper centred, controls right: both inside the dock, stepper before the group.
       const dock = container.querySelector('[data-run-dock]')!;

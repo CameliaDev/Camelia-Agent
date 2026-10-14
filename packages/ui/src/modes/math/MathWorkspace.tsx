@@ -13,7 +13,7 @@ import { useEffect, type ReactNode } from 'react';
 import { t } from '../../i18n/strings.js';
 import { projectionMatchesMode } from '../../mode/session-kind.js';
 import { deriveProgress } from '../../progress/deriveProgress.js';
-import { useMathProfile } from '../../state/shell-extras.js';
+import { setMathSetupOpen, useMathProfile } from '../../state/shell-extras.js';
 import { useUiState, useUiStore } from '../../state/UiProvider.js';
 import { canIntervene, interveneUnavailableReason } from '../../window/capabilities.js';
 import { Icon } from '../../components/primitives.js';
@@ -92,6 +92,14 @@ export function MathWorkspace(): ReactNode {
             );
           })}
         </ol>
+        <button
+          type="button"
+          data-math-open-setup
+          className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-ink-3 hover:bg-hover hover:text-ink"
+          onClick={() => setMathSetupOpen(true)}
+        >
+          {tr('math.setup.title')}
+        </button>
         {profile ? (
           <span data-math-profile className="shrink-0 text-[11px] text-ink-2">
             {tr(`math.setup.${profile.contest}` as Parameters<typeof t>[1])}

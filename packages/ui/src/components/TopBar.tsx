@@ -11,6 +11,8 @@
 
 import type { MouseEvent, ReactNode } from 'react';
 
+import { projectionMatchesMode } from '../mode/session-kind.js';
+import { useMode } from '../mode/useMode.js';
 import { PRODUCT_NAME } from '../transport/boot.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { isTauri, windowClose, windowMinimize, windowStartDragging, windowToggleMaximize } from '../window/shell.js';
@@ -20,9 +22,10 @@ import { Icon, Mascot } from './primitives.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
   const { snapshot, localPrefs } = useUiState();
+  const { mode } = useMode();
   const panelId = useUiStore((s) => s.panelId);
   const desktop = isTauri();
-  const title = snapshot.session?.title;
+  const title = projectionMatchesMode(snapshot, mode) ? snapshot.session?.title : undefined;
   const leftOpen = !localPrefs.leftCollapsed;
 
   const onMouseDown = (event: MouseEvent<HTMLElement>): void => {
@@ -47,7 +50,7 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
 
       <div className="pointer-events-none absolute inset-y-0 left-36 right-28 flex items-center justify-center">
         {title ? (
-          <span data-topbar-title className="max-w-[min(28rem,40vw)] truncate text-[12px] text-ink-3" title={title}>
+          <span data-topbar-title className="max-w-[min(28rem,40vw)] truncate text-[15px] font-semibold text-ink" title={title}>
             {title}
           </span>
         ) : null}

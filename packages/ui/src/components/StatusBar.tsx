@@ -188,7 +188,12 @@ function WorkspaceCell({
               className="rounded px-2 py-1 text-[11.5px] text-ink-2 hover:bg-hover hover:text-ink"
               onClick={() => {
                 void pickFolder().then((picked) => {
-                  if (picked) setPath(picked);
+                  if (picked.ok) {
+                    setPath(picked.path);
+                    setNote(null);
+                    return;
+                  }
+                  if (picked.reason === 'failed') setNote(tr('workspace.browseFailed'));
                 });
               }}
             >

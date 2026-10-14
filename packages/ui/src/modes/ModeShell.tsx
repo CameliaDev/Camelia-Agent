@@ -10,16 +10,22 @@ import { useEffect, useRef, type ReactNode } from 'react';
 
 import { t } from '../i18n/strings.js';
 import { useUiStore } from '../state/UiProvider.js';
+import { shellIsFresh } from '../mode/aligned-view.js';
 import { useMode } from '../mode/useMode.js';
+import { projectionMatchesMode, sessionForMode } from '../mode/session-kind.js';
+import { makeCommand } from '../state/store.js';
 import { ChatWorkspace } from './chat/ChatWorkspace.js';
 import { MathWorkspace } from './math/MathWorkspace.js';
 import { TermWorkspace } from './term/TermWorkspace.js';
-import { isFreshChatSession } from '../state/fresh-session.js';
 
 export function ModeShell(): ReactNode {
   const { mode, setMode } = useMode();
   const task = useUiStore((s) => s.snapshot.task);
   const snapshot = useUiStore((s) => s.snapshot);
+  const sessions = useUiStore((s) => s.sessions);
+  const activeSessionId = useUiStore((s) => s.activeSessionId);
+  const dispatch = useUiStore((s) => s.dispatch);
+  const setActiveSession = useUiStore((s) => s.setActiveSession);
   const transportError = useUiStore((s) => s.transportError);
   const language = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1], params?: Parameters<typeof t>[2]) => t(language, k, params);
@@ -50,9 +56,18 @@ export function ModeShell(): ReactNode {
     lastMode.current = mode;
   }, [mode, awaitingApproval, taskId]);
 
+  // Boot and mode changes attach this mode's own session when one already exists.
+  useEffect(() => {
+    if (projectionMatchesMode(snapshot, mode)) return;
+    const row = sessionForMode(sessions, mode);
+    if (!row || row.id === snapshot.session?.id || row.id === activeSessionId) return;
+    setActiveSession(row.id);
+    dispatch(makeCommand('select_session', { sessionId: row.id }));
+  }, [snapshot, mode, sessions, activeSessionId, dispatch, setActiveSession]);
+
   // Task surface is Work only — strip when Math hides it.
   const showStrip = running && !awaitingApproval && (mode === 'math' || mode === 'term');
-  const fresh = (mode === 'work' || mode === 'math') && isFreshChatSession(snapshot) && !transportError;
+  const fresh = shellIsFresh(snapshot, mode, Boolean(transportError));
 
   return (
     <div

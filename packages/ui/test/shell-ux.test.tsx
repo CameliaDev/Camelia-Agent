@@ -144,16 +144,14 @@ describe('mode isolation, math setup, and term', () => {
     expect(container.querySelector('[data-chat-user]')).toBeNull();
 
     fireEvent.click(container.querySelector('[data-new-session]') as HTMLElement);
-    expect(transport.sent.some((command) => command.type === 'new_session')).toBe(false);
-    expect(container.querySelector('[data-math-setup]')).not.toBeNull();
-    fireEvent.click(container.querySelector('[data-math-contest="mcm"]') as HTMLElement);
-    fireEvent.click(container.querySelector('[data-math-setup-create]') as HTMLElement);
     await waitFor(() => {
-      expect(container.querySelector('[data-math-profile]')?.textContent).toContain('美赛');
+      expect(container.querySelector('[data-math-profile]')?.textContent).toContain('国赛');
     });
     expect(container.querySelector('[data-math-profile]')?.textContent).toContain('内置模板');
     const created = transport.sent.find((command) => command.type === 'new_session');
     expect(created?.payload).toMatchObject({ kind: 'math' });
+    fireEvent.click(container.querySelector('[data-math-open-setup]') as HTMLElement);
+    expect(container.querySelector('[data-math-setup]')).not.toBeNull();
 
     act(() => {
       fireEvent.click(container.querySelector('[data-mode-tab="work"]') as HTMLElement);
@@ -192,6 +190,7 @@ describe('settings memory', () => {
       expect(container.querySelectorAll('[data-memory-row]').length).toBeGreaterThan(0);
     });
     const listed = transport.sent.find((command) => command.type === 'list_memories');
-    expect(listed?.payload).toEqual({});
+    expect(listed?.payload).toEqual({ curated: true });
+    expect(container.textContent).not.toContain('produced 1 artifact');
   });
 });

@@ -44,6 +44,7 @@ import type { ChatPolicy } from '@camelia/core';
 import { composerModelChoices, describeModelChoice, modelPassesFilter, type ModelFilter } from '../lib/composer-models.js';
 import { projectionMatchesMode } from '../mode/session-kind.js';
 import { makeCommand } from '../state/store.js';
+import { setMathProfile } from '../state/shell-extras.js';
 import { useUiState, useUiStore, useUiStoreApi } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
 import { useMode } from '../mode/useMode.js';
@@ -318,15 +319,38 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     if (!intent && !(images && images.length)) return;
     if (conversational) {
       // 对话 mode: multimodal when images are pasted — OpenAI-compatible vision parts.
-      dispatch(
-        makeCommand('chat_message', {
-          sessionId: activeSessionId ?? 'ses_new',
-          text: intent,
-          policy: chatPolicy,
-          effort,
-          ...(images?.length ? { images } : {}),
-        }),
-      );
+      // A foreign session (Work chat still projected under Math) gets its own row first.
+      const state = store.getState();
+      const current = state.snapshot.session;
+      const foreign =
+        Boolean(current) &&
+        (current!.id.startsWith('pending_') || !projectionMatchesMode(state.snapshot, mode));
+      const send = (sessionId: string): void => {
+        state.dispatch(
+          makeCommand('chat_message', {
+            sessionId,
+            text: intent,
+            policy: chatPolicy,
+            effort,
+            ...(images?.length ? { images } : {}),
+          }),
+        );
+      };
+      if (!foreign) {
+        send(current?.id ?? activeSessionId ?? 'ses_new');
+      } else {
+        const kind = mode === 'math' ? 'math' : 'work';
+        void state
+          .query<{ sessionId: string }>(makeCommand('new_session', { kind }))
+          .then((res) => {
+            if (!res?.sessionId) return;
+            if (kind === 'math') setMathProfile(res.sessionId, { contest: 'cumcm', useTemplates: true });
+            state.setActiveSession(res.sessionId);
+            state.dispatch(makeCommand('select_session', { sessionId: res.sessionId }));
+            send(res.sessionId);
+          })
+          .catch(() => undefined);
+      }
     } else if (running && task) {
       if (!intent) return;
       dispatch(makeCommand('intervene_goal', { taskId: task.id, instruction: intent }));
@@ -587,20 +611,17 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                               selected ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
                             }`}
                           >
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-mono">{model}</span>
+                            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                              <span data-model-name className="min-w-0 truncate font-mono">{model}</span>
                               {detail ? (
-                                <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-normal text-ink-3">
+                                <span data-model-caps className="flex shrink-0 items-center gap-1 text-[10px] font-normal">
                                   {ctxLabel && detail.capabilitySource?.context !== 'default' && detail.capabilitySource?.context !== 'unknown' ? (
-                                    <span title={tr('composer.modelContext')}>{ctxLabel} ctx</span>
+                                    <span className="rounded bg-hover px-1 text-ink-3" title={tr('composer.modelContext')}>{ctxLabel}</span>
                                   ) : null}
                                   {detail.supportsVision && detail.capabilitySource?.vision !== 'unknown' ? (
                                     <span className="rounded bg-info/15 px-1 text-info" title={tr('composer.modelVision')}>
-                                      vision
+                                      {tr('composer.filter.vision')}
                                     </span>
-                                  ) : null}
-                                  {!detail.supportsTools ? (
-                                    <span className="rounded bg-warn/15 px-1 text-warn">no-tools</span>
                                   ) : null}
                                 </span>
                               ) : null}

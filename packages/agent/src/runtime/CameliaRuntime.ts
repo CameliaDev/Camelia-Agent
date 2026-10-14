@@ -41,6 +41,7 @@ import {
   type Span,
   type StoredEvent,
   resolveModelInfo,
+  isCuratedMemory,
   type CapabilityOrigin,
   type ModelInfo,
   type Task,
@@ -67,7 +68,9 @@ import {
   Verifier,
   WorkspaceJournal,
   builtinTools,
+  MechanismHost,
   defaultHarnessConfig,
+  type Mechanism,
   emptySlots,
   resolveConfig,
   type ApprovalResponder,
@@ -87,6 +90,7 @@ import { NodeShell } from '../adapters/NodeShell.js';
 import { createLogger } from '../adapters/logger.js';
 import { loadConfig, type CameliaConfig } from '../config/load.js';
 import { ensureCameliaHome, paths } from '../config/paths.js';
+import { installSkillFolder, listSkillDirs, skillScanRoots, type SkillInfo } from '../skills/skills.js';
 import { appendAbiMismatch, isAbiMismatchError, migrateAbiMismatch } from './abi.js';
 import { ChatLoop } from './ChatLoop.js';
 import { withEffort } from './effort.js';
@@ -134,6 +138,11 @@ export interface CameliaRuntimeOptions {
   maxRecordedEvents?: number;
   /** Tool set; defaults to the built-ins. */
   tools?: Tool<any, any>[];
+  /**
+   * Extra tool families. Registered after built-ins and before plugins.
+   * A name that already exists is skipped so a mechanism cannot displace a built-in.
+   */
+  mechanisms?: Mechanism[];
   /**
    * Agent preset id (whitepaper §8.3). When omitted, no preset is applied and the
    * engine behaves exactly as before — presets are opt-in, so naming one is the
@@ -246,7 +255,7 @@ export interface MemoryPanelFacade {
    * Settings surface uses. The panel itself always passes the active session —
    * see the scope note on the `list_memories` command.
    */
-  list(query?: { layer?: MemoryLayer; sessionId?: Id }): Promise<MemoryView[]>;
+  list(query?: { layer?: MemoryLayer; sessionId?: Id; curated?: boolean }): Promise<MemoryView[]>;
   get(memoryId: Id): Promise<MemoryView | null>;
   forgetLog(limit?: number): Promise<ForgetLogView[]>;
   reactivationDue(limit?: number): Promise<MemoryView[]>;
@@ -461,7 +470,8 @@ export class CameliaRuntime {
     this.memoryPanel = {
       list: async (query) => {
         const items = await this.panelMemory.listByLayer(query?.layer, query?.sessionId);
-        return items.map((item) => toMemoryView(item, this.panelMemory.describe(item)));
+        const visible = query?.curated ? items.filter((item) => isCuratedMemory(item)) : items;
+        return visible.map((item) => toMemoryView(item, this.panelMemory.describe(item)));
       },
       get: async (memoryId) => {
         const item = await this.panelMemory.get(memoryId);
@@ -661,6 +671,17 @@ export class CameliaRuntime {
 
     const tools = new ToolEngine(logger, metrics);
     tools.registerAll(options.tools ?? builtinTools);
+    if (options.mechanisms?.length) {
+      const host = new MechanismHost();
+      for (const mechanism of options.mechanisms) host.register(mechanism);
+      for (const tool of host.tools()) {
+        if (tools.has(tool.name)) {
+          logger.warn('mechanism tool name already registered; skipped', { tool: tool.name });
+          continue;
+        }
+        tools.register(tool, { source: host.sourceOf(tool.name) ?? 'mechanism' });
+      }
+    }
     for (const plugin of plugins.tools) {
       for (const tool of plugin.tools) {
         // A plugin must not be able to displace a built-in (or another plugin) by a
@@ -1178,9 +1199,8 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
    * Open a blank session of `kind` — reusing an unused blank when one already
    * exists so 「新建」 cannot pile empty rows in the session rail.
    *
-   * Blank means: same kind, zero tasks, zero events. A session that once had
-   * chat or a task is never reused here; the user asked for a clean slate, and
-   * that only applies to rows that never held work.
+   * Blank means: same kind, a reusable title (`新会话` / `New chat` / `New session`),
+   * zero tasks, zero events. A titled workspace row such as `hello` is not reused.
    */
   async newSession(
     kind: 'work' | 'math' | 'term' = 'work',
@@ -1191,6 +1211,7 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
     for (const candidate of recent) {
       if (excludeId && candidate.id === excludeId) continue;
       if ((candidate.kind ?? 'work') !== kind) continue;
+      if (!isReusableBlankTitle(candidate.title)) continue;
       const tasks = await this.store.listTasks(candidate.id);
       if (tasks.length > 0) continue;
       const events = await this.store.listEvents({ sessionId: candidate.id, limit: 1 });
@@ -1208,6 +1229,45 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
     // Hot-switch the runtime's active session so subsequent events attribute correctly.
     this.session = created;
     return { sessionId: created.id };
+  }
+
+  async renameSession(sessionId: string, title: string): Promise<{ ok: true; title: string } | { ok: false; error: string }> {
+    const trimmed = title.trim().slice(0, 120);
+    if (!trimmed) return { ok: false, error: '标题不能为空' };
+    const existing = await this.store.getSession(sessionId).catch(() => undefined);
+    if (!existing) return { ok: false, error: '会话不存在' };
+    await this.store.updateSession(sessionId, { title: trimmed });
+    if (this.session.id === sessionId) this.session = { ...this.session, title: trimmed };
+    return { ok: true, title: trimmed };
+  }
+
+  /**
+   * Remove one session. When it is the active row, point the runtime at another
+   * remaining session if one exists. The caller creates a replacement blank.
+   */
+  async deleteSession(sessionId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    const existing = await this.store.getSession(sessionId).catch(() => undefined);
+    if (!existing) return { ok: false, error: '会话不存在' };
+    const removed = await this.store.deleteSession(sessionId);
+    if (!removed) return { ok: false, error: '会话不存在' };
+    if (this.session.id === sessionId) {
+      const remaining = await this.store.listSessions();
+      const next =
+        remaining.find((row) => (row.kind ?? 'work') === (existing.kind ?? 'work')) ?? remaining[0];
+      if (next) {
+        this.session = next;
+        this.shared.sessionId = next.id;
+      }
+    }
+    return { ok: true };
+  }
+
+  listSkills(workspace?: string, extraRoot?: string): SkillInfo[] {
+    return listSkillDirs(skillScanRoots(workspace ?? this.workspace, extraRoot));
+  }
+
+  installSkill(sourceDir: string): { ok: true; skills: SkillInfo[] } | { ok: false; error: string } {
+    return installSkillFolder(sourceDir);
   }
 
   /** Switch the runtime's active session to an existing row. Returns false if not found. */
@@ -1275,6 +1335,11 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
     await this.flush();
     this.store.close();
   }
+}
+
+function isReusableBlankTitle(title: string | undefined): boolean {
+  const trimmed = title?.trim() ?? '';
+  return trimmed === '' || trimmed === '新会话' || trimmed === 'New chat' || trimmed === 'New session';
 }
 
 function toStoredEvent(event: DomainEvent): StoredEvent {

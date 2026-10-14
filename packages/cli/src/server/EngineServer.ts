@@ -458,9 +458,11 @@ export class EngineServer {
         if (sessionId !== undefined && typeof sessionId !== 'string') {
           return { ok: false, error: 'sessionId 必须是字符串' };
         }
+        const curated = command.payload.curated === true;
         const items = await this.options.runtime.memoryPanel.list({
           ...(layer !== undefined ? { layer } : {}),
           ...(sessionId !== undefined ? { sessionId } : {}),
+          ...(curated ? { curated: true } : {}),
         });
         return { ok: true, data: items };
       }
@@ -555,9 +557,40 @@ export class EngineServer {
         this.options.runtime.cancelChat();
         return { ok: true };
       }
+      case 'rename_session': {
+        const { sessionId, title } = command.payload;
+        if (typeof sessionId !== 'string' || !sessionId) return { ok: false, error: '缺少 sessionId 参数' };
+        if (typeof title !== 'string') return { ok: false, error: '标题不能为空' };
+        const renamed = await this.options.runtime.renameSession(sessionId, title);
+        if (!renamed.ok) return renamed;
+        await this.pushBootstrap();
+        return { ok: true, data: { sessionId, title: renamed.title } };
+      }
+      case 'delete_session': {
+        const sessionId = command.payload?.sessionId;
+        if (typeof sessionId !== 'string' || !sessionId) return { ok: false, error: '缺少 sessionId 参数' };
+        const removed = await this.options.runtime.deleteSession(sessionId);
+        if (!removed.ok) return removed;
+        await this.pushBootstrap();
+        return { ok: true, data: { sessionId } };
+      }
+      case 'list_skills': {
+        const workspace =
+          typeof command.payload?.workspace === 'string' ? command.payload.workspace : undefined;
+        const extraRoot =
+          typeof command.payload?.extraRoot === 'string' ? command.payload.extraRoot : undefined;
+        return { ok: true, data: this.options.runtime.listSkills(workspace, extraRoot) };
+      }
+      case 'install_skill': {
+        const source = command.payload?.path;
+        if (typeof source !== 'string' || !source.trim()) return { ok: false, error: '路径不能为空' };
+        const installed = this.options.runtime.installSkill(source.trim());
+        if (!installed.ok) return installed;
+        return { ok: true, data: installed.skills };
+      }
 
       default:
-        return { ok: false, error: `不支持的命令` };
+        return { ok: false, error: `不支持的命令: ${String((command as { type?: string }).type ?? '')}` };
     }
   }
 

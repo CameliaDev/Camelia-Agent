@@ -68,7 +68,7 @@ import { useUiStore } from './state/UiProvider.js';
 import { loginGatePassed, markLoginGatePassed } from './window/login-gate.js';
 import { ModeShell } from './modes/ModeShell.js';
 import { readModelSettings } from './window/model-settings.js';
-import { isFreshChatSession } from './state/fresh-session.js';
+import { shellIsFresh } from './mode/aligned-view.js';
 import { useMode } from './mode/useMode.js';
 import { t } from './i18n/strings.js';
 
@@ -198,8 +198,7 @@ export function App(): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const { mode } = useMode();
   // Transport failures must keep the error surface visible — not the centred empty hero.
-  const conversational = mode === 'work' || mode === 'math';
-  const fresh = conversational && isFreshChatSession(snapshot) && !transportError;
+  const fresh = shellIsFresh(snapshot, mode, Boolean(transportError));
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
 
   return (
