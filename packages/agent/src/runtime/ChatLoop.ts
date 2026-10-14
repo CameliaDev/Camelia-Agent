@@ -54,7 +54,7 @@ import { paths } from '../config/paths.js';
 import { effortInstruction } from './effort.js';
 
 /** Model/tool round trips allowed inside one chat turn. */
-const MAX_CHAT_ITERATIONS = 8;
+const MAX_CHAT_ITERATIONS = 1000;
 /** Kept messages per session (oldest dropped, never splitting a tool pair). */
 const MAX_HISTORY_MESSAGES = 40;
 /** How long the UI picker stays open before the turn continues without an answer. */

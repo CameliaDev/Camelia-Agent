@@ -373,6 +373,30 @@ describe('ChatLoop — stream errors', () => {
   });
 });
 
+describe('ChatLoop — iteration budget', () => {
+  it('stops after 1000 tool iterations and reports that cap', async () => {
+    let calls = 0;
+    const llm = {
+      id: 'looping',
+      capabilities: () => ({}),
+      listModels: async () => [],
+      chat: async function* (): AsyncIterable<ChatChunk> {
+        calls += 1;
+        yield { type: 'tool-call', call: { id: `c${calls}`, name: 'not.a.tool', arguments: {} } };
+      },
+    } as unknown as LLMPort;
+    const { loop, events, session } = await makeLoop(llm);
+
+    await loop.chat(session.id, 'keep going', 'readonly-sandbox');
+
+    expect(calls).toBe(1000);
+    const failed = payloads(events, 'chat.failed') as { error: string }[];
+    expect(failed).toEqual([{ error: 'Stopped after 1000 tool iterations.', turnId: expect.any(String) }]);
+    expect(events.at(-1)!.type).toBe('chat.failed');
+    expect(typesOf(events)).not.toContain('chat.message');
+  });
+});
+
 describe('ChatLoop — history window', () => {
   it('carries earlier turns into later requests and trims the oldest', async () => {
     const llm = scriptedLLM([
