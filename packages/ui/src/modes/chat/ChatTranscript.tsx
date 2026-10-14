@@ -58,8 +58,6 @@ export function ChatTranscript(): ReactNode {
     );
   };
 
-  const chatRunning = chat.turns.some((turn) => turn.role === 'assistant' && turn.streaming);
-
   return (
     <div data-chat-transcript className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-4 py-4">
@@ -68,24 +66,9 @@ export function ChatTranscript(): ReactNode {
             <p className="max-w-sm text-center text-[12.5px] leading-5 text-ink-3">{tr('chat.empty')}</p>
           </div>
         ) : null}
-        {chatRunning ? (
-          <div data-chat-running className="inline-flex items-center gap-2 self-start rounded-full border border-info/30 bg-info/10 px-2.5 py-1 text-[11px] text-info">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-info" />
-            {tr('chat.running')}
-          </div>
-        ) : null}
         {chat.turns.map((turn) => (
           <ChatBubble key={turn.id} turn={turn} />
         ))}
-        {chat.turns.at(-1)?.role === 'user' ? (
-          <div
-            data-chat-thinking="pending"
-            className="inline-flex items-center gap-2 self-start rounded-full border border-line bg-elevated px-2.5 py-1 text-[12px] text-ink-2"
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-3" />
-            {tr('chat.thinking')}
-          </div>
-        ) : null}
         <TaskRunCard />
         {chat.pendingAsk ? (
           <AskUserCard
@@ -105,16 +88,35 @@ function visibleAnswer(turn: ChatTurnView): string {
   return splitThinking(turn.text).answer;
 }
 
+/**
+ * Reasoning text worth showing. A live turn with no text used to render the
+ * status label as both the summary and the body — an empty 「思考中…」 box
+ * under every tool card. The header already says that, so only real text
+ * earns a block.
+ */
+function reasoningText(turn: ChatTurnView): string {
+  const parts = splitThinking(turn.text);
+  return [turn.thinking, parts.thinking]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join('\n\n');
+}
+
 function ThinkingFold({ turn, label }: { turn: ChatTurnView; label: string }): ReactNode {
   if (turn.role !== 'assistant') return null;
   const parts = splitThinking(turn.text);
-  const thinking = [turn.thinking, parts.thinking].filter(Boolean).join('\n\n');
-  const live = turn.streaming && !parts.answer;
-  if (!thinking && !live) return null;
+  const thinking = reasoningText(turn);
+  if (!thinking) return null;
+  const live = Boolean(turn.streaming && !parts.answer.trim());
   return (
     <div className={parts.answer ? 'mb-2' : undefined} data-chat-thinking={live ? 'live' : 'folded'}>
-      <CollapsibleBlock summary={label} preferOpen={live} defaultOpen={live} data-collapsible="thinking">
-        <p className="whitespace-pre-wrap px-1 text-[12.5px] leading-5 text-ink-2">{thinking || label}</p>
+      {/*
+        Stay collapsed, including while tools are still running. Opening every
+        block as tokens arrive is what flooded the thread; the header carries
+        the live status, and the row stays expandable.
+      */}
+      <CollapsibleBlock summary={label} preferOpen={false} defaultOpen={false} data-collapsible="thinking">
+        <p className="whitespace-pre-wrap px-1 text-[12.5px] leading-5 text-ink-2">{thinking}</p>
       </CollapsibleBlock>
     </div>
   );
@@ -170,7 +172,7 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
         {visibleAnswer(turn) ? (
           <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visibleAnswer(turn)}</p>
         ) : null}
-        {turn.streaming ? (
+        {turn.streaming && visibleAnswer(turn) ? (
           <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
         ) : null}
         {turn.error ? (

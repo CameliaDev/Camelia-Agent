@@ -83,15 +83,15 @@ Work 的输入框另外保留权限策略下拉。
 
 Skills 页列出含 `SKILL.md` 的文件夹（和 Cursor / Claude 的布局一样，frontmatter 里的 `name` / `description`）。扫描 `~/.camelia/skills`、工作区 `.camelia/skills`、`.cursor/skills`、`.claude/skills`、`.agents/skills`，以及用户主目录下的 `.cursor/skills` 和 `.claude/skills`。「打开目录」再加一个扫描根。「安装…」把选中的文件夹复制进 `~/.camelia/skills`。命令是 `list_skills` 和 `install_skill`。
 
-## 聊天里的「思考中」
+## 聊天里的状态
 
-用户消息发出、助手气泡还没出现时，记录上方有一枚 **思考中…**（`data-chat-thinking="pending"`）。助手气泡里的思考（`turn.thinking`，以及正文中的 `<think>` / `<thinking>`）用同一句当折叠标题：
+Work 对话列顶部有一条和右侧「产物」同高的状态条（`data-chat-status`，高度 `MODE_HEADER_H`）。文案居中，只有一句：空闲、**思考中…**、**回复中…**、**已完成**，失败时是「回复失败」。没有横贯对话的绿线和两端圆点，记录里也不再另放「回复中…」或「思考中…」小药丸。
 
-- 还在流式、正文里还没有答案时，块是展开的（`data-chat-thinking="live"`）。
-- 答案正文已经在标签外面时，块标成 `folded`。这条回复到达时答案已经写好的，思考默认收起。
-- 若流式过程中块已经展开，答案到达后**不会**再强制折上：折叠组件只在「正在思考」时强制打开。
+助手气泡里的思考（`turn.thinking`，以及正文中的 `<think>` / `<thinking>`）只有在确有文字时才出现，标题仍是「思考中…」：
 
-助手气泡正在流式输出时，另外有一条 **回复中…**。
+- 没有推理正文时不渲染占位块。工具卡片单独留下。
+- 有正文时默认收起（`data-collapsed="true"`），包括工具还在跑、答案还没出来的那一条（`data-chat-thinking="live"`）。正在发生的事看顶栏，不在每张工具卡下面展开一块。
+- 答案已经写在标签外面时，块标成 `folded`，同样默认收起。用户可以展开阅读。
 
 ## Term 的边界
 
