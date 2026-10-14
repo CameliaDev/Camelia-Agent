@@ -912,6 +912,85 @@ describe('chat projection (对话 mode)', () => {
     expect(snapshot.chat.turns[1]).toMatchObject({ text: 'partial', streaming: false, error: 'provider down' });
   });
 
+  it('clears tool-round streaming when the final answer settles the run', () => {
+    const call = (turnId: string, name: string, status: ToolCall['status']): DomainEvent =>
+      env(
+        'chat.tool',
+        {
+          call: {
+            id: `call-${name}`,
+            stepId: turnId,
+            taskId: turnId,
+            name,
+            input: {},
+            status,
+            risk: 'read-only',
+            reversible: true,
+            traceId: 'trace',
+            createdAt: 1,
+          },
+        },
+        140,
+      );
+    const midway = reduceEvents(initialSnapshot(), [
+      env('chat.received', { turnId: TURN_USER, text: 'append a line' }, 100),
+      env('chat.delta', { turnId: 'turn-tools', delta: '' }, 110),
+      call('turn-tools', 'fs.read', 'ok'),
+      call('turn-tools', 'fs.write', 'ok'),
+      call('turn-tools', 'test.run', 'ok'),
+    ]);
+    expect(midway.chat.inflight).toBe(true);
+    expect(midway.chat.turns.at(-1)).toMatchObject({ id: 'turn-tools', streaming: true });
+
+    const settled = reduceEvents(midway, [
+      env('chat.delta', { turnId: TURN_ASST, delta: '已在 README.md 末尾追加一行。' }, 150),
+      env('chat.message', { turnId: TURN_ASST, role: 'assistant', text: '已在 README.md 末尾追加一行。' }, 160),
+    ]);
+    expect(settled.chat.inflight).toBe(false);
+    expect(settled.chat.turns.filter((turn) => turn.role === 'assistant').every((turn) => turn.streaming === false)).toBe(
+      true,
+    );
+    expect(settled.chat.turns.at(-1)).toMatchObject({
+      id: TURN_ASST,
+      text: '已在 README.md 末尾追加一行。',
+      streaming: false,
+    });
+    expect(settled.chat.turns[1]!.toolCalls.map((tool) => tool.status)).toEqual(['ok', 'ok', 'ok']);
+  });
+
+  it('seals a streaming tool round when the closing message never opened its own turn', () => {
+    const open = reduceEvents(initialSnapshot(), [
+      env('chat.received', { turnId: TURN_USER, text: 'append a line' }, 100),
+      env('chat.delta', { turnId: 'turn-tools', delta: '' }, 110),
+      env(
+        'chat.tool',
+        {
+          call: {
+            id: 'call-write',
+            stepId: 'turn-tools',
+            taskId: 'turn-tools',
+            name: 'fs.write',
+            input: {},
+            status: 'ok',
+            risk: 'write',
+            reversible: true,
+            traceId: 'trace',
+            createdAt: 1,
+          },
+        },
+        120,
+      ),
+    ]);
+    expect(open.chat.turns.at(-1)?.streaming).toBe(true);
+
+    const settled = reduceEvents(open, [
+      env('chat.message', { turnId: 'turn-empty', role: 'assistant', text: '' }, 130),
+    ]);
+    expect(settled.chat.inflight).toBe(false);
+    expect(settled.chat.turns).toHaveLength(2);
+    expect(settled.chat.turns.at(-1)).toMatchObject({ id: 'turn-tools', streaming: false });
+  });
+
   it('ignores a chat.message whose turn was never opened (defensive fold)', () => {
     const snapshot = reduceEvents(initialSnapshot(), [
       env('chat.message', { turnId: 'ghost', role: 'assistant', text: 'nope' }, 100),

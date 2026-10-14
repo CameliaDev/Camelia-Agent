@@ -41,43 +41,71 @@ const STATUS_CLASS: Record<ChatRunStatus, string> = {
   error: 'text-bad',
 };
 
+/**
+ * One line, bold, and large enough to read as the column's status — still
+ * inside the 33px strip that matches the artifacts header.
+ */
+const STATUS_LABEL_CLASS = 'truncate text-center text-[16px] font-bold leading-5';
+
 function hasVisibleAnswer(turn: ChatTurnView): boolean {
   return splitThinking(turn.text).answer.trim().length > 0;
 }
 
+function toolsStillRunning(turn: ChatTurnView): boolean {
+  return turn.toolCalls.some(
+    (call) =>
+      call.status === 'pending' ||
+      call.status === 'awaiting-approval' ||
+      call.status === 'approved' ||
+      call.status === 'running',
+  );
+}
+
 /**
- * Derive the header status from the chat projection.
+ * Derive the header status from the chat run, not from a leftover caret flag.
  *
- * Waiting on the model (a user turn with no assistant yet, or a streaming
- * turn that has not produced answer text) is 思考中. Answer text in flight is
- * 回复中. A finished assistant turn is 已完成, including when that turn left
- * an ask picker open. An empty transcript is idle.
+ * `streaming` means "deltas are still arriving for this turn". A tool round
+ * opens a turn and often never clears that flag. The run itself is
+ * `chat.inflight` (set on `chat.received`, cleared when the run settles).
+ * While that is set: 思考中 until the latest turn has answer text, then 回复中.
+ * Once the run has settled, the latest assistant turn is 已完成 — an earlier
+ * tool round left `streaming` must not pin the header on 思考中.
+ * An empty transcript (or a settled run with no assistant turn) is 空闲.
  */
 export function chatRunStatus(
   chat: ChatView,
   lastCommandError?: { type: string; error: string; at: number } | null,
 ): ChatRunStatus {
+  const last = chat.turns[chat.turns.length - 1];
+
   if (chat.pendingAsk) {
-    const asked = chat.turns[chat.turns.length - 1];
-    if (asked?.role === 'assistant' && !asked.streaming && !asked.error) return 'done';
+    if (last?.role === 'assistant' && !last.streaming && !last.error) return 'done';
     return 'idle';
   }
 
-  const last = chat.turns[chat.turns.length - 1];
   if (last?.role === 'assistant' && last.error) return 'error';
+  if (last?.role === 'user' && lastCommandError && lastCommandError.at >= last.at) return 'error';
 
-  const streaming = chat.turns.filter((turn) => turn.role === 'assistant' && turn.streaming);
-  if (streaming.length > 0) {
-    return streaming.some(hasVisibleAnswer) ? 'replying' : 'thinking';
-  }
-
-  if (last?.role === 'user') {
-    if (lastCommandError && lastCommandError.at >= last.at) return 'error';
+  if (chat.inflight) {
+    if (last?.role === 'assistant' && hasVisibleAnswer(last)) return 'replying';
     return 'thinking';
   }
 
-  if (last?.role === 'assistant') return 'done';
-  return 'idle';
+  // Explicitly settled: the loop emitted its terminal message or failure.
+  // Ignore a caret flag that a tool round never cleared.
+  if (chat.inflight === false) {
+    if (last?.role === 'assistant') return 'done';
+    return 'idle';
+  }
+
+  // Older snapshots and direct fixtures have no run bit. The latest turn is
+  // the phase; streaming on an earlier tool round is not.
+  if (!last) return 'idle';
+  if (last.role === 'user') return 'thinking';
+  if (last.streaming || toolsStillRunning(last)) {
+    return hasVisibleAnswer(last) ? 'replying' : 'thinking';
+  }
+  return 'done';
 }
 
 /** Coarse phase kept for in-flight checks. Idle and done are both "not running". */
@@ -115,7 +143,9 @@ export function ChatReplyProgress(): ReactNode {
       role="status"
       aria-live="polite"
     >
-      <span className={`truncate text-center text-[12px] font-medium ${STATUS_CLASS[status]}`}>{label}</span>
+      <span data-chat-status-label className={`${STATUS_LABEL_CLASS} ${STATUS_CLASS[status]}`}>
+        {label}
+      </span>
     </div>
   );
 }

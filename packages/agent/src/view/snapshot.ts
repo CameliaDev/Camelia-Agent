@@ -180,6 +180,14 @@ export interface ChatView {
   pendingAsk?: PendingAskView;
   /** The posture new turns are sent with; mirrored back via `chat.policy_changed`. */
   policy: ChatPolicy;
+  /**
+   * True from `chat.received` until the run settles (`chat.message` / `chat.failed`).
+   *
+   * Tool rounds do not settle the run, and they used to leave `streaming` set on
+   * the assistant turn forever. The header reads this bit — not a leftover caret
+   * flag on an earlier tool round.
+   */
+  inflight?: boolean;
 }
 
 /**
@@ -845,9 +853,27 @@ function upsertChatTool(turn: ChatTurnView, call: ToolCall, gate?: boolean): Cha
   return { ...turn, toolCalls };
 }
 
+/**
+ * Stop the caret on every assistant turn that is no longer receiving deltas.
+ *
+ * A tool round opens a turn (`chat.delta`) and then never emits `chat.message`.
+ * The next round, or the run settling, is what ends that stream. Leaving the
+ * flag set is how the header stayed on 思考中 after the tools had already
+ * finished and the answer was on a later turn.
+ */
+function sealStreaming(turns: ChatTurnView[]): ChatTurnView[] {
+  let changed = false;
+  const next = turns.map((turn) => {
+    if (turn.role !== 'assistant' || !turn.streaming) return turn;
+    changed = true;
+    return { ...turn, streaming: false };
+  });
+  return changed ? next : turns;
+}
+
 /** Append a turn, capping the transcript so a long chat cannot bloat the snapshot. */
 function pushChatTurn(chat: ChatView, turn: ChatTurnView): ChatView {
-  const next = { ...chat, turns: [...chat.turns, turn] };
+  const next = { ...chat, turns: [...sealStreaming(chat.turns), turn] };
   if (next.turns.length > MAX_CHAT_TURNS) next.turns = next.turns.slice(next.turns.length - MAX_CHAT_TURNS);
   return next;
 }
@@ -1511,15 +1537,18 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
     // ---- Chat (direct conversation path) ---------------------------------
     case 'chat.received':
       return mutateChat(snapshot, event, (chat) =>
-        pushChatTurn(chat, {
-          id: event.payload.turnId,
-          role: 'user',
-          text: event.payload.text,
-          images: event.payload.images,
-          streaming: false,
-          toolCalls: [],
-          at: event.ts,
-        }),
+        pushChatTurn(
+          { ...chat, inflight: true },
+          {
+            id: event.payload.turnId,
+            role: 'user',
+            text: event.payload.text,
+            images: event.payload.images,
+            streaming: false,
+            toolCalls: [],
+            at: event.ts,
+          },
+        ),
       );
 
     case 'chat.delta':
@@ -1530,15 +1559,25 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
     case 'chat.message':
       return mutateChat(snapshot, event, (chat) => {
         const last = chat.turns[chat.turns.length - 1];
-        if (!last || last.id !== event.payload.turnId || last.role !== 'assistant') return chat;
-        const turns = [...chat.turns];
-        turns[turns.length - 1] = {
-          ...last,
-          text: event.payload.text.slice(0, MAX_CHAT_CHARS) || last.text,
+        const matches = Boolean(last && last.id === event.payload.turnId && last.role === 'assistant');
+        // A message for a turn that was never opened still ends the run: the
+        // final iteration can be empty, and tool rounds are still streaming.
+        if (!matches) {
+          if (!chat.inflight && !chat.turns.some((turn) => turn.role === 'assistant' && turn.streaming)) {
+            return chat;
+          }
+          return { ...chat, inflight: false, turns: sealStreaming(chat.turns) };
+        }
+        const turns = sealStreaming(chat.turns);
+        const closed = [...turns];
+        const current = closed[closed.length - 1]!;
+        closed[closed.length - 1] = {
+          ...current,
+          text: event.payload.text.slice(0, MAX_CHAT_CHARS) || current.text,
           streaming: false,
           at: event.ts,
         };
-        return { ...chat, turns };
+        return { ...chat, inflight: false, turns: closed };
       });
 
     case 'chat.tool':
@@ -1584,10 +1623,23 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
     case 'chat.failed':
       return mutateChat(snapshot, event, (chat) => {
         const last = chat.turns[chat.turns.length - 1];
-        if (!last || last.id !== event.payload.turnId || last.role !== 'assistant') return chat;
-        const turns = [...chat.turns];
-        turns[turns.length - 1] = { ...last, streaming: false, error: event.payload.error, at: event.ts };
-        return { ...chat, turns };
+        const matches = Boolean(last && last.id === event.payload.turnId && last.role === 'assistant');
+        if (!matches) {
+          if (!chat.inflight && !chat.turns.some((turn) => turn.role === 'assistant' && turn.streaming)) {
+            return chat;
+          }
+          return { ...chat, inflight: false, turns: sealStreaming(chat.turns) };
+        }
+        const turns = sealStreaming(chat.turns);
+        const closed = [...turns];
+        const current = closed[closed.length - 1]!;
+        closed[closed.length - 1] = {
+          ...current,
+          streaming: false,
+          error: event.payload.error,
+          at: event.ts,
+        };
+        return { ...chat, inflight: false, turns: closed };
       });
 
     case 'chat.policy_changed':

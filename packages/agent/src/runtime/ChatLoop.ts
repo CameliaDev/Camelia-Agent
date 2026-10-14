@@ -185,6 +185,11 @@ export class ChatLoop {
     const journal = new WorkspaceJournal(paths.backups(), userTurnId, this.opts.ports.fs, this.opts.logger);
     const gate = this.gateFor(policy);
     let turnId = '';
+    let textOut = '';
+    // Set once a terminal `chat.message` / `chat.failed` has been emitted.
+    // Tool rounds are not terminal — `finally` seals the run if we returned
+    // without one (cancel mid-tool, crash before the closing message).
+    let settled = false;
 
     try {
       const safeImages = sanitizeImages(images);
@@ -205,7 +210,7 @@ export class ChatLoop {
       for (let iteration = 0; iteration < MAX_CHAT_ITERATIONS; iteration += 1) {
         turnId = newId();
         let streamed = false; // has this iteration's assistant turn been opened?
-        let textOut = '';
+        textOut = '';
         let calls: LLMToolCall[] = [];
         let streamError: ChatStreamError | undefined;
 
@@ -245,7 +250,10 @@ export class ChatLoop {
           }
           if (signal.aborted) {
             // User cancel is not a failure: keep the partial text, no chat.failed.
-            if (streamed) this.opts.bus.emit('chat.message', { turnId, role: 'assistant', text: textOut }, meta);
+            if (streamed) {
+              this.opts.bus.emit('chat.message', { turnId, role: 'assistant', text: textOut }, meta);
+              settled = true;
+            }
             return;
           }
           if (
@@ -273,13 +281,17 @@ export class ChatLoop {
           }
           this.opts.bus.emit('chat.failed', { turnId, error: streamError.message }, meta);
           this.opts.logger.error('chat turn failed', { turnId, error: streamError.message });
+          settled = true;
           return;
         }
 
         if (calls.length === 0) {
-          // Final answer for the turn.
+          // Final answer for the turn. This is the run's terminal message —
+          // tool rounds above do not emit one, so the projection closes their
+          // streaming flags here.
           this.opts.bus.emit('chat.message', { turnId, role: 'assistant', text: textOut }, meta);
           if (textOut) messages.push({ role: 'assistant', content: textOut });
+          settled = true;
           return;
         }
 
@@ -303,12 +315,25 @@ export class ChatLoop {
       // Iteration budget exhausted without a final answer.
       this.opts.bus.emit('chat.delta', { turnId, delta: '' }, meta);
       this.opts.bus.emit('chat.failed', { turnId, error: `Stopped after ${MAX_CHAT_ITERATIONS} tool iterations.` }, meta);
+      settled = true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.opts.logger.error('chat turn crashed', { error: message });
-      if (turnId) this.opts.bus.emit('chat.failed', { turnId, error: message }, meta);
+      if (turnId) {
+        this.opts.bus.emit('chat.failed', { turnId, error: message }, meta);
+        settled = true;
+      }
     } finally {
       this.active.current = undefined;
+      if (!settled) {
+        // Cancel mid-tool, or a final iteration that never opened a turn.
+        // Emitting the close is what drops `inflight` so the header can leave 思考中.
+        this.opts.bus.emit(
+          'chat.message',
+          { turnId: turnId || userTurnId, role: 'assistant', text: textOut },
+          meta,
+        );
+      }
     }
   }
 

@@ -38,6 +38,7 @@ import { NodeFs } from '../src/adapters/NodeFs.js';
 import { NodeSearch } from '../src/adapters/NodeSearch.js';
 import { NodeShell } from '../src/adapters/NodeShell.js';
 import { ChatLoop } from '../src/runtime/ChatLoop.js';
+import { initialSnapshot, reduceEvents } from '../src/view/index.js';
 
 const roots: string[] = [];
 const originalHome = process.env.CAMELIA_HOME;
@@ -227,6 +228,17 @@ describe('ChatLoop — tools under the policy gate', () => {
     // The turn closed with a normal message, not a failure.
     expect(events.at(-1)!.type).toBe('chat.message');
     expect(typesOf(events)).not.toContain('chat.failed');
+
+    // Tool rounds never emit their own chat.message. Folding the run must
+    // still clear streaming on every assistant turn and drop inflight, or the
+    // header stays on 思考中 after fs.* has already returned ok.
+    const snapshot = reduceEvents(initialSnapshot(), events);
+    expect(snapshot.chat.inflight).toBe(false);
+    const assistants = snapshot.chat.turns.filter((turn) => turn.role === 'assistant');
+    expect(assistants.length).toBeGreaterThan(0);
+    expect(assistants.every((turn) => turn.streaming === false)).toBe(true);
+    expect(assistants.at(-1)).toMatchObject({ text: 'found it', streaming: false });
+    expect(assistants.some((turn) => turn.toolCalls.some((call) => call.status === 'ok'))).toBe(true);
   });
 
   it('denies a write tool under readonly-sandbox and explains instead of failing', async () => {
