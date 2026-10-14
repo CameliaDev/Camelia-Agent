@@ -7,7 +7,7 @@
 
 import type BetterSqlite3 from 'better-sqlite3';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** V1 DDL — exported so tests can build a legacy database and exercise the V1→V2 migration. */
 export const V1_SCHEMA = `
@@ -309,6 +309,14 @@ export function migrate(db: BetterSqlite3.Database): number {
   if (current < 6) {
     db.exec(V6);
     db.pragma(`user_version = 6`);
+  }
+  if (current < 7) {
+    // Replay-safe: winding `user_version` back must not throw on a second ADD.
+    const columns = db.prepare(`PRAGMA table_info(skills)`).all() as { name: string }[];
+    if (!columns.some((column) => column.name === 'heuristic_table_version')) {
+      db.exec(`ALTER TABLE skills ADD COLUMN heuristic_table_version TEXT`);
+    }
+    db.pragma(`user_version = 7`);
   }
   return Number(db.pragma('user_version', { simple: true }) ?? SCHEMA_VERSION);
 }

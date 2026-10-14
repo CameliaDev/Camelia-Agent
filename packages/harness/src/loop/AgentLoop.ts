@@ -38,6 +38,9 @@ import { TaskStateMachine, estimateTokens, newId, phaseOf, shortId } from '@came
 import type { CognitivePolicy } from '../cognition/CognitivePolicy.js';
 import { ObserveOnlyPolicy } from '../cognition/CognitivePolicy.js';
 import { acceptancePathsOf } from '../cognition/CognitionService.js';
+import type { AdviseSession } from '../cognition/advise/session.js';
+import { createAdviseSession } from '../cognition/advise/session.js';
+import { classifyAdviseError, classifyEnvironment } from '../cognition/advise/error-class.js';
 import { buildSignature, capabilityClass, inDegreeOf } from '../cognition/signature.js';
 import type { WorkspaceJournal } from '../checkpoint/WorkspaceJournal.js';
 import type { ContextManager } from '../context/ContextManager.js';
@@ -94,9 +97,15 @@ export interface AgentLoopDeps {
   cognition?: CognitionPort;
   /**
    * Defaults to {@link ObserveOnlyPolicy}. A non-`proceed` action is emitted
-   * as `cognition.skipped` and is not applied. Phase 4 is what may apply one.
+   * as `cognition.skipped` and is not applied. `advise` mode records a ticket
+   * from {@link AdviseSession} and still does not apply it.
    */
   cognitivePolicy?: CognitivePolicy;
+  /**
+   * Phase 4 advise state. Shared across tasks when the runtime holds it, so
+   * the daily exploration budget survives a single loop. Absent in observe mode.
+   */
+  advise?: AdviseSession;
 }
 
 export interface RunOptions {
@@ -141,6 +150,8 @@ export class AgentLoop {
   private recalledMemoryIds = new Set<string>();
   /** Skip reasons already emitted for this task, so a fast plan is recorded once. */
   private readonly cognitionSkips = new Set<string>();
+  /** Created only when `advise` mode has no injected session. */
+  private ownedAdvise?: AdviseSession;
   /**
    * Tool-call records from every executed step (Iteration 24 — run record).
    * Sub-agent calls share the gateway but are not part of the parent's record.
@@ -805,6 +816,14 @@ export class AgentLoop {
         );
         this.emitScored(residual);
         this.deferAction(this.policy().afterResidual(residual, ctx));
+        if (call.status !== 'ok') {
+          await this.adviseOnMismatch(step, plan, {
+            message: call.error ?? call.name,
+            verifierId: call.id,
+            expected: { status: 'ok', tool: call.name },
+            actual: { status: 'error', tool: call.name, at: ctx.now },
+          });
+        }
       }
     } catch (error) {
       this.ctx.infra.logger.debug('cognition tool score skipped', { error: String(error) });
@@ -843,6 +862,18 @@ export class AgentLoop {
         this.emitScored(residual);
         this.deferAction(this.policy().afterResidual(residual, ctx));
       }
+      if (verdict.status === 'pass') {
+        this.adviseSession()?.noteSuccess(ctx.now);
+      } else if (verdict.status === 'fail') {
+        const acceptanceKind = step.acceptance[0]?.kind;
+        await this.adviseOnMismatch(step, plan, {
+          message: verdict.reason,
+          verifierId: verdict.stepId,
+          acceptanceKind,
+          expected: { status: 'pass', verifierId: verdict.stepId },
+          actual: { status: verdict.status, verifierId: verdict.stepId, at: ctx.now },
+        });
+      }
     } catch (error) {
       this.ctx.infra.logger.debug('cognition verdict score skipped', { error: String(error) });
     }
@@ -858,7 +889,53 @@ export class AgentLoop {
     this.ctx.infra.bus.emit('cognition.scored', { residual }, runMeta(this.ctx));
   }
 
-  /** Phase 3 records the action and does not take it. */
+  /**
+   * Phase 4 tickets are recorded and not applied. `observe` never reaches
+   * this. A pass only moves the trust window; a mismatch asks for a ticket.
+   */
+  private adviseSession(): AdviseSession | undefined {
+    if (this.deps.config.cognitionMode !== 'advise') return undefined;
+    if (!this.deps.advise && !this.ownedAdvise) this.ownedAdvise = createAdviseSession({ now: this.ctx.ports.clock.now() });
+    return this.deps.advise ?? this.ownedAdvise;
+  }
+
+  private async adviseOnMismatch(
+    step: Step,
+    plan: Plan,
+    input: {
+      message: string;
+      verifierId: string;
+      expected: Readonly<Record<string, unknown>>;
+      actual: Readonly<Record<string, unknown>>;
+      acceptanceKind?: string;
+    },
+  ): Promise<void> {
+    const session = this.adviseSession();
+    if (!session) return;
+    const signature = this.signatureFor(step, plan);
+    const degree = signature.inDegree <= 0 ? 'deg0' : signature.inDegree === 1 ? 'deg1' : 'degMany';
+    const tools = signature.toolset.length === 0 ? 'tools0' : signature.toolset.length < 3 ? 'toolsFew' : 'toolsMany';
+    const hinted = classifyEnvironment(input.message);
+    const outcome = await session.advise({
+      now: this.ctx.ports.clock.now(),
+      errorClass: classifyAdviseError(input.message, input.acceptanceKind),
+      verifierId: input.verifierId,
+      expected: input.expected,
+      actual: input.actual,
+      signature: [signature.capability, signature.archetype, signature.scope, degree, tools],
+      lastOutcome: 'failure',
+      environmentHint: hinted,
+      rollback: { type: 'file_backup', id: `step:${step.id}` },
+      probe: async () => {
+        if (hinted === 'UNKNOWN') throw Object.assign(new Error('timeout'), { timeout: true });
+        return hinted;
+      },
+      sleep: async () => {},
+    });
+    this.ctx.infra.bus.emit('cognition.advice', { ticket: outcome.ticket, metrics: outcome.metrics }, runMeta(this.ctx));
+  }
+
+  /** Phase 3 records the action and does not take it. Advise tickets are separate. */
   private deferAction(action: CognitiveAction): void {
     if (action.kind === 'proceed') return;
     this.emitCognitionSkip('action-deferred', action.kind);

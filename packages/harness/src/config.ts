@@ -88,10 +88,11 @@ export interface HarnessConfig {
    */
   runRecordDir?: string;
   /**
-   * Prediction–error loop (ARCH-COGNITION §7.4). Default `observe`: when the
-   * port is injected, record predictions and residuals and do not change a
-   * plan, a model choice, or a tool call. `off` skips the port. `advise` and
-   * `drive` are stored but not acted on until Phase 4.
+   * Prediction–error loop (ARCH-COGNITION §7.4, Phase 4 advise). Default
+   * `observe`: record predictions and residuals and do not change a plan, a
+   * model choice, or a tool call. `off` skips the port. `advise` emits a
+   * human-gated ticket and still does not change the plan. `drive` is stored
+   * and not acted on.
    */
   cognitionMode: CognitionMode;
   /** Residuals below this sample count never set surprise. */

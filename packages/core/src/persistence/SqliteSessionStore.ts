@@ -979,9 +979,11 @@ export class SqliteSessionStore implements SessionStore {
     this.db
       .prepare(
         `INSERT INTO skills (
-           memory_id, signature_key, steps_json, attempts, successes, sum_residual, last_attempt_at, updated_at
+           memory_id, signature_key, steps_json, attempts, successes, sum_residual, last_attempt_at, updated_at,
+           heuristic_table_version
          ) VALUES (
-           @memoryId, @signatureKey, @stepsJson, @attempts, @successes, @sumResidual, @lastAttemptAt, @updatedAt
+           @memoryId, @signatureKey, @stepsJson, @attempts, @successes, @sumResidual, @lastAttemptAt, @updatedAt,
+           @heuristicTableVersion
          )
          ON CONFLICT(memory_id) DO UPDATE SET
            signature_key = excluded.signature_key,
@@ -990,7 +992,8 @@ export class SqliteSessionStore implements SessionStore {
            successes = excluded.successes,
            sum_residual = excluded.sum_residual,
            last_attempt_at = excluded.last_attempt_at,
-           updated_at = excluded.updated_at`,
+           updated_at = excluded.updated_at,
+           heuristic_table_version = excluded.heuristic_table_version`,
       )
       .run({
         memoryId: skill.memoryId,
@@ -1001,6 +1004,7 @@ export class SqliteSessionStore implements SessionStore {
         sumResidual: skill.meanResidual * attempts,
         lastAttemptAt: skill.lastAttemptAt,
         updatedAt: skill.lastAttemptAt,
+        heuristicTableVersion: skill.heuristicTableVersion ?? null,
       });
   }
 
@@ -1197,6 +1201,7 @@ interface SkillRow {
   sum_residual: number;
   last_attempt_at: number | null;
   updated_at: number;
+  heuristic_table_version: string | null;
 }
 
 const CAPABILITIES = new Set<CapabilityClass>(['tool-calling', 'text-tool-calls', 'no-tools']);
@@ -1330,6 +1335,7 @@ function mapSkill(row: SkillRow): SkillRecord {
     successes: row.successes,
     meanResidual: attempts > 0 ? row.sum_residual / attempts : 0,
     lastAttemptAt: row.last_attempt_at ?? row.updated_at,
+    ...(row.heuristic_table_version ? { heuristicTableVersion: row.heuristic_table_version } : {}),
   };
 }
 

@@ -2,13 +2,15 @@
  * Right-rail observability — v8 two-tier layout (ARCH-Camelia-v8 §2.1).
  *
  * Top: system health (always visible). Bottom: diagnostics (collapsed by default).
- * Metric values may be stubbed until Phase 4 wires Router / translate telemetry.
+ * When `cognition.advice` is present the rows read that snapshot. Otherwise the
+ * panel keeps the stage-23 stub metrics so an empty run still has a health view.
  * @module
  */
 
 import { useState, type ReactNode } from 'react';
 
 import type { CognitionView, ProjectionSnapshot } from '@camelia/agent/view';
+import type { AdviseMetricsSnapshot } from '@camelia/core';
 
 import { pct } from '../lib/format.js';
 import { t } from '../i18n/strings.js';
@@ -23,6 +25,17 @@ function metric(snapshot: ProjectionSnapshot, key: string, fallback = 0): number
 function residualSpread(cognition?: CognitionView): { surprises: number; competence: number } {
   if (!cognition) return { surprises: 0, competence: 0 };
   return { surprises: cognition.surprises.length, competence: cognition.competence.length };
+}
+
+function rateOrDash(value: number | null): string {
+  if (value === null) return '—';
+  return pct(value);
+}
+
+function distribution(rows: Readonly<Record<string, number>>): string {
+  const entries = Object.entries(rows);
+  if (entries.length === 0) return '—';
+  return entries.map(([key, count]) => `${key} ${count}`).join(', ');
 }
 
 function HealthRow({ label, value, hint }: { label: string; value: string; hint?: string }): ReactNode {
@@ -41,14 +54,22 @@ export function HealthMetricsPanel(): ReactNode {
   const [diagOpen, setDiagOpen] = useState(false);
 
   const cognition = snapshot.cognition;
+  const advise: AdviseMetricsSnapshot | undefined = cognition?.advise?.metrics;
   const residual = residualSpread(cognition);
 
-  const humanGatePass = metric(snapshot, 'human_gate.pass_rate', 1);
-  const escalations = metric(snapshot, 'human_gate.escalations');
-  const routerA = metric(snapshot, 'router.track_a_hits');
-  const routerB = metric(snapshot, 'router.track_b_hits');
-  const translateReject = metric(snapshot, 'translate.reject_rate');
-  const skillDaily = metric(snapshot, 'skillrecord.daily_added', cognition?.strategies.length ?? 0);
+  const humanGatePass = advise ? advise.health.gatePassRate : metric(snapshot, 'human_gate.pass_rate', 1);
+  const escalations = advise
+    ? `${advise.health.gateRaisesAuto}+${advise.health.gateRaisesManual}`
+    : String(metric(snapshot, 'human_gate.escalations'));
+  const residualValue = advise
+    ? distribution(advise.health.residualDistribution)
+    : `${residual.surprises} / ${residual.competence}`;
+  const routerA = advise ? advise.diagnostic.routerHitsA : metric(snapshot, 'router.track_a_hits');
+  const routerB = advise ? advise.diagnostic.routerHitsB : metric(snapshot, 'router.track_b_hits');
+  const translateReject = advise ? advise.diagnostic.translateRejectRate : metric(snapshot, 'translate.reject_rate');
+  const skillDaily = advise
+    ? advise.diagnostic.skillRecordsToday
+    : metric(snapshot, 'skillrecord.daily_added', cognition?.strategies.length ?? 0);
 
   return (
     <div data-panel-health className="space-y-0">
@@ -57,15 +78,21 @@ export function HealthMetricsPanel(): ReactNode {
         <dl className="space-y-0 px-3 pb-3">
           <HealthRow
             label={tr('health.humanGatePass')}
-            value={pct(humanGatePass)}
+            value={rateOrDash(humanGatePass)}
             hint={tr('health.humanGatePass.hint')}
           />
           <HealthRow
             label={tr('health.residualSpread')}
-            value={`${residual.surprises} / ${residual.competence}`}
+            value={residualValue}
             hint={tr('health.residualSpread.hint')}
           />
-          <HealthRow label={tr('health.escalations')} value={String(escalations)} />
+          <HealthRow label={tr('health.escalations')} value={escalations} />
+          {advise ? (
+            <HealthRow
+              label={tr('health.trust')}
+              value={`${advise.trust.level} · ${advise.trust.mode} · ${advise.trust.successStreak}`}
+            />
+          ) : null}
         </dl>
       </section>
 
@@ -88,7 +115,7 @@ export function HealthMetricsPanel(): ReactNode {
           <dl className="space-y-0 px-3 pb-3" data-health-diagnostics>
             <HealthRow label={tr('health.routerA')} value={String(routerA)} />
             <HealthRow label={tr('health.routerB')} value={String(routerB)} />
-            <HealthRow label={tr('health.translateReject')} value={pct(translateReject)} />
+            <HealthRow label={tr('health.translateReject')} value={rateOrDash(translateReject)} />
             <HealthRow label={tr('health.skillDaily')} value={String(skillDaily)} />
             {cognition?.skipped.length ? (
               <HealthRow label={tr('health.cognitionSkipped')} value={String(cognition.skipped.length)} />

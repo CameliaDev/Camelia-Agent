@@ -164,6 +164,11 @@ export interface SkillRecord {
   /** Mean residual of this strategy under its own signature. */
   readonly meanResidual: number;
   readonly lastAttemptAt: Timestamp;
+  /**
+   * Heuristic table that produced this row (v8). Absent on Phase 0–3 rows and
+   * on databases that have not stored a version yet.
+   */
+  readonly heuristicTableVersion?: string;
 }
 
 /**

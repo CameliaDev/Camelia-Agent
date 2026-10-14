@@ -127,6 +127,8 @@ ui  →  agent  →  harness  →  core
 
 当前壳层见 [`docs/SHELL-UX.md`](docs/SHELL-UX.md)。设计意图见 [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md)，产品/工程方向见 [`docs/CAMELIA-ROADMAP.md`](docs/CAMELIA-ROADMAP.md)，迭代记录见 [`docs/ITERATION_LOG.md`](docs/ITERATION_LOG.md)，验收数据见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)，代码实现速查见 [`docs/CODE-SUMMARY.md`](docs/CODE-SUMMARY.md)。
 
+认知 Phase 4 的冻结规格是 [`docs/ARCH-Camelia-v7.md`](docs/ARCH-Camelia-v7.md)（开工锁）加 [`docs/ARCH-Camelia-v8.md`](docs/ARCH-Camelia-v8.md)（体验/运维）。实现顺序见 [`docs/PHASE4-SPEC.md`](docs/PHASE4-SPEC.md)，阶段计划见 [`docs/ROADMAP-30-PHASES.md`](docs/ROADMAP-30-PHASES.md)，落地与打脸记录见 [`docs/PROGRESS.md`](docs/PROGRESS.md)。架构停在 v7+v8，不再另开 v9 叙事。
+
 ## 技术栈
 
 Tauri 2.x · React 19 · Vite · Tailwind v4 · TypeScript strict · Zustand · Monaco · xterm.js · better-sqlite3 · Turborepo + pnpm workspace。

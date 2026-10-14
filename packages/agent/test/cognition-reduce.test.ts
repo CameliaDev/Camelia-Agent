@@ -81,4 +81,42 @@ describe('reduceEvents cognition', () => {
     expect(snapshot.cognition?.surprises[0]?.actionKind).toBe('proceed');
     expect(snapshot.timeline.map((entry) => entry.type)).toEqual(events.map((event) => event.type));
   });
+
+  it('folds an advise ticket into the two-tier metrics and not into the task', () => {
+    const snapshot = reduceEvents(initialSnapshot(), [
+      env('cognition.advice', {
+        ticket: {
+          id: 'advise-1',
+          disposition: 'pending_human',
+          errorClass: 'test',
+          verifierId: 'ver-1',
+          environment: 'OK',
+          environmentDegraded: false,
+          batchedUnknown: false,
+          environmentAttempts: 1,
+          candidates: ['rerun_verifier', 'consult_docs'],
+          routerSource: 'table',
+          heuristicTableVersion: '1.0.0',
+          ranked: false,
+          rankOrder: ['rerun_verifier', 'consult_docs'],
+          conflict: false,
+          explored: false,
+          gate: 'L2',
+          gateMode: 'auto',
+          diffEqual: false,
+          skillWritten: false,
+        },
+        metrics: {
+          health: { gatePassRate: 0, residualDistribution: { test: 1 }, gateRaisesAuto: 0, gateRaisesManual: 0 },
+          diagnostic: { routerHitsA: 1, routerHitsB: 0, translateRejectRate: 0, skillRecordsToday: 0 },
+          trust: { level: 'L2', mode: 'auto', successStreak: 0 },
+        },
+      }, 50),
+    ]);
+    expect(snapshot.task).toBeUndefined();
+    expect(snapshot.cognition?.advise?.latest).toMatchObject({ id: 'advise-1', disposition: 'pending_human', gate: 'L2' });
+    expect(snapshot.cognition?.advise?.metrics.health.residualDistribution).toEqual({ test: 1 });
+    expect(snapshot.cognition?.advise?.metrics.diagnostic.routerHitsA).toBe(1);
+    expect(snapshot.timeline[0]?.summary).toContain('pending_human');
+  });
 });

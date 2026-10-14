@@ -2,7 +2,7 @@
 
 > 生成：2026-10-15 · Asia/Shanghai  
 > 架构冻结：**ARCH-Camelia-v7 + v8**（不再加 v9 叙事）  
-> 当前主仓：已合 PR #4–#12；认知 Phase 0–3 有，**Phase 4 未合拢**  
+> 当前主仓：已合 PR #4–#15（`23cf614` 阶段 20–23，`603c45e` 阶段 15–19）。Phase 4 advise（阶段 9–14）在本分支，并复用主仓的回滚校验与健康面板。打脸记录见 `docs/PROGRESS.md`。
 > 原则：每阶段有验收；门禁未过不进下一阶段；文档与代码同 PR 更新
 
 ## 进度图例
@@ -29,18 +29,18 @@
 
 ---
 
-## 波次 B · Phase 4 合拢（阶段 9–14）🔧 本轮核心
+## 波次 B · Phase 4 合拢（阶段 9–14）✅ 本轮已落地
 
-规格：`docs/ARCH-Camelia-v7.md` + `v8.md`
+规格：`docs/ARCH-Camelia-v7.md` + `v8.md`。实现笔记与未执行项：`docs/PROGRESS.md`。
 
-| # | 阶段 | 关键交付 | 验收 |
-|---|------|----------|------|
-| 9 | 环境检查三态 | OK/FAIL/UNKNOWN；超时重试；日志；UNKNOWN×3→FAIL；批量确认 | 假阴/阳可查；不弹窗地狱 |
-| 10 | errorClass 枚举 + 硬门 ObservedValue | 枚举封印；测/型/沙箱硬门；软门 lint；关键字段 diff | Residual 结构化 |
-| 11 | 最小 Residual Router（轨 A） | 外置 YAML/JSON+version；未知兜底；environment_ok 前置 | 永不无候选卡死 |
-| 12 | translate() Schema v1.0 | 无状态；上下文封顶；非法 Reject；回滚点校验 | 拒单不写 SkillRecord |
-| 13 | 分级人闸 L0–L3 + 信任窗口 | UI 可见；手动覆盖；降闸重置连成；升闸=结构化连败 M≈3 | 右轨健康三指标 |
-| 14 | 轨 B 排序 + 探索预算 + SkillRecord | B 只排序；组≥20 开统计；全局日探索≤50；记 heuristic_table_version | 双轨指标可见 |
+| # | 阶段 | 关键交付 | 验收 | 状态 |
+|---|------|----------|------|------|
+| 9 | 环境检查三态 | OK/FAIL/UNKNOWN；超时重试；日志；UNKNOWN×3→FAIL；批量确认 | 假阴/阳可查；不弹窗地狱 | ✅ |
+| 10 | errorClass 枚举 + 硬门 ObservedValue | 枚举封印；测/型/沙箱硬门；软门 lint；关键字段 diff | Residual 结构化 | ✅ |
+| 11 | 最小 Residual Router（轨 A） | 外置 YAML/JSON+version；未知兜底；environment_ok 前置 | 永不无候选卡死 | ✅ |
+| 12 | translate() Schema v1.0 | 无状态；上下文封顶；非法 Reject；回滚点校验 | 拒单不写 SkillRecord | ✅ |
+| 13 | 分级人闸 L0–L3 + 信任窗口 | UI 可见；手动覆盖；降闸重置连成；升闸=结构化连败 M≈3 | 右轨健康三指标 | ✅ |
+| 14 | 轨 B 排序 + 探索预算 + SkillRecord | B 只排序；组≥20 开统计；全局日探索≤50；记 heuristic_table_version | 双轨指标可见 | ✅ |
 
 ---
 
@@ -61,9 +61,9 @@
 
 | # | 阶段 | 关键交付 | 验收 |
 |---|------|----------|------|
-| 21 | 硬门写记忆门卫 | 仅硬门通过写入 | 失败不污染记忆 ✅（stub） |
-| 22 | ErrorRecovery / rollback 机器可读 | 四枚举校验+执行 | 拒单/可回滚 ✅（校验+stub） |
-| 23 | 右轨两层指标面板 | 上健康/下折叠诊断 | v8 指标齐全 ✅ |
+| 21 | 硬门写记忆门卫 | 仅硬门通过写入 | 失败不污染记忆 ✅（advise 经 mayWriteMemoryFromVerifier；仅硬门成功写 SkillRecord） |
+| 22 | ErrorRecovery / rollback 机器可读 | 四枚举校验+执行 | 拒单/可回滚 ✅（校验复用；执行仍为 stub） |
+| 23 | 右轨两层指标面板 | 上健康/下折叠诊断 | v8 指标齐全 ✅（Health 面板；有 cognition.advice 时读真数） |
 | 24 | 项目认知库仓雏形 | CameliaDev/camelia-cognition + 能力分路由钩子 | 本地可读目录 |
 
 ---

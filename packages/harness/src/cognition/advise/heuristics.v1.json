@@ -1,0 +1,77 @@
+{
+  "heuristic_table_version": "1.0.0",
+  "rules": [
+    {
+      "id": "test-ok",
+      "errorClass": "test",
+      "environment": "OK",
+      "priority": 30,
+      "enabled": true,
+      "candidates": ["rerun_verifier", "consult_docs", "rollback"]
+    },
+    {
+      "id": "type-ok",
+      "errorClass": "type",
+      "environment": "OK",
+      "priority": 30,
+      "enabled": true,
+      "candidates": ["rerun_verifier", "consult_docs"]
+    },
+    {
+      "id": "sandbox-ok",
+      "errorClass": "sandbox",
+      "environment": "OK",
+      "priority": 20,
+      "enabled": true,
+      "candidates": ["escalate_human", "rollback"]
+    },
+    {
+      "id": "lint-ok",
+      "errorClass": "lint",
+      "environment": "OK",
+      "priority": 10,
+      "enabled": true,
+      "candidates": ["consult_docs", "rerun_verifier"]
+    },
+    {
+      "id": "env-fail",
+      "errorClass": "env",
+      "environment": "FAIL",
+      "priority": 40,
+      "enabled": true,
+      "candidates": ["repair_environment", "escalate_human"]
+    },
+    {
+      "id": "tool-ok",
+      "errorClass": "tool",
+      "environment": "OK",
+      "priority": 20,
+      "enabled": true,
+      "candidates": ["rollback", "consult_docs"]
+    },
+    {
+      "id": "model-ok",
+      "errorClass": "model",
+      "environment": "OK",
+      "priority": 20,
+      "enabled": true,
+      "candidates": ["rerun_verifier", "escalate_human"]
+    },
+    {
+      "id": "policy-ok",
+      "errorClass": "policy",
+      "environment": "OK",
+      "priority": 20,
+      "enabled": true,
+      "candidates": ["escalate_human", "consult_docs"]
+    },
+    {
+      "id": "contract-ok",
+      "errorClass": "contract",
+      "environment": "OK",
+      "priority": 20,
+      "enabled": true,
+      "candidates": ["narrow_diff", "consult_docs", "rollback"]
+    }
+  ]
+}
