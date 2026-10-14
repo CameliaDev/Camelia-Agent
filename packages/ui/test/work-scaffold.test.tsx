@@ -4,7 +4,7 @@
  * @module
  */
 
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { App } from '../src/App.js';
@@ -40,6 +40,7 @@ describe('Work plan / goal scaffold', () => {
     const { container, sent } = renderEmpty();
     fireEvent.click(container.querySelector('[data-work-posture-tab="plan"]') as HTMLElement);
     expect(container.querySelector('[data-work-posture="plan"]')).not.toBeNull();
+    expect(container.querySelector('[data-composer-team]')).not.toBeNull();
     const empty = container.querySelector('[data-work-plan-empty]');
     expect(empty).not.toBeNull();
     expect(empty?.textContent ?? '').not.toMatch(/no plans|no plan|没有计划|还没有计划/i);
@@ -84,5 +85,20 @@ describe('Work plan / goal scaffold', () => {
     const chat = sent.find((command) => command.type === 'chat_message');
     expect(chat?.payload.folders).toEqual([{ name: 'notes', path: '/workspace/notes' }]);
     expect(sent.some((command) => command.type === 'submit_task')).toBe(false);
+  });
+
+  it('keeps the team toggle in plan posture and still starts a team run', async () => {
+    const { container, sent } = renderEmpty();
+    fireEvent.click(container.querySelector('[data-work-posture-tab="plan"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-composer-team]') as HTMLElement);
+    fireEvent.change(composer(container), { target: { value: 'ship the notes' } });
+    fireEvent.keyDown(composer(container), { key: 'Enter' });
+    await waitFor(() => {
+      expect(sent.some((command) => command.type === 'submit_term')).toBe(true);
+    });
+    expect(sent.some((command) => command.type === 'save_work_plan')).toBe(false);
+    expect(
+      sent.some((command) => command.type === 'new_session' && (command.payload as { kind?: string }).kind === 'term'),
+    ).toBe(true);
   });
 });
