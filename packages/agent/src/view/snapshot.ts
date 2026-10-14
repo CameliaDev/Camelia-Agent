@@ -25,6 +25,8 @@ import type {
   MemoryItem,
   MemoryKind,
   MemoryLayer,
+  AdviceTicket,
+  AdviseMetricsSnapshot,
   Prediction,
   Residual,
   RiskLevel,
@@ -440,7 +442,22 @@ export interface CognitionView {
    * Learned strategies (经验 / 已学策略) from `cognition.skill_updated`.
    * Not installed SKILL.md packages.
    */
-  strategies: { memoryId: Id; signatureKey: string; attempts: number; successes: number; meanResidual: number; at: number }[];
+  strategies: { memoryId: Id; signatureKey: string; attempts: number; successes: number; meanResidual: number; heuristicTableVersion?: string; at: number }[];
+  /**
+   * Phase 4 two-tier metrics. Absent until `cognition.advice` arrives, so the
+   * rail does not invent a pass rate.
+   */
+  advise?: {
+    metrics: AdviseMetricsSnapshot;
+    latest: {
+      id: string;
+      disposition: AdviceTicket['disposition'];
+      errorClass: string;
+      gate: string;
+      gateMode: string;
+      at: number;
+    };
+  };
 }
 
 export interface WorkPlanView {
@@ -771,6 +788,8 @@ function summarise(event: DomainEvent): string {
       return `learned strategy ${(p.skill as { signatureKey?: string } | undefined)?.signatureKey ?? ''}`;
     case 'cognition.skipped':
       return `cognition skipped (${String(p.reason)})`;
+    case 'cognition.advice':
+      return `advise ${(p.ticket as { disposition?: string } | undefined)?.disposition ?? ''} ${(p.ticket as { errorClass?: string } | undefined)?.errorClass ?? ''}`;
     case 'work.mode_set':
       return `work posture ${String(p.posture)}`;
     case 'work.plan_saved':
@@ -844,6 +863,7 @@ function strategyView(skill: SkillRecord, at: number): CognitionView['strategies
     attempts: skill.attempts,
     successes: skill.successes,
     meanResidual: skill.meanResidual,
+    ...(skill.heuristicTableVersion ? { heuristicTableVersion: skill.heuristicTableVersion } : {}),
     at,
   };
 }
@@ -1562,6 +1582,21 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
           ...(event.payload.detail ? { detail: event.payload.detail } : {}),
           at: event.ts,
         }),
+      }));
+    case 'cognition.advice':
+      return withCognition(snapshot, event, (cog) => ({
+        ...cog,
+        advise: {
+          metrics: event.payload.metrics,
+          latest: {
+            id: event.payload.ticket.id,
+            disposition: event.payload.ticket.disposition,
+            errorClass: event.payload.ticket.errorClass,
+            gate: event.payload.ticket.gate,
+            gateMode: event.payload.ticket.gateMode,
+            at: event.ts,
+          },
+        },
       }));
 
     // ---- Chat (direct conversation path) ---------------------------------

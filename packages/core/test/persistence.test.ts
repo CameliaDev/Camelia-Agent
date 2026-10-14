@@ -542,7 +542,7 @@ describe('migration', () => {
 
       const migrated = new SqliteSessionStore(file);
       expect(Number(migrated.raw.pragma('user_version', { simple: true }))).toBe(SCHEMA_VERSION);
-      expect(SCHEMA_VERSION).toBe(6);
+      expect(SCHEMA_VERSION).toBe(7);
       expect((await migrated.getSession('s-v5'))?.title).toBe('legacy');
       expect((await migrated.getMemory('mem-v5'))?.content).toBe('keep the rollback note');
       expect((await migrated.listEvents({ sessionId: 's-v5' })).map((event) => event.type)).toEqual(['log']);
@@ -627,11 +627,23 @@ describe('migration', () => {
         meanResidual: 0.25,
         steps: ['read', 'edit', 'verify'],
       });
+      expect((await migrated.getLearnedSkill('mem-v5'))?.heuristicTableVersion).toBeUndefined();
+      await migrated.upsertLearnedSkill({
+        memoryId: 'mem-v5',
+        steps: ['read', 'edit', 'verify'],
+        signatureKey: 'tool-calling|edit|few-files|*',
+        attempts: 4,
+        successes: 3,
+        meanResidual: 0.2,
+        lastAttemptAt: 43,
+        heuristicTableVersion: '1.0.0',
+      });
+      expect((await migrated.getLearnedSkill('mem-v5'))?.heuristicTableVersion).toBe('1.0.0');
 
-      // Replaying V6 after the version is wound back must not throw or drop rows.
+      // Replaying V6+V7 after the version is wound back must not throw or drop rows.
       migrated.raw.pragma('user_version = 5');
-      expect(migrate(migrated.raw)).toBe(6);
-      expect(migrate(migrated.raw)).toBe(6);
+      expect(migrate(migrated.raw)).toBe(7);
+      expect(migrate(migrated.raw)).toBe(7);
       expect(await migrated.getPrediction('pred-v6')).toBeTruthy();
       expect((await migrated.getMemory('mem-v5'))?.content).toBe('keep the rollback note');
 

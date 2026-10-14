@@ -579,6 +579,7 @@ type StringKey =
   | 'health.translateReject'
   | 'health.skillDaily'
   | 'health.cognitionSkipped'
+  | 'health.trust'
   | 'team.title'
   | 'composer.team'
   | 'composer.dropFolder'
@@ -1147,15 +1148,16 @@ const en: Record<StringKey, string> = {
   'health.tier.system': 'System health',
   'health.tier.diagnostics': 'Diagnostics',
   'health.humanGatePass': 'Human gate pass rate',
-  'health.humanGatePass.hint': 'Share of human gates approved (stub until Phase 4 telemetry).',
+  'health.humanGatePass.hint': 'Share of presented human gates that passed. Reads cognition.advice when present.',
   'health.residualSpread': 'Residual signals',
-  'health.residualSpread.hint': 'Surprises / competence rows from cognition projection.',
+  'health.residualSpread.hint': 'Structured residuals by error class when advise is present; otherwise surprise / competence counts.',
   'health.escalations': 'Gate escalations',
   'health.routerA': 'Router track A hits',
   'health.routerB': 'Router track B hits',
   'health.translateReject': 'translate reject rate',
   'health.skillDaily': 'SkillRecord daily adds',
   'health.cognitionSkipped': 'Cognition skipped',
+  'health.trust': 'Trust window',
   'team.title': 'Team orchestration',
   'composer.team': 'Team',
   'composer.dropFolder': 'Drop a folder to attach it',
@@ -1725,15 +1727,16 @@ const zh: Record<StringKey, string> = {
   'health.tier.system': '系统健康',
   'health.tier.diagnostics': '诊断（折叠）',
   'health.humanGatePass': '人闸通过率',
-  'health.humanGatePass.hint': '人闸批准占比（Phase 4 接真数据前为占位）。',
+  'health.humanGatePass.hint': '已出示人闸中通过的占比。有 cognition.advice 时读真数。',
   'health.residualSpread': '残差信号',
-  'health.residualSpread.hint': '认知投影中的惊奇 / 能力行数。',
+  'health.residualSpread.hint': '有建议票据时按 errorClass 计结构化残差，否则为惊奇 / 能力行数。',
   'health.escalations': '升闸次数',
   'health.routerA': 'Router 轨 A 命中',
   'health.routerB': 'Router 轨 B 命中',
   'health.translateReject': 'translate 拒绝率',
   'health.skillDaily': 'SkillRecord 日增',
   'health.cognitionSkipped': '认知跳过',
+  'health.trust': '信任窗口',
   'team.title': '团队编排',
   'composer.team': '团队',
   'composer.dropFolder': '拖入文件夹即可附着',

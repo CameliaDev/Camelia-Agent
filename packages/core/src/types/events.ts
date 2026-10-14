@@ -7,6 +7,7 @@
  */
 
 import type { Id, JsonValue, Timestamp } from './common.js';
+import type { AdviceTicket, AdviseMetricsSnapshot } from './advise.js';
 import type {
   CognitionMode,
   CognitiveAction,
@@ -294,6 +295,11 @@ export interface DomainEventMap {
   'cognition.skill_updated': { skill: SkillRecord };
   /** 机制被跳过时的如实记录——与 selfreview.skipped 同款纪律。 */
   'cognition.skipped': { reason: string; detail?: string };
+  /**
+   * Phase 4 advise ticket. Recording it does not mean the loop applied it.
+   * `metrics` is the cumulative two-tier snapshot after this ticket.
+   */
+  'cognition.advice': { ticket: AdviceTicket; metrics: AdviseMetricsSnapshot };
 
   // ---- Observability passthrough -------------------------------------------
   'log': { level: 'debug' | 'info' | 'warn' | 'error'; message: string; meta?: JsonValue };

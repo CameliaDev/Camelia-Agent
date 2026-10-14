@@ -55,6 +55,7 @@ import {
   Clarifier,
   CognitionService,
   ContextManager,
+  createAdviseSession,
   connectAll,
   disconnectAll,
   DriftDetector,
@@ -415,6 +416,11 @@ export class CameliaRuntime {
   private readonly mcpClients: McpClient[] = [];
   private controller = new AbortController();
   private activeLoop?: AgentLoop;
+  /**
+   * Phase 4 advise state for this process. The daily exploration budget and
+   * the trust window live here, not on a single task loop.
+   */
+  private readonly adviseSession = createAdviseSession();
   /** The chat path (对话 mode): direct conversation, never a task. */
   private readonly chatLoop: ChatLoop;
   private readonly planGate = new PlanGate();
@@ -1111,6 +1117,7 @@ export class CameliaRuntime {
                 logger: this.logger,
               }),
         cognitivePolicy: this.harnessConfig.cognitionMode === 'off' ? undefined : new ObserveOnlyPolicy(),
+        advise: this.harnessConfig.cognitionMode === 'advise' ? this.adviseSession : undefined,
         memory: new MemoryService({
           store: this.store,
           bus: this.bus,

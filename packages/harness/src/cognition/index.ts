@@ -58,6 +58,25 @@ export type {
 
 export { syntheticCognitionCorpus } from './synthetic-corpus.js';
 
+export {
+  AdviseSession,
+  EnvironmentLedger,
+  canExplore,
+  checkEnvironment,
+  classifyAdviseError,
+  classifyEnvironment,
+  createAdviseSession,
+  criticalDiff,
+  defaultHeuristicTable,
+  parseHeuristicTable,
+  routeA,
+  routeB,
+  translate,
+  validateRollback,
+  validateTranslated,
+} from './advise/index.js';
+export type { AdviseInput, AdviseOutcome, HeuristicTable } from './advise/index.js';
+
 export { parseTranslateActionV1 } from './translate-schema.js';
 export { mayWriteMemoryFromVerifier } from './memory-write-gate.js';
 export type { MemoryWriteGateInput, MemoryWriteGateResult } from './memory-write-gate.js';

@@ -1028,9 +1028,10 @@ ui ──> agent ──> harness ──> core
 
 ### Phase 4 · 策略生效（`advise` 模式）
 
-- 接上 `add-verification` / `split-step` / `use-decision-model`；
-- **先修 §6.3 的两个既有缺口**（`ErrorRecovery` 梯子、`rollback` 参数）；
-- 验收：能构造出让策略返回非 `proceed` 的测试用例；关闭机制后行为回到 Phase 3 基线。
+> 开工规格已冻结为 [`ARCH-Camelia-v7.md`](ARCH-Camelia-v7.md) + [`ARCH-Camelia-v8.md`](ARCH-Camelia-v8.md)（2026-10-14）。本节原来的 `add-verification` / `split-step` 叙述不再扩展。实现、验收与打脸记录见 [`PROGRESS.md`](PROGRESS.md) 与 [`PHASE4-SPEC.md`](PHASE4-SPEC.md)。
+
+- 接上 advise 票据（人闸默认，不改计划、不执行回滚）；
+- 关闭机制（`observe` / `off`）后行为回到 Phase 3 基线。
 
 ### Phase 5 · UI 面板 + 胜任度
 
