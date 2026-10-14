@@ -473,7 +473,12 @@ export class FixtureTransport implements Transport {
         const turnId = `turn_${(this.sent.length * 6151 + 2749).toString(16)}`;
         const answer =
           '这是对话模式的直答回复（offline fixture）。真实引擎在这里流式输出模型回复，并按所选权限策略使用工具。';
-        this.push('chat.received', { turnId, text: command.payload.text, ...(command.payload.images?.length ? { images: command.payload.images } : {}) });
+        const folders = command.payload.folders ?? [];
+        const folderNote = folders.length
+          ? `\n\nAttached folders:\n${folders.map((folder) => `- ${folder.name}${folder.path ? ` (${folder.path})` : ''}`).join('\n')}`
+          : '';
+        const text = `${command.payload.text}${folderNote}`;
+        this.push('chat.received', { turnId, text, ...(command.payload.images?.length ? { images: command.payload.images } : {}) });
         this.push('chat.delta', { turnId, delta: answer.slice(0, 18) });
         this.push('chat.delta', { turnId, delta: answer.slice(18) });
         this.push('chat.message', { turnId, role: 'assistant', text: answer });
@@ -484,6 +489,22 @@ export class FixtureTransport implements Transport {
         return;
       case 'chat_cancel':
         return;
+      case 'set_work_posture':
+        this.push('work.mode_set', { posture: command.payload.posture });
+        return;
+      case 'save_work_plan': {
+        const id = `wpl_${(this.sent.length * 7919).toString(16)}`;
+        this.push('work.plan_saved', {
+          id,
+          sessionId: command.payload.sessionId,
+          mode: command.payload.mode,
+          title: command.payload.title,
+          goal: command.payload.goal,
+          constraints: command.payload.constraints,
+          body: command.payload.body,
+        });
+        return;
+      }
       case 'list_predictions':
         // No predictions in the fixture. An empty list is the honest empty state.
         this.answer(command.commandId, []);

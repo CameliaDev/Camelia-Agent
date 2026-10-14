@@ -5,7 +5,8 @@
  * ToolEngine with built-in tools against a temp workspace, a real in-memory
  * SQLite session store and a real event bus. What is asserted is the event
  * family the UI transcript folds on — a chat turn must never enter the task
- * state machine (no clarify, no plan, no steps, no acceptance).
+ * state machine (no clarify, no approval gate, no steps, no acceptance).
+ * The short plan lives in the system prompt, not in `plan.*` events.
  * @module
  */
 
@@ -90,7 +91,13 @@ function scriptedLLM(turns: ScriptedTurn[]) {
 
 // ---------------------------------------------------------------------------
 
-async function makeLoop(llm: LLMPort, options: { responder?: ApprovalResponder } = {}) {
+async function makeLoop(
+  llm: LLMPort,
+  options: {
+    responder?: ApprovalResponder;
+    delegate?: (input: { sessionId: string; goal: string; constraints: string[]; signal: AbortSignal }) => Promise<string>;
+  } = {},
+) {
   const workspace = tempDir('camelia-chat-ws-');
   const store = new SqliteSessionStore(':memory:');
   const session = await store.createSession({
@@ -126,6 +133,7 @@ async function makeLoop(llm: LLMPort, options: { responder?: ApprovalResponder }
     fallback: llm,
     model: 'scripted',
     responder: options.responder,
+    ...(options.delegate ? { delegate: options.delegate } : {}),
   });
   return { loop, events, store, session, workspace };
 }
@@ -428,5 +436,63 @@ describe('ChatLoop — history window', () => {
     expect(second.messages[3]?.content).toBe('question two');
     // The window is capped: oldest messages drop, and a tool result never leads.
     expect(second.messages.length).toBeLessThanOrEqual(41);
+  });
+});
+
+describe('ChatLoop — think, then plan, then tools', () => {
+  it('tells the model to think before tools and drops the anti-planning line', async () => {
+    const llm = scriptedLLM([{ chunks: [{ type: 'text-delta', text: 'ok' }] }]);
+    const { loop, session } = await makeLoop(llm);
+    await loop.chat(session.id, 'rename the readme', 'ask');
+    const system = String(llm.requests[0]?.messages[0]?.content ?? '');
+    expect(system).toContain('Think before you act');
+    expect(system).toContain('short plan');
+    expect(system).toContain('constraints');
+    expect(system.toLowerCase()).not.toContain('no plans');
+    expect(system).not.toContain('No goal restatement');
+    expect(system).not.toContain('禁止规划');
+  });
+
+  it('delegates to sub-AIs without opening the task machine', async () => {
+    const llm = scriptedLLM([
+      {
+        chunks: [
+          {
+            type: 'tool-call',
+            call: {
+              id: 'call_team',
+              name: 'invoke_subagents',
+              arguments: { goal: 'split the notes', constraints: ['keep the title'] },
+            },
+          },
+        ],
+      },
+      { chunks: [{ type: 'text-delta', text: 'Workers finished.' }] },
+    ]);
+    let seen: { goal: string; constraints: string[] } | undefined;
+    const { loop, events, session } = await makeLoop(llm, {
+      delegate: async (input) => {
+        seen = { goal: input.goal, constraints: input.constraints };
+        return 'writer ok';
+      },
+    });
+    await loop.chat(session.id, 'please split this', 'readonly-sandbox');
+    expect(seen).toEqual({ goal: 'split the notes', constraints: ['keep the title'] });
+    expect(events.some((event) => /^(task|plan|step|clarify|verify)\./.test(event.type))).toBe(false);
+    const toolMsg = llm.requests[1]!.messages.find((message) => message.role === 'tool');
+    expect(toolMsg?.content).toBe('writer ok');
+    expect(events.at(-1)!.type).toBe('chat.message');
+  });
+
+  it('attaches dropped folders to the user turn the model sees', async () => {
+    const llm = scriptedLLM([{ chunks: [{ type: 'text-delta', text: 'seen' }] }]);
+    const { loop, events, session } = await makeLoop(llm);
+    await loop.chat(session.id, 'read this', 'readonly-sandbox', undefined, undefined, [
+      { name: 'notes', path: '/workspace/notes' },
+    ]);
+    const received = payloads(events, 'chat.received')[0] as { text: string };
+    expect(received.text).toContain('Attached folders:');
+    expect(received.text).toContain('notes (/workspace/notes)');
+    expect(String(llm.requests[0]?.messages[1]?.content)).toContain('/workspace/notes');
   });
 });

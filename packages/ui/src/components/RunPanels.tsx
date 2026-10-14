@@ -164,7 +164,9 @@ export function StepsSection({ task }: { task: TaskView }): ReactNode {
       />
       <div className="px-3 pb-3">
         {task.steps.length === 0 ? (
-          <p className="text-[11.5px] text-ink-3">No plan yet — the planner has not returned.</p>
+          <p className="text-[11.5px] text-ink-3" data-steps-empty>
+            {tr('run.steps.pending')}
+          </p>
         ) : (
           <ol data-rail-steps className="space-y-1">
             {task.steps.map((step) => {

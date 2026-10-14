@@ -70,6 +70,13 @@ export * from './team/assign-roles.js';
 export * from './team/plan.js';
 export * from './team/TeamOrchestrator.js';
 
+// ---- work mode (token gate + sub-AI delegation) ----------------------------
+export * from './work/WorkTokenGate.js';
+export * from './work/thought.js';
+export * from './work/collect.js';
+export * from './work/gated-worker.js';
+export * from './work/WorkDelegation.js';
+
 // ---- memory lifecycle (Iteration 20) ---------------------------------------
 export * from './memory/MemoryService.js';
 export * from './memory/value.js';

@@ -443,11 +443,33 @@ export interface CognitionView {
   strategies: { memoryId: Id; signatureKey: string; attempts: number; successes: number; meanResidual: number; at: number }[];
 }
 
+export interface WorkPlanView {
+  id: Id;
+  sessionId: Id;
+  mode: 'plan' | 'goal';
+  title: string;
+  goal: string;
+  constraints: string[];
+  body: string;
+  at: number;
+}
+
+export interface WorkView {
+  posture: 'chat' | 'plan' | 'goal';
+  plans: WorkPlanView[];
+}
+
 export interface ProjectionSnapshot {
   session?: SessionView;
   task?: TaskView;
   /** Direct-conversation path (对话 mode) — independent of `task`. */
   chat: ChatView;
+  /**
+   * Work scaffold: posture plus saved plan/goal notes.
+   * Omitted until a `work.*` event arrives, so an empty chat is not dressed up
+   * as "no plans".
+   */
+  work?: WorkView;
   provider: ProviderView;
   metrics: Record<string, number>;
   /**
@@ -749,6 +771,14 @@ function summarise(event: DomainEvent): string {
       return `learned strategy ${(p.skill as { signatureKey?: string } | undefined)?.signatureKey ?? ''}`;
     case 'cognition.skipped':
       return `cognition skipped (${String(p.reason)})`;
+    case 'work.mode_set':
+      return `work posture ${String(p.posture)}`;
+    case 'work.plan_saved':
+      return `saved ${String(p.mode)} ${String(p.title)}`;
+    case 'work.delegated':
+      return `sub-AIs ${String(p.workers)} handed back ${String(p.handedBack)}`;
+    case 'work.token':
+      return `token ${String(p.status)} ${String(p.holderId)}`;
     default:
       return '';
   }
@@ -1644,6 +1674,47 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
 
     case 'chat.policy_changed':
       return mutateChat(snapshot, event, (chat) => ({ ...chat, policy: event.payload.policy }));
+
+    case 'work.mode_set':
+      return withTimeline(
+        {
+          ...snapshot,
+          work: {
+            posture: event.payload.posture,
+            plans: snapshot.work?.plans ?? [],
+          },
+        },
+        event,
+      );
+
+    case 'work.plan_saved': {
+      const plan: WorkPlanView = {
+        id: event.payload.id,
+        sessionId: event.payload.sessionId,
+        mode: event.payload.mode,
+        title: event.payload.title,
+        goal: event.payload.goal,
+        constraints: event.payload.constraints,
+        body: event.payload.body,
+        at: event.ts,
+      };
+      const previous = snapshot.work?.plans ?? [];
+      const plans = [...previous.filter((row) => row.id !== plan.id), plan].slice(-40);
+      return withTimeline(
+        {
+          ...snapshot,
+          work: {
+            posture: snapshot.work?.posture ?? plan.mode,
+            plans,
+          },
+        },
+        event,
+      );
+    }
+
+    case 'work.delegated':
+    case 'work.token':
+      return withTimeline(snapshot, event);
 
     case 'metric':
       return withTimeline({ ...snapshot, metrics: { ...snapshot.metrics, [event.payload.name]: event.payload.value } }, event);

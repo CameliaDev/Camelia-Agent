@@ -42,6 +42,8 @@ export interface TeamRunOutcome {
   /** Workers whose report status was `ok`. */
   workersOk: number;
   workersRan: number;
+  /** Workers the work-token gate refused or that handed their token back. Set by `dispatch`. */
+  handedBack?: number;
 }
 
 export class TeamOrchestrator {
@@ -153,6 +155,102 @@ export class TeamOrchestrator {
       verdicts,
       workersOk,
       workersRan,
+    };
+  }
+
+  /**
+   * Assign and spawn workers without the plan-approval state machine.
+   *
+   * Work chat uses this so a delegation is not a task run. Term keeps `run()`,
+   * which still gates the plan. `admit` refuses a worker that has no active
+   * work token; that worker is not spawned.
+   */
+  async dispatch(
+    goal: string,
+    workers: TeamWorkerSpec[],
+    admit?: (spec: SubAgentSpec) => Promise<{ ok: true } | { ok: false; reason: string }>,
+  ): Promise<TeamRunOutcome> {
+    const empty = this.planFor(goal, []);
+    const assigned: { spec: TeamWorkerSpec; modelId: string; reason: string }[] = [];
+    const blocked: string[] = [];
+    for (const spec of workers) {
+      const pick = assignRoleModel(
+        this.deps.catalog,
+        {
+          requireVision: spec.requireVision,
+          minContextTokens: spec.minContextTokens,
+          requireTools: spec.requireTools,
+        },
+        this.deps.preferredModel,
+      );
+      if (!pick.ok) {
+        blocked.push(`${spec.role}: ${pick.reason}`);
+        continue;
+      }
+      assigned.push({ spec, modelId: pick.modelId, reason: pick.reason });
+    }
+    if (assigned.length !== workers.length) {
+      return {
+        ...this.failed(empty, `could not assign every worker. ${blocked.join(' | ')}`, 0),
+        handedBack: 0,
+      };
+    }
+
+    const admittedSpecs: SubAgentSpec[] = [];
+    const admittedWorkers: TeamWorkerSpec[] = [];
+    const refused: string[] = [];
+    for (const row of assigned) {
+      const spec: SubAgentSpec = {
+        goal: row.spec.goal,
+        ...(row.spec.focusPaths ? { focusPaths: row.spec.focusPaths } : {}),
+        model: row.modelId,
+        role: row.spec.role,
+      };
+      if (admit) {
+        const decision = await admit(spec);
+        if (!decision.ok) {
+          refused.push(`${row.spec.role}: ${decision.reason}`);
+          continue;
+        }
+      }
+      admittedSpecs.push(spec);
+      admittedWorkers.push(row.spec);
+    }
+    if (admittedSpecs.length === 0) {
+      return {
+        ...this.failed(empty, `no worker held a token. ${refused.join(' | ')}`, 0),
+        handedBack: refused.length,
+      };
+    }
+
+    const reports = await this.deps.subAgents.spawnAll(admittedSpecs);
+    const workersRan = reports.length;
+    const workersOk = reports.filter((report) => report.status === 'ok').length;
+    const handedFromReports = reports.filter((report) => report.summary.startsWith('handed back')).length;
+    const artifacts = reports.flatMap((report) => report.artifacts);
+    const summary = [
+      `Coordinator assigned ${admittedSpecs.length} worker(s).`,
+      ...assigned
+        .filter((row) => admittedWorkers.some((worker) => worker.goal === row.spec.goal))
+        .map((row) => `- ${row.spec.role} → ${row.modelId} (${row.reason})`),
+      ...refused.map((line) => `- [handed back] ${line}`),
+      ...reports.map((report) => `- [${report.status}] ${report.goal}: ${report.summary.slice(0, 240)}`),
+    ].join('\n');
+    const handedBack = refused.length + handedFromReports;
+    const plan = this.planFor(goal, admittedWorkers);
+
+    if (workersRan === 0 || workersOk === 0) {
+      return { ...this.failed(plan, summary, workersRan, artifacts), handedBack };
+    }
+    return {
+      status: 'done',
+      summary,
+      plan,
+      artifacts,
+      verdicts: [],
+      workersOk,
+      workersRan,
+      handedBack,
     };
   }
 

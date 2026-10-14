@@ -80,6 +80,18 @@ export interface ChatImagePayload {
   dataBase64: string;
 }
 
+/**
+ * A folder the composer attached to a Work turn.
+ * `path` is set when the host can see one (desktop drag, or a browser fullPath).
+ */
+export interface ChatFolderPayload {
+  name: string;
+  path?: string;
+}
+
+/** Work scaffold posture. `plan` and `goal` store notes; they are not the task machine. */
+export type WorkPosture = 'chat' | 'plan' | 'goal';
+
 /** Envelope shared by every event travelling through the bus. */
 export interface EventEnvelope<TType extends string, TPayload> {
   type: TType;
@@ -233,6 +245,29 @@ export interface DomainEventMap {
   'chat.answered': { askId: Id; optionIdx: number };
   'chat.failed': { turnId: Id; error: string };
   'chat.policy_changed': { policy: ChatPolicy };
+
+  // ---- Work scaffold (plan / goal notes + sub-AI token gate) ---------------
+  // These are not the task state machine. Saving a plan does not clarify,
+  // approve, or execute. Sub-AI tokens are a gate, not a plan revision.
+  'work.mode_set': { posture: WorkPosture };
+  'work.plan_saved': {
+    id: Id;
+    sessionId: Id;
+    mode: 'plan' | 'goal';
+    title: string;
+    goal: string;
+    constraints: string[];
+    body: string;
+  };
+  /** Main AI asked sub-AIs to work. Counts come from the token gate. */
+  'work.delegated': { goal: string; workers: number; handedBack: number; summary: string };
+  /** A sub-AI token was issued, refused, or returned because the call left its bounds. */
+  'work.token': {
+    tokenId: string;
+    holderId: string;
+    status: 'issued' | 'returned' | 'denied';
+    reason?: string;
+  };
 
   // ---- Cognition (prediction–error loop) -----------------------------------
   /** 动作之前作出的可证伪承诺。事件本身即审计记录。预测不是判决。 */
@@ -416,11 +451,32 @@ export interface CommandMap {
 
   // ---- Chat (direct conversation path) -------------------------------------
   /** Send one chat turn. Rejected while a task run is active (see EngineServer). */
-  'chat_message': { sessionId: Id; text: string; policy: ChatPolicy; effort?: EffortLevel; images?: ChatImagePayload[] };
+  'chat_message': {
+    sessionId: Id;
+    text: string;
+    policy: ChatPolicy;
+    effort?: EffortLevel;
+    images?: ChatImagePayload[];
+    folders?: ChatFolderPayload[];
+  };
   /** Answer a pending `chat.ask_user` picker. */
   'chat_answer': { sessionId: Id; askId: Id; optionIdx: number };
   /** Abort the in-flight chat turn (and clear any pending ask). */
   'chat_cancel': { sessionId: Id };
+  /** Switch the Work scaffold among chat, plan, and goal. Does not start a task. */
+  'set_work_posture': { posture: WorkPosture };
+  /**
+   * Store one plan or goal note. This is not `approve_plan` and it does not
+   * create a task.
+   */
+  'save_work_plan': {
+    sessionId: Id;
+    mode: 'plan' | 'goal';
+    title: string;
+    goal: string;
+    constraints: string[];
+    body: string;
+  };
 
   // ---- Cognition panel -----------------------------------------------------
   // These are predictions and learned strategies (经验 / 已学策略).

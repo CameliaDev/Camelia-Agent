@@ -254,6 +254,16 @@ export class EventRenderer {
         return;
       }
 
+      case 'work.delegated': {
+        this.line(this.theme.dim(`  sub-AIs ${event.payload.workers}, handed back ${event.payload.handedBack}`));
+        return;
+      }
+
+      case 'work.plan_saved': {
+        this.line(this.theme.dim(`  saved ${event.payload.mode}: ${event.payload.title}`));
+        return;
+      }
+
       case 'log': {
         if (!this.verbose) return;
         const { level, message } = event.payload;

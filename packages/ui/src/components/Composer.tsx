@@ -37,7 +37,7 @@
  * @module
  */
 
-import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
 
 import type { ChatPolicy } from '@camelia/core';
 
@@ -62,6 +62,14 @@ interface PendingImage {
   dataBase64: string;
 }
 
+/** One folder waiting to ride with the next Work turn. */
+interface PendingFolder {
+  id: string;
+  name: string;
+  path?: string;
+}
+
+const MAX_PENDING_FOLDERS = 8;
 const MAX_PENDING_IMAGES = 4;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
@@ -79,6 +87,39 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+interface DirectoryEntryLike {
+  isDirectory: boolean;
+  name: string;
+  fullPath?: string;
+}
+
+function hostPath(file: File | null): string | undefined {
+  if (!file) return undefined;
+  const candidate = (file as File & { path?: unknown }).path;
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : undefined;
+}
+
+function folderFromItem(item: DataTransferItem): { name: string; path?: string } | undefined {
+  const entry = (item as DataTransferItem & { webkitGetAsEntry?: () => DirectoryEntryLike | null }).webkitGetAsEntry?.();
+  if (!entry?.isDirectory) return undefined;
+  const name = entry.name?.trim();
+  if (!name || name === '.' || name === '..') return undefined;
+  const path = hostPath(item.getAsFile()) ?? (entry.fullPath?.trim() || undefined);
+  return path ? { name, path } : { name };
+}
+
+function splitPlanText(text: string): { goal: string; constraints: string[]; body: string } {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  const constraints: string[] = [];
+  const rest: string[] = [];
+  for (const line of lines) {
+    const marked = /^(?:constraint|约束)\s*[:：]\s*(.+)$/i.exec(line);
+    if (marked?.[1]) constraints.push(marked[1]);
+    else rest.push(line);
+  }
+  return { goal: rest[0] ?? text.trim(), constraints, body: text.trim() };
+}
+
 function policyLabelKey(policy: ChatPolicy): 'composer.policy.readonly' | 'composer.policy.ask' | 'composer.policy.full' {
   return policy === 'full'
     ? 'composer.policy.full'
@@ -94,6 +135,8 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const [value, setValue] = useState('');
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [pendingFolders, setPendingFolders] = useState<PendingFolder[]>([]);
+  const [dropActive, setDropActive] = useState(false);
   const [imageNotice, setImageNotice] = useState<string | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -280,6 +323,47 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     setImageNotice(null);
   };
 
+  const addDroppedFolders = (data: DataTransfer | null): void => {
+    if (!data || mode !== 'work') return;
+    const found: { name: string; path?: string }[] = [];
+    const items = data.items;
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (!item) continue;
+      const folder = folderFromItem(item);
+      if (folder) found.push(folder);
+    }
+    if (found.length === 0) return;
+    setPendingFolders((prev) => {
+      const next = [...prev];
+      for (const folder of found) {
+        if (next.length >= MAX_PENDING_FOLDERS) {
+          setImageNotice('composer.folderLimit');
+          break;
+        }
+        if (next.some((row) => row.name === folder.name && row.path === folder.path)) continue;
+        next.push({ id: `${imageIdPrefix}-folder-${next.length}-${folder.name}`, ...folder });
+      }
+      return next;
+    });
+  };
+
+  const onFolderDragOver = (event: DragEvent<HTMLDivElement>): void => {
+    if (mode !== 'work') return;
+    const types = event.dataTransfer?.types;
+    const hasFiles = types ? Array.from(types).includes('Files') : false;
+    if (!hasFiles) return;
+    event.preventDefault();
+    setDropActive(true);
+  };
+
+  const onFolderDrop = (event: DragEvent<HTMLDivElement>): void => {
+    if (mode !== 'work') return;
+    event.preventDefault();
+    setDropActive(false);
+    addDroppedFolders(event.dataTransfer);
+  };
+
   const submitTermRun = (intent: string): void => {
     const state = store.getState();
     const workspace = state.snapshot.session?.workspace ?? '.';
@@ -308,27 +392,56 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       .catch(() => undefined);
   };
 
+  const posture = snapshot.work?.posture ?? 'chat';
+  const folderPayload = pendingFolders.map((folder) => (folder.path ? { name: folder.name, path: folder.path } : { name: folder.name }));
+  const folderNote = folderPayload.length
+    ? `\n\nAttached folders:\n${folderPayload.map((folder) => `- ${folder.name}${folder.path ? ` (${folder.path})` : ''}`).join('\n')}`
+    : '';
+
+  const clearDraft = (): void => {
+    setValue('');
+    setPendingImages([]);
+    setPendingFolders([]);
+  };
+
   const submit = (): void => {
     const intent = value.trim();
+    if (mode === 'work' && posture !== 'chat' && !running && !teamRun) {
+      const body = `${intent}${folderNote}`.trim();
+      if (!body) return;
+      const parsed = splitPlanText(intent || pendingFolders[0]?.name || body);
+      const sessionId = snapshot.session?.id ?? activeSessionId ?? 'ses_new';
+      dispatch(
+        makeCommand('save_work_plan', {
+          sessionId,
+          mode: posture,
+          title: parsed.goal.slice(0, 72),
+          goal: parsed.goal,
+          constraints: parsed.constraints,
+          body,
+        }),
+      );
+      clearDraft();
+      return;
+    }
     if (mode === 'work' && teamRun && !running) {
-      if (!intent) return;
-      submitTermRun(intent);
-      setValue('');
-      setPendingImages([]);
+      const teamIntent = `${intent}${folderNote}`.trim();
+      if (!teamIntent) return;
+      submitTermRun(teamIntent);
+      clearDraft();
       return;
     }
     if (mode === 'term') {
       if (!intent) return;
       submitTermRun(intent);
-      setValue('');
-      setPendingImages([]);
+      clearDraft();
       return;
     }
     const images =
       conversational && pendingImages.length > 0
         ? pendingImages.map((img) => ({ mimeType: img.mimeType, dataBase64: img.dataBase64 }))
         : undefined;
-    if (!intent && !(images && images.length)) return;
+    if (!intent && !(images && images.length) && folderPayload.length === 0) return;
     if (conversational) {
       // 对话 mode: multimodal when images are pasted — OpenAI-compatible vision parts.
       // A foreign session (Work chat still projected under Math) gets its own row first.
@@ -345,6 +458,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
             policy: chatPolicy,
             effort,
             ...(images?.length ? { images } : {}),
+            ...(mode === 'work' && folderPayload.length ? { folders: folderPayload } : {}),
           }),
         );
       };
@@ -377,8 +491,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
         }),
       );
     }
-    setValue('');
-    setPendingImages([]);
+    clearDraft();
     setImageNotice(!conversational && pendingImages.length > 0 ? 'composer.imagesWorkOnly' : null);
   };
 
@@ -396,7 +509,16 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       >
         <div
           data-composer
-          className="flex flex-col gap-1.5 rounded-2xl border border-line/60 bg-elevated p-2.5 shadow-sm transition-colors focus-within:border-line"
+          data-composer-drop={dropActive ? 'active' : undefined}
+          onDragOver={onFolderDragOver}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+            setDropActive(false);
+          }}
+          onDrop={onFolderDrop}
+          className={`flex flex-col gap-1.5 rounded-2xl border bg-elevated p-2.5 shadow-sm transition-colors focus-within:border-line ${
+            dropActive ? 'border-accent' : 'border-line/60'
+          }`}
         >
           {pendingImages.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-0.5" data-composer-images>
@@ -420,6 +542,35 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 </div>
               ))}
             </div>
+          ) : null}
+          {pendingFolders.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 px-0.5" data-composer-folders>
+              {pendingFolders.map((folder) => (
+                <div
+                  key={folder.id}
+                  data-composer-folder={folder.name}
+                  className="flex items-center gap-1 rounded-lg border border-line bg-base px-2 py-1"
+                >
+                  <Icon name="folder" size={12} className="shrink-0 text-ink-3" />
+                  <span className="max-w-[10rem] truncate text-[11.5px] text-ink">{folder.name}</span>
+                  <button
+                    type="button"
+                    data-composer-folder-remove={folder.name}
+                    aria-label={tr('composer.removeFolder')}
+                    title={tr('composer.removeFolder')}
+                    onClick={() => setPendingFolders((prev) => prev.filter((row) => row.id !== folder.id))}
+                    className="text-[12px] text-ink-3 hover:text-bad"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {dropActive ? (
+            <p className="px-0.5 text-[10.5px] text-ink-3" data-composer-drop-hint>
+              {tr('composer.dropFolder')}
+            </p>
           ) : null}
           {imageNotice ? (
             <p className="px-0.5 text-[10.5px] text-warn" data-composer-image-notice>
@@ -445,9 +596,13 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                   ? 'term.composer'
                   : mode === 'work' && teamRun
                     ? 'term.composer'
-                    : mode === 'work'
-                      ? 'composer.chatPlaceholder'
-                      : running
+                  : mode === 'work' && posture === 'plan'
+                    ? 'work.plan.placeholder'
+                    : mode === 'work' && posture === 'goal'
+                      ? 'work.goal.placeholder'
+                      : mode === 'work'
+                        ? 'composer.chatPlaceholder'
+                        : running
                         ? 'composer.steerPlaceholder'
                         : 'composer.placeholder',
             )}
@@ -483,6 +638,24 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               inside a chat turn may do. Same listbox shape as the model chip, same
               outside-click contract, and the choice persists window-locally.
             */}
+            {mode === 'work' ? (
+              <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={tr('work.posture.plan')} data-work-posture={posture}>
+                {(['chat', 'plan', 'goal'] as const).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    data-work-posture-tab={id}
+                    aria-pressed={posture === id}
+                    onClick={() => dispatch(makeCommand('set_work_posture', { posture: id }))}
+                    className={`rounded-full px-2 py-1 text-[11.5px] ${
+                      posture === id ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
+                    }`}
+                  >
+                    {tr(`work.posture.${id}` as Parameters<typeof t>[1])}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {mode === 'work' && !running ? (
               <button
                 type="button"

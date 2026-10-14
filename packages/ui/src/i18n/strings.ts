@@ -581,6 +581,17 @@ type StringKey =
   | 'health.cognitionSkipped'
   | 'team.title'
   | 'composer.team'
+  | 'composer.dropFolder'
+  | 'composer.removeFolder'
+  | 'composer.folderLimit'
+  | 'work.posture.chat'
+  | 'work.posture.plan'
+  | 'work.posture.goal'
+  | 'work.plan.empty'
+  | 'work.plan.saved'
+  | 'work.plan.placeholder'
+  | 'work.goal.placeholder'
+  | 'run.steps.pending'
   | 'mode.term.deprecated'
   | 'panel.artifacts.hint'
   | 'panel.artifacts.empty'
@@ -700,7 +711,7 @@ const en: Record<StringKey, string> = {
   'composer.placeholder': 'Describe a task. Camelia plans, executes, verifies and shows its work…',
   'composer.run': 'Run',
   'composer.steerPlaceholder': 'Steer the run — the goal is re-anchored, prior work kept…',
-  'composer.chatPlaceholder': 'Ask anything — direct replies, workspace access per the permission you pick…',
+  'composer.chatPlaceholder': 'Name the goal. Camelia writes the constraints and a short plan, then uses tools…',
   'composer.policy': 'Chat permission mode',
   'composer.policy.readonly': 'Read-only sandbox',
   'composer.policy.ask': 'Ask before writes',
@@ -1147,6 +1158,17 @@ const en: Record<StringKey, string> = {
   'health.cognitionSkipped': 'Cognition skipped',
   'team.title': 'Team orchestration',
   'composer.team': 'Team',
+  'composer.dropFolder': 'Drop a folder to attach it',
+  'composer.removeFolder': 'Remove folder',
+  'composer.folderLimit': 'At most 8 folders',
+  'work.posture.chat': 'Chat',
+  'work.posture.plan': 'Plan',
+  'work.posture.goal': 'Goal',
+  'work.plan.empty': 'Write a goal or a short plan in the composer. What you save stays in this list.',
+  'work.plan.saved': 'Saved',
+  'work.plan.placeholder': 'Write a short plan. It stays with this workspace and is not started as a task.',
+  'work.goal.placeholder': 'Name the goal and any constraints. It stays with this workspace.',
+  'run.steps.pending': 'Planner steps land here once a run produces them.',
   'mode.term.deprecated': 'Team runs from Work — Term tab is legacy.',
   'panel.artifacts.hint': 'Deliverables from the current run — files, diffs, stdout.',
   'panel.artifacts.empty': 'No artifacts yet.',
@@ -1268,7 +1290,7 @@ const zh: Record<StringKey, string> = {
   'composer.placeholder': '描述一个任务。Camelia 会规划、执行、校验并展示全过程……',
   'composer.run': '运行',
   'composer.steerPlaceholder': '引导本次运行——目标重新锚定，已有工作保留……',
-  'composer.chatPlaceholder': '随便聊——直接回答，按所选权限使用工作区……',
+  'composer.chatPlaceholder': '说出目标。Camelia 先写清约束和短计划，再用工具……',
   'composer.policy': '对话权限模式',
   'composer.policy.readonly': '只读沙箱',
   'composer.policy.ask': '写入前询问',
@@ -1714,6 +1736,17 @@ const zh: Record<StringKey, string> = {
   'health.cognitionSkipped': '认知跳过',
   'team.title': '团队编排',
   'composer.team': '团队',
+  'composer.dropFolder': '拖入文件夹即可附着',
+  'composer.removeFolder': '移除文件夹',
+  'composer.folderLimit': '最多附着 8 个文件夹',
+  'work.posture.chat': '聊天',
+  'work.posture.plan': '计划',
+  'work.posture.goal': '目标',
+  'work.plan.empty': '在输入框写下目标或短计划。保存后会留在这份列表里。',
+  'work.plan.saved': '已保存',
+  'work.plan.placeholder': '写一份短计划。它留在这个工作区，不会当成任务启动。',
+  'work.goal.placeholder': '写下目标和约束。它留在这个工作区。',
+  'run.steps.pending': '规划步骤会在运行产出后出现在这里。',
   'mode.term.deprecated': '团队编排请从 Work 进入 — Term 页签为遗留入口。',
   'panel.artifacts.hint': '当前运行的产物 — 文件、diff、stdout。',
   'panel.artifacts.empty': '还没有产物。',

@@ -48,11 +48,11 @@
 
 | # | 阶段 | 关键交付 | 验收 |
 |---|------|----------|------|
-| 15 | Work system：先想再动手 | chatSystemPrompt 深化；禁「禁止规划」 | 默认想清→短计划 |
-| 16 | Token / 门闸协议 | 子 AI 先想后拿 token；越界交回 | 无 token 不可动工具 |
-| 17 | 主 AI 调子 AI | 协调者+共享记忆分派 | 非单会话空聊 |
-| 18 | Plan / Goal 模式脚手架 | UI+事件预留 | 可切换，可存计划 |
-| 19 | 聊天拖入文件夹 | composer 支持 folder drop | 文件夹可附着 |
+| 15 | ✅ Work system：先想再动手 | chatSystemPrompt 深化；禁「禁止规划」 | 默认想清→短计划 |
+| 16 | ✅ Token / 门闸协议 | 子 AI 先想后拿 token；越界交回 | 无 token 不可动工具。见 `docs/WORK-TOKEN-GATE.md` |
+| 17 | ✅ 主 AI 调子 AI | 协调者+共享记忆分派 | 非单会话空聊。复用 `TeamOrchestrator.dispatch` |
+| 18 | ✅ Plan / Goal 模式脚手架 | UI+事件预留 | 可切换，可存计划。不是任务状态机 |
+| 19 | ✅ 聊天拖入文件夹 | composer 支持 folder drop | 文件夹可附着 |
 | 20 | Term UI 并入 Work | 保留 TeamOrchestrator；顶栏可弱化 Term | 编排从 Work 可达 ✅ |
 
 ---

@@ -856,7 +856,10 @@ describe('App — planning scene', () => {
     const { container } = renderScene('planning');
     expect(screen.getAllByText(/Drafting the plan|正在制定计划/).length).toBeGreaterThan(0);
     openPanel(container, 'run');
-    expect(screen.getByText('No plan yet — the planner has not returned.')).toBeInTheDocument();
+    const pending = container.querySelector('[data-steps-empty]');
+    expect(pending).not.toBeNull();
+    expect(pending?.textContent ?? '').not.toMatch(/no plan|没有计划|还没有计划/i);
+    expect(pending?.textContent).toContain('规划步骤');
   });
 
   it('exposes the task phase', () => {
