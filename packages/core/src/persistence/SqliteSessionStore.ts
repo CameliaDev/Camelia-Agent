@@ -259,6 +259,16 @@ export class SqliteSessionStore implements SessionStore {
     this.db.prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = @id`).run(params);
   }
 
+  async deleteSession(id: Id): Promise<boolean> {
+    const existing = this.db.prepare('SELECT id FROM sessions WHERE id = ?').get(id);
+    if (!existing) return false;
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM events WHERE session_id = ?').run(id);
+      this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    });
+    return true;
+  }
+
   // ---- tasks --------------------------------------------------------------
 
   async createTask(input: CreateTaskInput): Promise<Task> {

@@ -165,6 +165,27 @@ export function IconRail(): ReactNode {
         <Tip>{tr('extensions.title')}</Tip>
       </button>
 
+      <button
+        type="button"
+        data-rail-view="skills"
+        aria-pressed={!leftCollapsed && sidebarView === 'skills'}
+        title={tr('skills.title')}
+        aria-label={tr('rail.skills')}
+        className={`${CELL} ${!leftCollapsed && sidebarView === 'skills' ? ITEM_ACTIVE : ITEM_IDLE}`}
+        onClick={() => {
+          if (!leftCollapsed && sidebarView === 'skills') {
+            setLocalPrefs({ leftCollapsed: true });
+            return;
+          }
+          setSidebarView('skills');
+          setLocalPrefs({ leftCollapsed: false });
+        }}
+      >
+        {!leftCollapsed && sidebarView === 'skills' ? <ActiveMark /> : null}
+        <Icon name="skills" size={22} />
+        <Tip>{tr('skills.title')}</Tip>
+      </button>
+
       <span className="flex-1" />
 
       {/*

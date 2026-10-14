@@ -259,6 +259,17 @@ export class MemoryStore implements SessionStore {
     const session = this.sessions.get(id);
     if (session) Object.assign(session, patch);
   }
+  async deleteSession(id: Id): Promise<boolean> {
+    if (!this.sessions.has(id)) return false;
+    this.sessions.delete(id);
+    for (const [taskId, task] of this.tasks) {
+      if (task.sessionId === id) this.tasks.delete(taskId);
+    }
+    for (let i = this.events.length - 1; i >= 0; i -= 1) {
+      if (this.events[i]?.sessionId === id) this.events.splice(i, 1);
+    }
+    return true;
+  }
 
   async createTask(input: { sessionId: Id; intentRaw: string; workspace?: string; id?: Id }): Promise<Task> {
     const now = Date.now();

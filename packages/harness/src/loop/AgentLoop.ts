@@ -775,6 +775,7 @@ export class AgentLoop {
       // Decision point 3 — reflection: review the executed plan.
       const review = await this.selfReviewAt('reflect', plan, intent);
 
+      // Settings hides this row (`isCuratedMemory`). The task panel can still list it.
       await this.deps.memory.remember({
         scope: 'session',
         sessionId: this.ctx.sessionId,

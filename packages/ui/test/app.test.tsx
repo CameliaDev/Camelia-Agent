@@ -113,6 +113,7 @@ describe('App — layout contract', () => {
     for (const selector of [
       '[data-rail-view="sessions"]',
       '[data-rail-view="extensions"]',
+      '[data-rail-view="skills"]',
       '[data-rail-settings]',
       '[data-rail-account]',
     ]) {
@@ -125,7 +126,9 @@ describe('App — layout contract', () => {
 
     const sessions = rail.querySelector('[data-rail-view="sessions"]') as HTMLElement;
     expect(sessions.getAttribute('aria-label')).toBe('会话');
-    expect(sessions.querySelector('[data-tip]')?.textContent).toContain('聊天记录');
+    expect(sessions.querySelector('[data-tip]')?.textContent).toContain('会话');
+    const views = [...rail.querySelectorAll('[data-rail-view]')].map((node) => node.getAttribute('data-rail-view'));
+    expect(views).toEqual(['sessions', 'extensions', 'skills']);
     expect(sessions.querySelector('[data-rail-active]')).not.toBeNull();
     expect(rail.querySelector('[data-rail-view="extensions"] [data-rail-active]')).toBeNull();
 

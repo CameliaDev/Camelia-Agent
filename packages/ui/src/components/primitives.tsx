@@ -136,6 +136,8 @@ export const PATHS: Record<string, string> = {
   // VS Code's extensions mark: four tiles. The activity bar uses it for the plugin sidebar.
   extensions:
     '<rect x="2.2" y="2.2" width="4.6" height="4.6" rx="0.8"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="0.8"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="0.8"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="0.8"/>',
+  skills:
+    '<path d="M4.2 2.8h5.2l3.2 3.2v7a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 13V4a1.2 1.2 0 0 1 1.2-1.2z"/><path d="M9.2 2.8V6h3.2M5.4 9.2h5.2M5.4 11.4h3.4"/>',
   // Folder, for the workspace path in the status bar. Drawn as an outline folder with a
   // tab, so it does not read as a generic square at 11px.
   folder:

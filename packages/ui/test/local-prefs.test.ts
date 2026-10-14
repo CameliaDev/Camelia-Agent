@@ -90,6 +90,8 @@ describe('localPrefs', () => {
       effort: 'high',
       feedbackRepo: '',
       includeFeedbackMeta: true,
+      installDir: '',
+      workspaceDir: '',
     });
     const store = createUiStore(new FixtureTransport({ scene: 'empty' }));
     expect(store.getState().localPrefs.leftWidth).toBe(300);

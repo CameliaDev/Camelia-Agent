@@ -28,7 +28,7 @@ export function MemorySettingsSection(): ReactNode {
     setLoading(true);
     setError(null);
     try {
-      const next = await query<MemoryView[]>(makeCommand('list_memories', {}));
+      const next = await query<MemoryView[]>(makeCommand('list_memories', { curated: true }));
       const forgotten = await query<ForgetLogView[]>(makeCommand('list_forget_log', {}));
       setItems(next ?? []);
       setLog(forgotten ?? []);

@@ -405,3 +405,72 @@ describe('memory command guardrails (Iteration 22)', () => {
     expect(ack.body.error).toContain('memory not found');
   });
 });
+
+describe('session and workspace commands', () => {
+  it('set_workspace accepts a directory and refuses a file', async () => {
+    const { server, runtime, address, workspace } = await makeServer({ spec: mockDemoSpec('ws-set') });
+    servers.push(server);
+    runtimes.push(runtime);
+    const next = fs.mkdtempSync(path.join(os.tmpdir(), 'camelia-ws-next-'));
+    const ok = await postCommand(address.url, { type: 'set_workspace', payload: { path: next }, ...CMD });
+    expect(ok.status).toBe(200);
+    expect(ok.body.ok).toBe(true);
+    expect((ok.body.data as { workspace: string }).workspace).toBe(path.resolve(next));
+    const file = path.join(workspace, 'not-a-dir.txt');
+    fs.writeFileSync(file, 'x');
+    const bad = await postCommand(address.url, { type: 'set_workspace', payload: { path: file }, ...CMD });
+    expect(bad.body.ok).toBe(false);
+    expect(bad.body.error).toContain('这不是文件夹');
+  });
+
+  it('list_memories curated hides artifact rows', async () => {
+    const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('mem-curated') });
+    servers.push(server);
+    runtimes.push(runtime);
+    await writeMemory(runtime, { id: 'mem_fact_keep', content: 'prefer pnpm', kind: 'preference', layer: 'long' });
+    await writeMemory(runtime, {
+      id: 'mem_art',
+      content: 'Task "问候用户" produced 1 artifact(s) across 1 step(s).',
+      kind: 'artifact',
+      layer: 'short',
+      scope: 'session',
+      sessionId: runtime.session.id,
+    });
+    const curated = await postCommand(address.url, { type: 'list_memories', payload: { curated: true }, ...CMD });
+    const items = curated.body.data as MemoryView[];
+    expect(items.map((item) => item.id)).toEqual(['mem_fact_keep']);
+    const all = await postCommand(address.url, { type: 'list_memories', payload: {}, ...CMD });
+    expect((all.body.data as MemoryView[]).map((item) => item.id).sort()).toEqual(['mem_art', 'mem_fact_keep']);
+  });
+
+  it('renames and deletes a session without reusing a titled blank', async () => {
+    const { server, runtime, address } = await makeServer({ spec: mockDemoSpec('ses-crud') });
+    servers.push(server);
+    runtimes.push(runtime);
+    const titled = await runtime.store.createSession({
+      title: 'hello',
+      workspace: runtime.workspace,
+      provider: 'mock',
+      model: 'scripted',
+      kind: 'work',
+    });
+    const renamed = await postCommand(address.url, {
+      type: 'rename_session',
+      payload: { sessionId: titled.id, title: 'notes' },
+      ...CMD,
+    });
+    expect(renamed.body.ok).toBe(true);
+    expect((await runtime.store.getSession(titled.id))?.title).toBe('notes');
+    const removed = await postCommand(address.url, {
+      type: 'delete_session',
+      payload: { sessionId: titled.id },
+      ...CMD,
+    });
+    expect(removed.body.ok).toBe(true);
+    expect(await runtime.store.getSession(titled.id)).toBeUndefined();
+    const first = await runtime.newSession('work');
+    const second = await runtime.newSession('work');
+    expect(second.sessionId).toBe(first.sessionId);
+    expect(first.sessionId).not.toBe(titled.id);
+  });
+});

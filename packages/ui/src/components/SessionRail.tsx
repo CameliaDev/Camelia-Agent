@@ -39,6 +39,7 @@ import { useMode } from '../mode/useMode.js';
 import { MODE_HEADER_H } from '../modes/ModeHeader.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { ExtensionsPanel } from './ExtensionsPanel.js';
+import { SkillsPanel } from './SkillsPanel.js';
 import { Chip, Icon, SectionHeader } from './primitives.js';
 
 function SessionGroup({
@@ -75,9 +76,14 @@ export function SessionRail(): ReactNode {
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const newSession = useNewSession();
+  const showPendingSession = useUiStore((s) => s.showPendingSession);
+  const patchSessionTitle = useUiStore((s) => s.patchSessionTitle);
+  const queryEngine = useUiStore((s) => s.query);
   const { mode, setMode } = useMode();
   const [marks, setMarks] = useState<SessionMarks>(() => loadSessionMarks());
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -178,9 +184,42 @@ export function SessionRail(): ReactNode {
           something running" is the activity bar and the top bar's progress rail.
         */}
         {active ? <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" /> : null}
+        {editingId === session.id ? (
+          <input
+            data-session-rename
+            value={renameDraft}
+            autoFocus
+            aria-label={tr('sessions.rename')}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => setRenameDraft(event.target.value)}
+            onBlur={() => {
+              const title = renameDraft.trim();
+              setEditingId(null);
+              if (!title || title === session.title) return;
+              patchSessionTitle(session.id, title);
+              void queryEngine(makeCommand('rename_session', { sessionId: session.id, title }));
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setEditingId(null);
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                (event.target as HTMLInputElement).blur();
+              }
+            }}
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none"
+          />
+        ) : null}
         <p
           data-session-title
-          className={`flex min-w-0 flex-1 items-center gap-1 text-[12.5px] leading-[18px] ${active ? 'font-medium text-ink' : 'text-ink-2'}`}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            setEditingId(session.id);
+            setRenameDraft(session.title);
+          }}
+          className={`flex min-w-0 flex-1 items-center gap-1 text-[12.5px] leading-[18px] ${active ? 'font-medium text-ink' : 'text-ink-2'} ${editingId === session.id ? 'hidden' : ''}`}
         >
           {pinned ? <Icon name="pin" size={11} strokeWidth={1.6} className="shrink-0 text-accent" /> : null}
           {favorite ? <Icon name="star" size={11} strokeWidth={1.6} filled className="shrink-0 text-warn" /> : null}
@@ -195,6 +234,7 @@ export function SessionRail(): ReactNode {
                 event.stopPropagation();
                 const hidingId = session.id;
                 const fallback = listed.find((row) => row.id !== hidingId);
+                dispatch(makeCommand('delete_session', { sessionId: hidingId }));
                 applyMarks(hideSession(marks, hidingId));
                 setConfirmId(null);
                 if (hidingId !== activeSessionId) return;
@@ -206,6 +246,7 @@ export function SessionRail(): ReactNode {
                 // Last visible row. Drop it from keepIds immediately and ask for a
                 // blank that is not this id, so the centred empty chat can show.
                 setLeavingId(hidingId);
+                showPendingSession(mode === 'math' ? 'math' : mode === 'term' ? 'term' : 'work');
                 newSession({ excludeId: hidingId });
               }}
             >
@@ -279,6 +320,8 @@ export function SessionRail(): ReactNode {
     >
       {sidebarView === 'extensions' ? (
         <ExtensionsPanel />
+      ) : sidebarView === 'skills' ? (
+        <SkillsPanel />
       ) : (
         <>
       <div className="shrink-0 px-2 pt-2 pb-1">

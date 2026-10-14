@@ -387,6 +387,10 @@ export function AccountMenu({ onClose }: AccountMenuProps): ReactNode {
               setSigningIn(true);
               setNote('');
               setUsePat(false);
+              if (!readGithubOAuthClientId() && !clientIdDraft.trim()) {
+                setNote(tr('account.github.error.missingClientId'));
+                return;
+              }
               void signInWithDevice();
             }}
           >

@@ -167,7 +167,10 @@ export class FixtureTransport implements Transport {
     switch (command.type) {
       // ---- memory panel (Iteration 22) -----------------------------------
       case 'list_memories':
-        this.answer(command.commandId, this.memory.list(command.payload.layer, command.payload.sessionId));
+        this.answer(
+          command.commandId,
+          this.memory.list(command.payload.layer, command.payload.sessionId, command.payload.curated === true),
+        );
         return;
       case 'get_memory':
         this.answer(command.commandId, this.memory.get(command.payload.memoryId));
@@ -325,6 +328,59 @@ export class FixtureTransport implements Transport {
         this.answer(command.commandId, { ok: true });
         this.replaySession(command.payload.sessionId);
         return;
+      case 'rename_session': {
+        const sessionId = command.payload.sessionId;
+        const title = command.payload.title.trim().slice(0, 120);
+        if (!title) {
+          this.answer(command.commandId, { ok: false, error: '标题不能为空' });
+          return;
+        }
+        this.sessionRows = this.sessionRows.map((row) => (row.id === sessionId ? { ...row, title } : row));
+        if (this.snapshot.session?.id === sessionId) {
+          this.snapshot = { ...this.snapshot, session: { ...this.snapshot.session, title } };
+        }
+        const current = this.sessionRows.find((row) => row.id === sessionId) ?? this.snapshot.session;
+        if (current) {
+          this.handlers?.onBootstrap({
+            session: current,
+            sessions: this.sessionRows.length ? this.sessionRows : [current],
+            provider: BOOTSTRAP_PROVIDER,
+            providerStatus: BOOTSTRAP_PROVIDER_STATUS,
+          });
+        }
+        this.answer(command.commandId, { sessionId, title });
+        return;
+      }
+      case 'delete_session': {
+        const sessionId = command.payload.sessionId;
+        this.sessionRows = this.sessionRows.filter((row) => row.id !== sessionId);
+        this.tapes.delete(sessionId);
+        this.answer(command.commandId, { sessionId });
+        return;
+      }
+      case 'list_skills':
+        this.answer(command.commandId, [
+          {
+            id: 'user:demo-skill',
+            name: 'demo-skill',
+            description: 'A fixture skill',
+            dir: '/skills/demo-skill',
+            source: 'user',
+          },
+        ]);
+        return;
+      case 'install_skill': {
+        const source = typeof command.payload?.path === 'string' ? command.payload.path.trim() : '';
+        if (!source) {
+          this.answer(command.commandId, { ok: false, error: '路径不能为空' });
+          return;
+        }
+        const name = source.split(/[/\\]/).filter(Boolean).pop() || 'skill';
+        this.answer(command.commandId, [
+          { id: `user:${name}`, name, description: 'Installed', dir: source, source: 'user' },
+        ]);
+        return;
+      }
       case 'set_workspace': {
         const dir = typeof command.payload?.path === 'string' ? command.payload.path.trim() : '';
         // Bootstrap writes the session into the store. The fixture snapshot only

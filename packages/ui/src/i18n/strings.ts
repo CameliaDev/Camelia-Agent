@@ -26,11 +26,22 @@ type StringKey =
   | 'sessions.search'
   | 'sessions.recent'
   | 'sessions.history'
+  | 'sessions.rename'
   | 'rail.label'
   | 'rail.sessions'
   | 'rail.search'
   | 'rail.new'
   | 'rail.extensions'
+  | 'rail.skills'
+  | 'skills.title'
+  | 'skills.panelTitle'
+  | 'skills.empty'
+  | 'skills.empty.hint'
+  | 'skills.install'
+  | 'skills.openFolder'
+  | 'skills.root'
+  | 'skills.installed'
+  | 'skills.failed'
   | 'extensions.title'
   | 'extensions.empty'
   | 'extensions.empty.hint'
@@ -437,11 +448,16 @@ type StringKey =
   | 'workspace.path'
   | 'workspace.apply'
   | 'workspace.browse'
+  | 'workspace.browseFailed'
   | 'workspace.busy'
   | 'workspace.invalid'
   | 'login.title'
   | 'login.body'
   | 'login.skip'
+  | 'login.installDir'
+  | 'login.installHint'
+  | 'login.workspaceDir'
+  | 'login.workspaceHint'
   | 'login.github'
   | 'memory.settings.hint'
   | 'memory.settings.empty'
@@ -553,12 +569,23 @@ const en: Record<StringKey, string> = {
   'sessions.cancelDelete': 'Cancel',
   'sessions.search': 'Search sessions',
   'sessions.recent': 'Recent',
-  'sessions.history': 'Chat history',
+  'sessions.history': 'Sessions',
+  'sessions.rename': 'Rename',
   'rail.label': 'Left navigation',
   'rail.sessions': 'Chats',
   'rail.search': 'Search chats',
   'rail.new': 'New chat',
   'rail.extensions': 'Plugins',
+  'rail.skills': 'Skills',
+  'skills.title': 'Skills',
+  'skills.panelTitle': 'Skills',
+  'skills.empty': 'No skills in the scanned folders.',
+  'skills.empty.hint': 'A skill is a folder with SKILL.md. Install copies it into ~/.camelia/skills.',
+  'skills.install': 'Install…',
+  'skills.openFolder': 'Open folder',
+  'skills.root': 'Folder',
+  'skills.installed': 'Installed.',
+  'skills.failed': 'Could not install that folder.',
   'extensions.title': 'Plugins',
   'extensions.empty': 'No plugins installed.',
   'extensions.empty.hint': 'On startup the engine reads directories under ~/.camelia/plugins that contain camelia.plugin.json. In-app install is not wired yet.',
@@ -631,7 +658,7 @@ const en: Record<StringKey, string> = {
   'chat.running': 'Replying…',
   'chat.thinking': 'Thinking…',
   'chat.failed': 'Reply failed',
-  'chat.empty': 'Conversation mode — the model answers directly. No plan, no task machinery.',
+  'chat.empty': 'Say what you want done. Camelia can answer in the conversation, or turn the goal into a task it plans, runs, and checks.',
   'chat.askTitle': 'Camelia needs your choice',
   'composer.noActiveRun': 'no active run',
   'composer.enterToSend': 'Enter to send',
@@ -832,7 +859,7 @@ const en: Record<StringKey, string> = {
   'account.github.openBrowser': 'Open GitHub in browser',
   'account.github.waiting': 'Waiting for authorization…',
   'account.github.clientId': 'OAuth App client ID',
-  'account.github.clientIdHint': 'One-time setup: create a GitHub OAuth App (device flow needs a public client ID; no secret). Callback URL can be http://127.0.0.1.',
+  'account.github.clientIdHint': 'Device flow cannot finish until you paste an OAuth App Client ID (Ov23…). Nothing is baked into this build. Callback URL can be http://127.0.0.1. No client secret.',
   'account.github.openOauthAppPage': 'Open GitHub OAuth App page',
   'account.github.error.missingClientId': 'GitHub OAuth client ID is not configured yet.',
   'account.github.error.expired': 'The device code expired — try again.',
@@ -929,7 +956,7 @@ const en: Record<StringKey, string> = {
   'term.execute': 'Execute',
   'term.verify': 'Verify',
   'term.done': 'Done',
-  'term.empty': 'Send a goal. Camelia will plan it, carry it out, and check the result.',
+  'term.empty': 'Team orchestration lives here. A coordinator splits the goal into workers, and each worker is a sub-agent. This is not a third chat transcript.',
   'term.phase.plan': 'Splitting the goal into a plan.',
   'term.phase.execute': 'Carrying the plan out.',
   'term.phase.verify': 'Checking the result.',
@@ -958,13 +985,18 @@ const en: Record<StringKey, string> = {
   'workspace.path': 'Folder path',
   'workspace.apply': 'Use this folder',
   'workspace.browse': 'Browse…',
+  'workspace.browseFailed': 'The folder picker did not open.',
   'workspace.busy': 'A run is in progress.',
   'workspace.invalid': 'That path is not a folder.',
   'login.title': 'Sign in to Camelia',
   'login.body': 'Sign in with GitHub, or continue as a guest. You can sign in later from the account menu.',
   'login.skip': 'Continue without signing in',
+  'login.installDir': 'Install directory',
+  'login.installHint': 'Recorded on this machine only. It does not move the app or create another installer.',
+  'login.workspaceDir': 'Workspace directory',
+  'login.workspaceHint': 'Tools use this folder. You can still change it from the folder control at the bottom left.',
   'login.github': 'Sign in with GitHub',
-  'memory.settings.hint': 'Every memory the engine has stored, across sessions.',
+  'memory.settings.hint': 'Durable facts, preferences, lessons, and procedures. Task run logs stay off this page.',
   'memory.settings.empty': 'No memories yet.',
   'memory.settings.forget': 'Forget',
   'memory.settings.incorrect': 'Mark incorrect',
@@ -1071,12 +1103,23 @@ const zh: Record<StringKey, string> = {
   'sessions.cancelDelete': '取消',
   'sessions.search': '搜索会话',
   'sessions.recent': '最近',
-  'sessions.history': '聊天记录',
+  'sessions.history': '会话',
+  'sessions.rename': '重命名',
   'rail.label': '左侧导航',
   'rail.sessions': '会话',
   'rail.search': '搜索会话',
   'rail.new': '新建会话',
   'rail.extensions': '插件',
+  'rail.skills': 'Skills',
+  'skills.title': 'Skills',
+  'skills.panelTitle': 'Skills',
+  'skills.empty': '扫描到的目录里还没有技能。',
+  'skills.empty.hint': '一个技能是含 SKILL.md 的文件夹。安装会复制到 ~/.camelia/skills。',
+  'skills.install': '安装…',
+  'skills.openFolder': '打开目录',
+  'skills.root': '目录',
+  'skills.installed': '已安装。',
+  'skills.failed': '无法安装这个文件夹。',
   'extensions.title': '插件',
   'extensions.empty': '还没有插件。',
   'extensions.empty.hint': '引擎启动时会读取 ~/.camelia/plugins 下带 camelia.plugin.json 的目录。应用内安装尚未接通。',
@@ -1149,7 +1192,7 @@ const zh: Record<StringKey, string> = {
   'chat.running': '回复中…',
   'chat.thinking': '思考中…',
   'chat.failed': '回复失败',
-  'chat.empty': '对话模式——模型直接回答，不建任务、不做计划。',
+  'chat.empty': '直接说出你要做的事。Camelia 可以当场回答，也可以把目标做成任务：规划、执行、再校验。',
   'chat.askTitle': 'Camelia 需要你的选择',
   'composer.noActiveRun': '无运行中任务',
   'composer.enterToSend': '回车发送',
@@ -1349,7 +1392,7 @@ const zh: Record<StringKey, string> = {
   'account.github.openBrowser': '在浏览器中打开 GitHub',
   'account.github.waiting': '等待授权…',
   'account.github.clientId': 'OAuth App Client ID',
-  'account.github.clientIdHint': '首次需要配置：在 GitHub 创建一个 OAuth App（设备码流程只需公开的 Client ID，不需要 Secret）。Callback URL 可填 http://127.0.0.1。',
+  'account.github.clientIdHint': '设备码登录要先粘贴一次 OAuth App 的 Client ID（Ov23…）。这个构建没有内置 Client ID，没有它登录完不成。Callback URL 可填 http://127.0.0.1，不需要 Secret。',
   'account.github.openOauthAppPage': '打开 GitHub OAuth App 创建页',
   'account.github.error.missingClientId': '尚未配置 GitHub OAuth Client ID。',
   'account.github.error.expired': '验证码已过期，请重试。',
@@ -1446,7 +1489,7 @@ const zh: Record<StringKey, string> = {
   'term.execute': '执行',
   'term.verify': '校验',
   'term.done': '完成',
-  'term.empty': '发一个目标。Camelia 会拆计划、执行，再校验结果。',
+  'term.empty': '团队编排在这里。输入目标后，协调者拆工人，工人走子代理。这不是第三条聊天。',
   'term.phase.plan': '正在把目标拆成计划。',
   'term.phase.execute': '正在按计划执行。',
   'term.phase.verify': '正在校验结果。',
@@ -1475,13 +1518,18 @@ const zh: Record<StringKey, string> = {
   'workspace.path': '文件夹路径',
   'workspace.apply': '使用此文件夹',
   'workspace.browse': '浏览…',
+  'workspace.browseFailed': '文件夹选择框没有打开。',
   'workspace.busy': '有任务正在进行。',
   'workspace.invalid': '这不是文件夹。',
   'login.title': '登录 Camelia',
   'login.body': '用 GitHub 登录，或先以访客继续。之后仍可从账户菜单登录。',
   'login.skip': '暂不登录',
+  'login.installDir': '安装目录',
+  'login.installHint': '只记在这台机器上，不会搬动程序，也不会再做一个安装包。',
+  'login.workspaceDir': '工作区目录',
+  'login.workspaceHint': '工具使用这个文件夹。之后仍可从左下角的文件夹控件更换。',
   'login.github': '用 GitHub 登录',
-  'memory.settings.hint': '引擎里存着的全部记忆，不限当前会话。',
+  'memory.settings.hint': '这里是可长期保留的事实、偏好、教训和做法。任务运行日志不出现在这一页。',
   'memory.settings.empty': '还没有记忆。',
   'memory.settings.forget': '忘记',
   'memory.settings.incorrect': '标为不正确',

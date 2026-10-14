@@ -317,7 +317,21 @@ export interface CommandMap {
    * different question with a different home (Settings). Response data:
    * `MemoryView[]`.
    */
-  'list_memories': { layer?: MemoryLayer; sessionId?: Id };
+  'list_memories': { layer?: MemoryLayer; sessionId?: Id; curated?: boolean };
+  /** Rename one session. Response data: `{ sessionId: Id; title: string }`. */
+  'rename_session': { sessionId: Id; title: string };
+  /**
+   * Delete one session row and its events. Response data: `{ sessionId: Id }`.
+   * Does not create a replacement — the UI opens a blank when the rail is empty.
+   */
+  'delete_session': { sessionId: Id };
+  /**
+   * Discover SKILL.md folders under the user skills dir, the workspace, and an
+   * optional extra root. Response data: `SkillInfo[]`-shaped records.
+   */
+  'list_skills': { workspace?: string; extraRoot?: string };
+  /** Copy a skill folder (or a parent of skill folders) into `~/.camelia/skills`. */
+  'install_skill': { path: string };
   /** Read one memory. Response data: `MemoryView | null`. */
   'get_memory': { memoryId: Id };
   /** Audit trail of every forgetting decision. Response data: `ForgetLogView[]`. */

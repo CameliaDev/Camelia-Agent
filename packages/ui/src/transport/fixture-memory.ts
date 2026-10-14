@@ -11,6 +11,13 @@
  */
 
 import type { ForgetLogEntry, MemoryItem, MemoryLayer } from '@camelia/core';
+
+/** Same rule as `@camelia/core` `isCuratedMemory`. Inlined so the browser bundle does not pull Node. */
+function isCuratedMemory(item: { kind: string; content: string }): boolean {
+  if (item.kind === 'artifact') return false;
+  if (/produced \d+ artifact/.test(item.content)) return false;
+  return item.kind === 'fact' || item.kind === 'preference' || item.kind === 'lesson' || item.kind === 'procedural';
+}
 import type { ForgetLogView, MemoryView } from '@camelia/agent/view';
 
 /** Deterministic, pre-scored fixture memories for the panel scenes. */
@@ -93,6 +100,21 @@ export function createFixtureMemoryDb(now: number, sessionId: string): FixtureMe
       createdAt: now - 5 * 60 * 1000,
       updatedAt: now - 5 * 60 * 1000,
     },
+    {
+      id: 'mem_fixture_artifact_1',
+      scope: 'session',
+      sessionId,
+      kind: 'artifact',
+      content: 'Task "问候用户" produced 1 artifact(s) across 1 step(s).',
+      keywords: 'artifact',
+      strength: 0.4,
+      importance: 0.4,
+      correctness: 1,
+      hits: 0,
+      layer: 'short',
+      createdAt: now - 60 * 1000,
+      updatedAt: now - 60 * 1000,
+    },
   ];
 
   const forgetLog: ForgetLogEntry[] = [
@@ -109,14 +131,16 @@ export function createFixtureMemoryDb(now: number, sessionId: string): FixtureMe
   return {
     items,
     forgetLog,
-    list(layer, sessionId) {
+    list(layer, sessionId, curated) {
       // Mirrors the engine's panel query: a sessionId scopes the list to what that
       // session learned, without folding in `scope = 'global'` rows. Keeping the two
       // paths identical is what stops the offline demo from disagreeing with a real run.
       const scoped = sessionId
         ? items.filter((item) => item.scope === 'session' && item.sessionId === sessionId)
         : items;
-      return (layer ? scoped.filter((item) => item.layer === layer) : scoped).map(toView);
+      const layered = layer ? scoped.filter((item) => item.layer === layer) : scoped;
+      const visible = curated ? layered.filter((item) => isCuratedMemory(item)) : layered;
+      return visible.map(toView);
     },
     get(id) {
       const item = items.find((entry) => entry.id === id);
@@ -177,7 +201,7 @@ export function createFixtureMemoryDb(now: number, sessionId: string): FixtureMe
 export interface FixtureMemoryDb {
   items: MemoryItem[];
   forgetLog: ForgetLogEntry[];
-  list(layer?: MemoryLayer, sessionId?: string): MemoryView[];
+  list(layer?: MemoryLayer, sessionId?: string, curated?: boolean): MemoryView[];
   get(id: string): MemoryView | null;
   markIncorrect(id: string): MemoryView | null;
   forget(id: string, reason: string): MemoryView | null;

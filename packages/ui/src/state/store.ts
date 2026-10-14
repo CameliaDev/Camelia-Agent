@@ -130,8 +130,11 @@ export interface UiState {
   /** Section to restore the next time the drawer opens. */
   lastPanelId?: PanelId;
   /** Which left sidebar the activity bar is showing. */
-  sidebarView: 'sessions' | 'extensions';
-  setSidebarView: (view: 'sessions' | 'extensions') => void;
+  sidebarView: 'sessions' | 'extensions' | 'skills';
+  setSidebarView: (view: 'sessions' | 'extensions' | 'skills') => void;
+  /** Optimistic blank so the title chrome leaves the previous session immediately. */
+  showPendingSession: (kind: 'work' | 'math' | 'term') => void;
+  patchSessionTitle: (id: Id, title: string) => void;
   /**
    * Whether the steering form is open. Ephemeral chrome, like the settings drawer.
    *
@@ -244,6 +247,31 @@ export function createUiStore(transport: Transport): UiStore {
     setSettingsSection: (settingsSection) => set({ settingsSection }),
     setSteeringOpen: (steeringOpen) => set({ steeringOpen }),
     setSidebarView: (sidebarView) => set({ sidebarView }),
+    showPendingSession: (kind) =>
+      set((state) => {
+        const session: SessionView = {
+          id: `pending_${kind}_${Date.now().toString(36)}`,
+          title: '新会话',
+          workspace: state.snapshot.session?.workspace ?? '',
+          provider: state.snapshot.session?.provider ?? state.snapshot.provider.activeProvider ?? '',
+          model: state.snapshot.session?.model ?? state.snapshot.provider.activeModel ?? '',
+          kind,
+          blank: true,
+        };
+        return {
+          activeSessionId: session.id,
+          sessions: [session, ...state.sessions.filter((row) => row.id !== session.id)],
+          snapshot: { ...withSession(initialSnapshot(), session), provider: state.snapshot.provider },
+        };
+      }),
+    patchSessionTitle: (id, title) =>
+      set((state) => ({
+        sessions: state.sessions.map((row) => (row.id === id ? { ...row, title } : row)),
+        snapshot:
+          state.snapshot.session?.id === id
+            ? withSession(state.snapshot, { ...state.snapshot.session, title })
+            : state.snapshot,
+      })),
     setPanelId: (panelId) =>
       set((state) => ({
         panelId,

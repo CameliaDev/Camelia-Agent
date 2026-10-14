@@ -45,6 +45,7 @@ export * from './tools/types.js';
 export * from './tools/ToolEngine.js';
 export * from './tools/schema-validator.js';
 export * from './tools/builtin/index.js';
+export * from './mechanisms/MechanismHost.js';
 
 // ---- approval & safety -----------------------------------------------------
 export * from './approval/ApprovalGate.js';

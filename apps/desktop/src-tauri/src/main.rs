@@ -763,6 +763,7 @@ fn pick_folder_command() -> std::process::Command {
     let mut cmd = std::process::Command::new("powershell");
     cmd.args([
         "-NoProfile",
+        "-STA",
         "-Command",
         "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }",
     ]);

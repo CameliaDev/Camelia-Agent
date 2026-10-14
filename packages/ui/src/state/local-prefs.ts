@@ -139,6 +139,12 @@ export interface LocalPrefs {
   feedbackRepo: string;
   /** Attach app version and the current mode to a feedback issue. */
   includeFeedbackMeta: boolean;
+  /**
+   * Noted install directory. Local only — it does not move the executable.
+   */
+  installDir: string;
+  /** Workspace chosen on the first-launch gate. Empty skips `set_workspace`. */
+  workspaceDir: string;
   window?: WindowGeometry;
 }
 
@@ -163,6 +169,8 @@ export const DEFAULT_LOCAL_PREFS: LocalPrefs = {
   effort: 'high',
   feedbackRepo: '',
   includeFeedbackMeta: true,
+  installDir: '',
+  workspaceDir: '',
 };
 
 const THEME_IDS: readonly ThemeId[] = ['warm-dark', 'cool-dark', 'light', 'high-contrast'];
@@ -255,8 +263,15 @@ export function sanitizeLocalPrefs(raw: Partial<LocalPrefs> | null | undefined):
       : DEFAULT_LOCAL_PREFS.effort,
     feedbackRepo: sanitizeFeedbackRepo(raw?.feedbackRepo),
     includeFeedbackMeta: raw?.includeFeedbackMeta !== false,
+    installDir: sanitizeDirNote(raw?.installDir),
+    workspaceDir: sanitizeDirNote(raw?.workspaceDir),
     ...(window ? { window } : {}),
   };
+}
+
+function sanitizeDirNote(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, 260);
 }
 
 function sanitizeFeedbackRepo(value: unknown): string {

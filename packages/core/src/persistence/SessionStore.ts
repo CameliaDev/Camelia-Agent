@@ -105,6 +105,8 @@ export interface SessionStore {
   getSession(id: Id): Promise<Session | undefined>;
   listSessions(limit?: number): Promise<Session[]>;
   updateSession(id: Id, patch: Partial<Pick<Session, 'title' | 'provider' | 'model'>>): Promise<void>;
+  /** Delete the session row, its events, and cascaded tasks. False when missing. */
+  deleteSession(id: Id): Promise<boolean>;
 
   // ---- tasks --------------------------------------------------------------
   createTask(input: CreateTaskInput): Promise<Task>;
