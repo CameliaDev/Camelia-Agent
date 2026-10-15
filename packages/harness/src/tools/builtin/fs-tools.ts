@@ -9,7 +9,7 @@
 import path from 'node:path';
 
 import type { JsonValue } from '@camelia/core';
-import { assertWithin, relativeTo } from '@camelia/core';
+import { assertWithinAllowRoots, displayPathForAllowRoots } from '@camelia/core';
 
 import type { Tool, ToolContext } from '../types.js';
 
@@ -42,8 +42,9 @@ interface ListInput {
 const MAX_READ_LINES = 2000;
 
 function resolve(ctx: ToolContext, p: string): { abs: string; rel: string } {
-  const abs = assertWithin(ctx.workspace, p);
-  return { abs, rel: relativeTo(ctx.workspace, abs) };
+  const extras = ctx.extraAllowPaths ?? [];
+  const abs = assertWithinAllowRoots(ctx.workspace, p, extras);
+  return { abs, rel: displayPathForAllowRoots(ctx.workspace, abs, extras) };
 }
 
 export const fsReadTool: Tool<ReadInput, JsonValue> = {
@@ -52,7 +53,7 @@ export const fsReadTool: Tool<ReadInput, JsonValue> = {
     'Read a text file from the workspace (read-only). Use when you need file contents; large files are returned partially, so read the parts you need.',
   usage: [
     'fs.read(path, offset?, limit?)',
-    '- path: workspace-relative file path, e.g. "src/main.ts". Read a file before editing it.',
+    '- path: workspace-relative path, or absolute path under workspace / extraAllowPaths. Read a file before editing it.',
     '- offset: 1-based first line to return (default 1).',
     '- limit: max lines to return (default 2000, capped at 2000).',
     '- Returns { path, content, totalLines, returnedLines, truncated }.',
@@ -99,7 +100,7 @@ export const fsWriteTool: Tool<WriteInput, JsonValue> = {
     'Create or overwrite a workspace file with given content (write, reversible). Use when a file must exist; parent directories are created automatically.',
   usage: [
     'fs.write(path, content)',
-    '- path: workspace-relative file path, e.g. "src/main.ts". Parent dirs are created automatically — no separate mkdir step needed.',
+    '- path: workspace-relative path, or absolute path under workspace / extraAllowPaths. Parent dirs are created automatically.',
     '- content: the full file content. Overwrites any existing file.',
     '- Returns { path, bytes, lines, hash }.',
     '- Prefer fs.edit for small changes to an existing file.',
@@ -244,14 +245,15 @@ export const fsListTool: Tool<ListInput, JsonValue> = {
   },
   async run(input, ctx) {
     const target = input.dir ?? '.';
-    const abs = assertWithin(ctx.workspace, target);
+    const extras = ctx.extraAllowPaths ?? [];
+    const abs = assertWithinAllowRoots(ctx.workspace, target, extras);
     const entries = await ctx.fs.list(abs, {
       recursive: input.recursive ?? false,
       maxEntries: input.maxEntries ?? 200,
       ignore: ['node_modules', '.git', 'dist', 'coverage', '.turbo'],
     });
     return {
-      dir: relativeTo(ctx.workspace, abs) || '.',
+      dir: displayPathForAllowRoots(ctx.workspace, abs, extras) || '.',
       count: entries.length,
       entries,
     } as unknown as JsonValue;

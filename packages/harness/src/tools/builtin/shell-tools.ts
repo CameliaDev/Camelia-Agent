@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { JsonValue } from '@camelia/core';
+import { assertWithinAllowRoots, type JsonValue } from '@camelia/core';
 
 import type { Tool, ToolContext } from '../types.js';
 
@@ -39,9 +39,9 @@ export const shellExecTool: Tool<ExecInput, JsonValue> = {
   usage: [
     'shell.exec(command, cwd?, timeoutMs?)',
     '- command: the full command line, e.g. "npm run build".',
-    '- cwd: workspace-relative working directory (default workspace root).',
+    '- cwd: workspace-relative or absolute path under workspace / extraAllowPaths (default workspace root).',
     '- Output is truncated at 20000 chars; timedOut/truncated flags tell you if it was cut.',
-    '- Runs inside the workspace; destructive system commands are blocked by policy.',
+    '- cwd must stay inside allowed roots; FULL mode does not expand those roots. Destructive system commands are blocked by policy.',
   ].join('\n'),
   risk: 'privileged',
   reversible: false,
@@ -49,15 +49,17 @@ export const shellExecTool: Tool<ExecInput, JsonValue> = {
     type: 'object',
     properties: {
       command: { type: 'string', description: 'Command line to execute.' },
-      cwd: { type: 'string', description: 'Workspace-relative working directory.' },
+      cwd: { type: 'string', description: 'Working directory (workspace-relative or absolute under allow roots).' },
       timeoutMs: { type: 'integer', description: 'Timeout in milliseconds.' },
     },
     required: ['command'],
     additionalProperties: false,
   },
   async run(input, ctx: ToolContext) {
+    const extras = ctx.extraAllowPaths ?? [];
+    const cwd = assertWithinAllowRoots(ctx.workspace, input.cwd ?? '.', extras);
     const result = await ctx.shell.exec(input.command, {
-      cwd: input.cwd ? `${ctx.workspace}/${input.cwd}` : ctx.workspace,
+      cwd,
       timeoutMs: input.timeoutMs,
     });
     return {

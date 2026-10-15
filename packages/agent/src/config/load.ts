@@ -40,6 +40,14 @@ export interface CameliaConfig {
   preferredProvider?: string;
   /** `always` waits for a person before execution. Default when omitted. */
   planApproval?: 'always' | 'auto';
+  /**
+   * Extra absolute directories tools may read/write besides the workspace root.
+   * FULL permission mode does **not** expand this list — configure roots here.
+   *
+   * Example (Windows eval bench):
+   * `["C:/Users/you/Desktop/camelia-bench"]`
+   */
+  extraAllowPaths?: string[];
 }
 
 /** The three free paths, in fallback order (whitepaper appendix A, rule 9). */
@@ -203,6 +211,10 @@ export function loadConfig(options: LoadConfigOptions = {}): CameliaConfig {
   }
 
   const remembered = fileConfig?.lastSelectedProvider;
+  const extraAllowPaths = Array.isArray(fileConfig?.extraAllowPaths)
+    ? fileConfig.extraAllowPaths.filter((p): p is string => typeof p === 'string' && p.trim().length > 0).map((p) => p.trim())
+    : undefined;
+
   return {
     providers,
     // An explicit `model` wins. Older builds only wrote `lastSelectedProvider`,
@@ -214,6 +226,7 @@ export function loadConfig(options: LoadConfigOptions = {}): CameliaConfig {
       fileConfig?.preferredProvider ||
       (typeof remembered?.providerId === 'string' ? remembered.providerId : undefined),
     planApproval: fileConfig?.planApproval === 'auto' ? 'auto' : fileConfig?.planApproval === 'always' ? 'always' : undefined,
+    ...(extraAllowPaths && extraAllowPaths.length ? { extraAllowPaths } : {}),
   };
 }
 

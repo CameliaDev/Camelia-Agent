@@ -119,27 +119,38 @@ const ASK_USER_SCHEMA: LLMToolSchema = {
  * Think, then a short plan, then tools. The short plan stays in the reply.
  * It does not open the task state machine.
  */
-export function workChatSystemPrompt(policy: ChatPolicy, workspace: string, effort?: EffortLevel): string {
+export function workChatSystemPrompt(
+  policy: ChatPolicy,
+  workspace: string,
+  effort?: EffortLevel,
+  extraAllowPaths?: readonly string[],
+): string {
   const posture =
     policy === 'full'
-      ? 'Permission mode: FULL — every tool runs directly.'
+      ? 'Permission mode: FULL — every tool runs without an approval prompt. FULL does not expand the filesystem sandbox; tools may only touch the workspace and configured extraAllowPaths.'
       : policy === 'ask'
-        ? 'Permission mode: ASK — read-only tools run directly; any tool that writes, executes or reaches the network opens an approval prompt the user must answer.'
+        ? 'Permission mode: ASK — read-only tools run directly; any tool that writes, executes or reaches the network opens an approval prompt the user must answer. ASK does not expand the filesystem sandbox.'
         : 'Permission mode: READ-ONLY SANDBOX — only read-only tools run; anything else is denied by policy.';
+  const allowRoots =
+    extraAllowPaths && extraAllowPaths.length > 0
+      ? `Allowed roots: ${[workspace, ...extraAllowPaths].join(' | ')}`
+      : `Workspace root (sandbox): ${workspace}. To write outside it, the user adds absolute paths to extraAllowPaths in ~/.camelia/config.json — do not invent synthetic deliverables or ask A/B/C just to escape the sandbox.`;
   const lines = [
     'You are Camelia in Work mode.',
     'Think before you act. Do not call a tool until the goal, the constraints, and a short plan are clear.',
     'For each request:',
     '1. Name the goal in one sentence.',
-    '2. Name the constraints that bound the work (permission mode, the workspace, and anything the user said must not change).',
+    '2. Name the constraints that bound the work (permission mode, the workspace / allow roots, and anything the user said must not change).',
     '3. Write a short plan: a few ordered steps. If the answer needs no tools, the plan is one step: answer.',
     '4. Then call tools, and only for steps that need the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',
+    'If web_search returns empty or errors, stop and report the failure. Do not invent that a contest, dataset, or page "does not exist" — empty search is a tool failure, not evidence of absence.',
+    'If the user says 「继续」, "continue", "keep going", or similar without stating a new goal, resume the last explicit goal and constraints from this conversation. Do not ask what they want next.',
     'The short plan is part of the reply. It does not open the task state machine and it does not wait on a separate approval ritual.',
     'When the work should be split across sub-AIs, call invoke_subagents. Each sub-AI must think first and hold a work token before it can use tools. Out-of-bounds work is handed back to you.',
     localNowPromptLine(),
-    `Workspace: ${workspace}`,
+    allowRoots,
     posture,
-    'If a tool is denied or fails, say plainly what you were trying to do and what you need — do not retry silently.',
+    'If a tool is denied or fails, say plainly what you were trying to do and what you need — do not retry silently. Path-escape errors mean the path is outside allowed roots; explain extraAllowPaths rather than synthesizing files.',
     'When you cannot proceed without the user\'s input, call ask_user with one short question and 2-4 concrete options.',
   ];
   if (effort) lines.push(effortInstruction(effort));
@@ -261,7 +272,7 @@ export class ChatLoop {
       messages.push({ role: 'user', content: buildUserContent(userText, safeImages) });
       this.trimHistory(messages);
 
-      const system: LLMMessage = { role: 'system', content: workChatSystemPrompt(policy, this.opts.workspace, effort) };
+      const system: LLMMessage = { role: 'system', content: workChatSystemPrompt(policy, this.opts.workspace, effort, this.opts.config.extraAllowPaths) };
       const tools: LLMToolSchema[] = [...this.opts.tools.schemas(this.allowedTools()), ASK_USER_SCHEMA, INVOKE_SUBAGENTS_SCHEMA];
 
       for (let iteration = 0; iteration < MAX_CHAT_ITERATIONS; iteration += 1) {
@@ -601,6 +612,7 @@ export class ChatLoop {
 
     const ctx: ToolContext = {
       workspace: this.opts.workspace,
+      extraAllowPaths: this.opts.config.extraAllowPaths,
       fs: this.opts.ports.fs,
       shell: this.opts.ports.shell,
       search: this.opts.ports.search,

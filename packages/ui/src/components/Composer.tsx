@@ -49,6 +49,7 @@ import { useUiState, useUiStore, useUiStoreApi } from '../state/UiProvider.js';
 import { t } from '../i18n/strings.js';
 import { useMode } from '../mode/useMode.js';
 import { Icon } from './primitives.js';
+import { chatRunStatus } from './ChatReplyProgress.js';
 
 /** The permission postures a chat turn can run under — order is the picker's order. */
 const CHAT_POLICIES: readonly ChatPolicy[] = ['readonly-sandbox', 'ask', 'full'];
@@ -145,6 +146,11 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const running = task !== undefined && task.status !== 'done' && task.status !== 'failed' && task.status !== 'cancelled';
   const { mode } = useMode();
   const conversational = mode === 'work' || mode === 'math';
+  /** Work/math chat turn in flight — keep Stop visible until settle (sticky busy). */
+  const chatStatus = conversational ? chatRunStatus(snapshot.chat) : 'idle';
+  const chatBusy =
+    conversational &&
+    (snapshot.chat.inflight === true || chatStatus === 'thinking' || chatStatus === 'replying');
   const chatPolicy = useUiStore((s) => s.localPrefs.chatPolicy);
   const effort = useUiStore((s) => s.localPrefs.effort);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
@@ -429,11 +435,12 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
 
   const submit = (): void => {
     const intent = value.trim();
-    if (mode === 'work' && posture !== 'chat' && !running && !selectedTeamId) {
+    if (mode === 'work' && posture !== 'chat' && !running && !selectedTeamId && !chatBusy) {
       const body = `${intent}${folderNote}`.trim();
       if (!body) return;
       const parsed = splitPlanText(intent || pendingFolders[0]?.name || body);
       const sessionId = snapshot.session?.id ?? activeSessionId ?? 'ses_new';
+      // Persist the readable note, then explore with read-only tools (Cline/Continue Plan).
       dispatch(
         makeCommand('save_work_plan', {
           sessionId,
@@ -442,6 +449,19 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
           goal: parsed.goal,
           constraints: parsed.constraints,
           body,
+        }),
+      );
+      const planPrompt =
+        posture === 'plan'
+          ? `Plan mode (read-only tools): produce a clear, ordered plan for the following. Do not write or edit files.\n\n${body}`
+          : `Goal mode (read-only tools): clarify the goal, constraints, and success criteria for the following. Do not write or edit files.\n\n${body}`;
+      dispatch(
+        makeCommand('chat_message', {
+          sessionId,
+          text: planPrompt,
+          policy: 'readonly-sandbox',
+          effort,
+          ...(folderPayload.length ? { folders: folderPayload } : {}),
         }),
       );
       clearDraft();
@@ -466,6 +486,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
         : undefined;
     if (!intent && !(images && images.length) && folderPayload.length === 0) return;
     if (conversational) {
+      if (chatBusy) return; // sticky busy: use Stop, do not stack another turn
       // 对话 mode: multimodal when images are pasted — OpenAI-compatible vision parts.
       // A foreign session (Work chat still projected under Math) gets its own row first.
       const state = store.getState();
@@ -1019,7 +1040,24 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               ) : null}
             </div>
 
-            {running && mode !== 'work' ? (
+            {chatBusy ? (
+              <button
+                type="button"
+                data-chat-stop
+                aria-label={tr('composer.stop')}
+                title={tr('composer.stop')}
+                onClick={() =>
+                  dispatch(
+                    makeCommand('chat_cancel', {
+                      sessionId: snapshot.session?.id ?? activeSessionId ?? 'ses_new',
+                    }),
+                  )
+                }
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-bad text-white transition-colors hover:opacity-90"
+              >
+                <Icon name="stop" size={14} />
+              </button>
+            ) : running && mode !== 'work' ? (
               <button
                 type="submit"
                 data-run

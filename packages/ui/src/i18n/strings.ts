@@ -125,6 +125,7 @@ type StringKey =
   | 'conversation.tab'
   | 'composer.placeholder'
   | 'composer.run'
+  | 'composer.stop'
   | 'composer.steerPlaceholder'
   | 'composer.chatPlaceholder'
   | 'composer.policy'
@@ -138,6 +139,7 @@ type StringKey =
   | 'chat.done'
   | 'chat.failed'
   | 'chat.askTitle'
+  | 'chat.collapseAnswer'
   | 'composer.noActiveRun'
   | 'composer.enterToSend'
   | 'composer.shiftEnter'
@@ -717,6 +719,7 @@ const en: Record<StringKey, string> = {
   'plan.tab': 'Plan',
   'conversation.tab': 'Conversation',
   'composer.placeholder': 'Describe a task. Camelia plans, executes, verifies and shows its work…',
+  'composer.stop': 'Stop',
   'composer.run': 'Run',
   'composer.steerPlaceholder': 'Steer the run — the goal is re-anchored, prior work kept…',
   'composer.chatPlaceholder': 'Name the goal. Camelia writes the constraints and a short plan, then uses tools…',
@@ -731,6 +734,7 @@ const en: Record<StringKey, string> = {
   'chat.failed': 'Reply failed',
   'chat.empty': 'Say what you want done. Camelia can answer in the conversation, or turn the goal into a task it plans, runs, and checks.',
   'chat.askTitle': 'Camelia needs your choice',
+  'chat.collapseAnswer': 'Long reply — expand',
   'composer.noActiveRun': 'no active run',
   'composer.enterToSend': 'Enter to send',
   'composer.shiftEnter': 'Shift + Enter for a new line',
@@ -1304,6 +1308,7 @@ const zh: Record<StringKey, string> = {
   'plan.tab': '计划',
   'conversation.tab': '对话',
   'composer.placeholder': '描述一个任务。Camelia 会规划、执行、校验并展示全过程……',
+  'composer.stop': '停止',
   'composer.run': '运行',
   'composer.steerPlaceholder': '引导本次运行——目标重新锚定，已有工作保留……',
   'composer.chatPlaceholder': '说出目标。Camelia 先写清约束和短计划，再用工具……',
@@ -1318,6 +1323,7 @@ const zh: Record<StringKey, string> = {
   'chat.failed': '回复失败',
   'chat.empty': '直接说出你要做的事。Camelia 可以当场回答，也可以把目标做成任务：规划、执行、再校验。',
   'chat.askTitle': 'Camelia 需要你的选择',
+  'chat.collapseAnswer': '长回复 — 展开',
   'composer.noActiveRun': '无运行中任务',
   'composer.enterToSend': '回车发送',
   'composer.shiftEnter': 'Shift+回车换行',
