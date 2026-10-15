@@ -8,6 +8,7 @@ import {
   missingPermissions,
   parseAgentPreset,
   parsePluginManifest,
+  parseShellPlugin,
   parseThemePlugin,
   permissionsForRisk,
   presetAllows,
@@ -194,6 +195,20 @@ describe('filterThemeTokens', () => {
     });
     expect(tokens).toEqual({ '--color-accent': '#D96C5F' });
     expect(rejected.sort()).toEqual(['--color-ink', '--evil-token']);
+  });
+});
+
+describe('parseShellPlugin', () => {
+  it('accepts the math-mode shell payload', () => {
+    const result = parseShellPlugin({ mode: 'math', icon: 'sigma' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.mode).toBe('math');
+  });
+
+  it('rejects unknown modes and icons', () => {
+    expect(parseShellPlugin({ mode: 'term', icon: 'sigma' }).ok).toBe(false);
+    expect(parseShellPlugin({ mode: 'math', icon: 'bot' }).ok).toBe(false);
   });
 });
 

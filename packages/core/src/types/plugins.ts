@@ -14,8 +14,8 @@
 
 import type { RiskLevel } from './domain.js';
 
-/** The four extension points (whitepaper §8.1–§8.4). */
-export const PLUGIN_KINDS = ['provider', 'tool', 'theme', 'agent-preset'] as const;
+/** Extension points (whitepaper §8.1–§8.4) plus declarative shell UI. */
+export const PLUGIN_KINDS = ['provider', 'tool', 'theme', 'agent-preset', 'shell'] as const;
 export type PluginKind = (typeof PLUGIN_KINDS)[number];
 
 /** Capabilities a plugin may request. Nothing is granted implicitly. */
@@ -29,8 +29,8 @@ export interface PluginManifest {
   /**
    * Path to the payload, relative to the plugin directory.
    *
-   * `theme` and `agent-preset` point at a `.json` data file (loaded as data, never
-   * executed); `provider` and `tool` point at a `.js`/`.mjs` module.
+   * `theme`, `agent-preset`, and `shell` point at a `.json` data file (loaded as data,
+   * never executed); `provider` and `tool` point at a `.js`/`.mjs` module.
    */
   entry: string;
   /** Declared capabilities. Defaults to none when omitted. */

@@ -1,5 +1,7 @@
 /**
- * Mode registry — Work | Math | Term (F6 + Term MVP).
+ * Mode registry — built-in workbench modes shown in settings.
+ *
+ * Math is an optional shell plugin (`math-mode`). Term is legacy engine surface only.
  * @module
  */
 
@@ -12,21 +14,6 @@ export const MODE_REGISTRY: readonly ModeDefinition[] = [
     descriptionKey: 'mode.work.desc',
     icon: 'bot',
     available: true,
-  },
-  {
-    id: 'math',
-    labelKey: 'mode.math',
-    descriptionKey: 'mode.math.desc',
-    icon: 'sigma',
-    available: true,
-  },
-  {
-    id: 'term',
-    labelKey: 'mode.term',
-    descriptionKey: 'mode.term.desc',
-    icon: 'bot',
-    available: true,
-    deprecated: true,
   },
 ];
 

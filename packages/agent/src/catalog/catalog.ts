@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { isUnsafeRelativePath, parsePluginManifest } from '@camelia/core';
+import { isUnsafeRelativePath, parsePluginManifest, parseShellPlugin, type ShellPlugin } from '@camelia/core';
 
 import { paths } from '../config/paths.js';
 import { PLUGIN_MANIFEST_FILE, PluginLoader } from '../plugins/PluginLoader.js';
@@ -70,6 +70,8 @@ export interface InstalledPluginInfo {
   kind: string;
   version?: string;
   dir: string;
+  /** Parsed shell contribution when `kind === 'shell'`. */
+  shell?: ShellPlugin;
 }
 
 export interface CatalogMaterialized {
@@ -171,15 +173,37 @@ function catalogUrls(env: NodeJS.ProcessEnv | undefined): string[] {
 export function listInstalledPlugins(root = paths.plugins()): InstalledPluginInfo[] {
   const { found } = new PluginLoader().discover(root);
   return found
-    .map((plugin) => ({
-      id: path.basename(plugin.dir),
-      name: plugin.manifest.name,
-      description: plugin.manifest.description ?? '',
-      kind: plugin.manifest.kind,
-      ...(plugin.manifest.version ? { version: plugin.manifest.version } : {}),
-      dir: plugin.dir,
-    }))
+    .map((plugin) => {
+      const row: InstalledPluginInfo = {
+        id: path.basename(plugin.dir),
+        name: plugin.manifest.name,
+        description: plugin.manifest.description ?? '',
+        kind: plugin.manifest.kind,
+        ...(plugin.manifest.version ? { version: plugin.manifest.version } : {}),
+        dir: plugin.dir,
+      };
+      if (plugin.manifest.kind === 'shell') {
+        const shell = readShellEntry(plugin.dir, plugin.manifest.entry);
+        if (shell) row.shell = shell;
+      }
+      return row;
+    })
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
+function readShellEntry(dir: string, entry: string): ShellPlugin | undefined {
+  if (isUnsafeRelativePath(entry)) return undefined;
+  const entryPath = path.resolve(dir, entry);
+  if (!entryPath.startsWith(path.resolve(dir))) return undefined;
+  if (!fs.existsSync(entryPath)) return undefined;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(entryPath, 'utf8'));
+  } catch {
+    return undefined;
+  }
+  const parsed = parseShellPlugin(raw);
+  return parsed.ok ? parsed.value : undefined;
 }
 
 export async function installCatalogPlugin(

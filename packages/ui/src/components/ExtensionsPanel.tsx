@@ -17,13 +17,7 @@ import { makeCommand } from '../state/store.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { Icon } from './primitives.js';
 
-interface InstalledPlugin {
-  id: string;
-  name: string;
-  description: string;
-  kind: string;
-  dir: string;
-}
+import type { InstalledPluginView } from '../state/shell-plugins.js';
 
 interface CatalogPayload {
   plugins?: CatalogEntryView[];
@@ -32,6 +26,7 @@ interface CatalogPayload {
 export function ExtensionsPanel(): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const queryCmd = useUiStore((s) => s.query);
+  const refreshInstalledPlugins = useUiStore((s) => s.refreshInstalledPlugins);
   const tr = (key: Parameters<typeof t>[1]) => t(lang, key);
   const [query, setQuery] = useState('');
   const [note, setNote] = useState('');
@@ -41,7 +36,7 @@ export function ExtensionsPanel(): ReactNode {
   const [showInstalled, setShowInstalled] = useState(true);
   const [showCatalog, setShowCatalog] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
+  const [installed, setInstalled] = useState<InstalledPluginView[]>([]);
   const [catalog, setCatalog] = useState<CatalogEntryView[]>([]);
   const [catalogError, setCatalogError] = useState('');
   const [installing, setInstalling] = useState('');
@@ -51,7 +46,7 @@ export function ExtensionsPanel(): ReactNode {
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     const [pluginsResult, catalogResult] = await Promise.allSettled([
-      queryCmd<InstalledPlugin[]>(makeCommand('list_plugins', {})),
+      queryCmd<InstalledPluginView[]>(makeCommand('list_plugins', {})),
       queryCmd<CatalogPayload>(makeCommand('fetch_extension_catalog', {})),
     ]);
     if (pluginsResult.status === 'fulfilled') {
@@ -67,7 +62,8 @@ export function ExtensionsPanel(): ReactNode {
       setCatalogError(reason instanceof Error ? reason.message : t(lang, 'extensions.catalogError'));
     }
     setLoading(false);
-  }, [lang, queryCmd]);
+    await refreshInstalledPlugins();
+  }, [lang, queryCmd, refreshInstalledPlugins]);
 
   useEffect(() => {
     void load();

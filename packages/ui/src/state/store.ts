@@ -55,6 +55,11 @@ import {
   type LocalPrefs,
 } from './local-prefs.js';
 import { themeLabel } from '../theme/presets.js';
+import {
+  reconcileActiveMode,
+  reconcilePreferredMode,
+  type InstalledPluginView,
+} from './shell-plugins.js';
 
 export interface MemoryPanelState {
   /** Layer filter for the visible list. */
@@ -132,6 +137,9 @@ export interface UiState {
   /** Which left sidebar the activity bar is showing. */
   sidebarView: 'sessions' | 'extensions' | 'skills';
   setSidebarView: (view: 'sessions' | 'extensions' | 'skills') => void;
+  /** On-disk plugins (`list_plugins`). Shell entries drive optional activity-bar modes. */
+  installedPlugins: InstalledPluginView[];
+  refreshInstalledPlugins: () => Promise<void>;
   /** Optimistic blank so the title chrome leaves the previous session immediately. */
   showPendingSession: (kind: 'work' | 'math' | 'term') => void;
   patchSessionTitle: (id: Id, title: string) => void;
@@ -192,6 +200,25 @@ export type UiStore = UseBoundStore<StoreApi<UiState>>;
 export type SettingsSection = 'account' | 'connections' | 'appearance' | 'engine' | 'memory' | 'about' | 'feedback';
 
 /** Build a well-formed command envelope. The transport owns delivery; this owns shape. */
+async function refreshInstalledPluginsImpl(store: UiStore): Promise<void> {
+  try {
+    const plugins = await store.getState().query<InstalledPluginView[]>(makeCommand('list_plugins', {}));
+    const rows = Array.isArray(plugins) ? plugins : [];
+    store.setState((state) => {
+      const mode = reconcileActiveMode(state.mode, rows);
+      const preferredMode = reconcilePreferredMode(state.localPrefs.preferredMode, rows);
+      const prefs =
+        preferredMode === state.localPrefs.preferredMode
+          ? state.localPrefs
+          : sanitizeLocalPrefs({ ...state.localPrefs, preferredMode });
+      if (prefs !== state.localPrefs) saveLocalPrefs(prefs);
+      return { installedPlugins: rows, mode, localPrefs: prefs };
+    });
+  } catch {
+    // Offline fixture tests may not answer; leave the previous list.
+  }
+}
+
 export function makeCommand<T extends CommandType>(
   type: T,
   payload: CommandMap[T],
@@ -231,9 +258,10 @@ export function createUiStore(transport: Transport): UiStore {
     settingsOpen: false,
     panelId: undefined,
     sidebarView: 'sessions',
+    installedPlugins: [],
     settingsSection: 'connections',
     steeringOpen: false,
-    mode: normalizeModeId(bootPrefs.preferredMode),
+    mode: reconcileActiveMode(bootPrefs.preferredMode, []),
     ...(bootTheme
       ? { activeTheme: { id: bootPrefs.themeId, label: themeLabel(bootPrefs.themeId), rejected: bootTheme.rejected } }
       : {}),
@@ -247,6 +275,9 @@ export function createUiStore(transport: Transport): UiStore {
     setSettingsSection: (settingsSection) => set({ settingsSection }),
     setSteeringOpen: (steeringOpen) => set({ steeringOpen }),
     setSidebarView: (sidebarView) => set({ sidebarView }),
+    refreshInstalledPlugins: async () => {
+      await refreshInstalledPluginsImpl(store);
+    },
     showPendingSession: (kind) =>
       set((state) => {
         const session: SessionView = {
@@ -498,6 +529,8 @@ export function createUiStore(transport: Transport): UiStore {
   } catch (error) {
     store.setState({ status: 'offline', transportError: error instanceof Error ? error.message : String(error) });
   }
+
+  void store.getState().refreshInstalledPlugins();
 
   return store;
 }

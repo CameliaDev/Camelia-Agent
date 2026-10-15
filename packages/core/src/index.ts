@@ -19,6 +19,7 @@ export * from './types/advise.js';
 export * from './types/events.js';
 export * from './types/plugins.js';
 export * from './types/presets.js';
+export * from './types/shell.js';
 export * from './types/mcp.js';
 
 // ---- infrastructure --------------------------------------------------------

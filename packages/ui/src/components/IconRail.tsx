@@ -51,6 +51,8 @@
 import { useState, type ReactNode } from 'react';
 
 import { t } from '../i18n/strings.js';
+import { useMode } from '../mode/useMode.js';
+import { shellModeInstalled } from '../state/shell-plugins.js';
 import { useUiStore } from '../state/UiProvider.js';
 import { AccountMenu } from './AccountMenu.js';
 import { GearMenu } from './GearMenu.js';
@@ -94,6 +96,9 @@ export function IconRail(): ReactNode {
   const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
   const displayNamePref = useUiStore((s) => s.localPrefs.displayName);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
+  const installedPlugins = useUiStore((s) => s.installedPlugins);
+  const { mode, setMode } = useMode();
+  const mathInstalled = shellModeInstalled(installedPlugins, 'math');
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [gearOpen, setGearOpen] = useState(false);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
@@ -185,6 +190,30 @@ export function IconRail(): ReactNode {
         <Icon name="skills" size={22} />
         <Tip>{tr('skills.title')}</Tip>
       </button>
+
+      {mathInstalled ? (
+        <button
+          type="button"
+          data-rail-view="math"
+          aria-pressed={mode === 'math' && !leftCollapsed && sidebarView === 'sessions'}
+          title={tr('mode.math')}
+          aria-label={tr('mode.math')}
+          className={`${CELL} ${mode === 'math' && !leftCollapsed && sidebarView === 'sessions' ? ITEM_ACTIVE : ITEM_IDLE}`}
+          onClick={() => {
+            if (mode === 'math' && !leftCollapsed && sidebarView === 'sessions') {
+              setLocalPrefs({ leftCollapsed: true });
+              return;
+            }
+            setMode('math');
+            setSidebarView('sessions');
+            setLocalPrefs({ leftCollapsed: false });
+          }}
+        >
+          {mode === 'math' && !leftCollapsed && sidebarView === 'sessions' ? <ActiveMark /> : null}
+          <Icon name="sigma" size={22} />
+          <Tip>{tr('mode.math')}</Tip>
+        </button>
+      ) : null}
 
       <span className="flex-1" />
 

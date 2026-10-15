@@ -17,6 +17,7 @@ import { FixtureTransport } from '../src/transport/fixture.js';
 import type { SceneId } from '../src/transport/scenario.js';
 import { isAppModeId, DEFAULT_MODE } from '../src/mode/types.js';
 import { MODE_REGISTRY } from '../src/mode/ModeRegistry.js';
+import { enterMathMode, mathRailButton } from './math-plugin.js';
 import {
   MATH_DEMO_FIRST,
   MATH_DEMO_FRAMES,
@@ -35,12 +36,6 @@ function renderScene(scene: SceneId) {
   return { ...view, store, transport };
 }
 
-function modeTab(container: HTMLElement, id: string): HTMLElement {
-  const el = container.querySelector(`[data-mode-tab="${id}"]`);
-  if (!el) throw new Error(`no mode tab ${id}`);
-  return el as HTMLElement;
-}
-
 describe('mode types', () => {
   it('guards unknown ids instead of casting', () => {
     expect(isAppModeId('work')).toBe(true);
@@ -50,16 +45,24 @@ describe('mode types', () => {
     expect(DEFAULT_MODE).toBe('work');
   });
 
-  it('registers every mode with an i18n label, and marks math unavailable', () => {
-    expect(MODE_REGISTRY.map((m) => m.id)).toEqual(['work', 'math', 'term']);
+  it('registers only the built-in work mode for settings', () => {
+    expect(MODE_REGISTRY.map((m) => m.id)).toEqual(['work']);
     for (const def of MODE_REGISTRY) {
       expect(def.labelKey).toMatch(/^mode\./);
       expect(def.descriptionKey).toMatch(/^mode\./);
     }
-    // Math has no engine commands yet; the registry must say so rather than pretend.
-    expect(MODE_REGISTRY.find((m) => m.id === 'math')?.available).toBe(true);
-    // math is available in Work|Math F6
-    expect(MODE_REGISTRY.find((m) => m.id === 'math')?.available).toBe(true);
+  });
+});
+
+describe('mode chrome', () => {
+  it('does not render the legacy Work/Math/Term tab strip', () => {
+    const { container } = renderScene('running');
+    expect(container.querySelector('[data-mode-tabs]')).toBeNull();
+  });
+
+  it('hides the math activity-bar icon until the shell plugin is installed', () => {
+    const { container } = renderScene('running');
+    expect(container.querySelector('[data-rail-view="math"]')).toBeNull();
   });
 });
 
@@ -70,15 +73,13 @@ describe('mode switching', () => {
     expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
   });
 
-  it('switches without touching snapshot or emitting a command', () => {
+  it('switches without touching snapshot or emitting a command', async () => {
     // `running`, not `plan`: a task awaiting approval auto-routes to plan mode (see the
     // approval-reachability block below), so it is the wrong scene to test free switching.
     const { container, store } = renderScene('running');
     const before = store.getState().snapshot;
 
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
+    await enterMathMode(container, store);
     expect(container.querySelector('[data-mode-shell="math"]')).not.toBeNull();
 
     // The projection is untouched: the mode is chrome, not domain state.
@@ -89,24 +90,18 @@ describe('mode switching', () => {
     expect(store.getState().lastCommand?.type).not.toBe('set_ui_mode');
   });
 
-  it('exposes the current mode on the tab strip', () => {
-    const { container } = renderScene('running');
-    expect(modeTab(container, 'work').getAttribute('aria-selected')).toBe('true');
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
-    expect(modeTab(container, 'math').getAttribute('aria-selected')).toBe('true');
-    expect(modeTab(container, 'work').getAttribute('aria-selected')).toBe('false');
+  it('marks the math activity-bar icon pressed while math is active', async () => {
+    const { container, store } = renderScene('running');
+    await enterMathMode(container, store);
+    expect(mathRailButton(container).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('keeps a running task alive and says so when the surface is replaced', () => {
+  it('keeps a running task alive and says so when the surface is replaced', async () => {
     const { container, store } = renderScene('running');
     const taskBefore = store.getState().snapshot.task;
     expect(taskBefore).toBeDefined();
 
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
+    await enterMathMode(container, store);
 
     // Switching did not cancel, pause or otherwise disturb the run.
     expect(store.getState().snapshot.task).toBe(taskBefore);
@@ -122,11 +117,8 @@ describe('mode switching', () => {
     expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
   });
 
-  it('shows no strip in plan mode, since the conversation surface is still on screen', () => {
+  it('shows no strip in work mode while a task runs', () => {
     const { container } = renderScene('running');
-    act(() => {
-      fireEvent.click(modeTab(container, 'work'));
-    });
     expect(container.querySelector('[data-cross-mode-strip]')).toBeNull();
   });
 });
@@ -152,12 +144,8 @@ describe('plan approval is always reachable', () => {
     expect(review.textContent).toMatch(/拒绝|Reject/);
   });
 
-  it('does not force plan mode once the task has moved past approval', () => {
+  it('keeps work shell while a task executes after approval', () => {
     const { container, store } = renderScene('running');
-    // `running` is executing: the user is free to leave plan mode.
-    act(() => {
-      fireEvent.click(modeTab(container, 'work'));
-    });
     expect(container.querySelector('[data-mode-shell="work"]')).not.toBeNull();
     expect(store.getState().snapshot.task?.status).toBe('executing');
   });
@@ -172,11 +160,9 @@ describe('plan approval is always reachable', () => {
 });
 
 describe('math workspace', () => {
-  it('never auto-plays the demo — it is an explicit, labelled action', () => {
-    const { container } = renderScene('empty');
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
+  it('never auto-plays the demo — it is an explicit, labelled action', async () => {
+    const { container, store } = renderScene('empty');
+    await enterMathMode(container, store);
     // Opt-in: no badge and no data until the user asks for it.
     expect(container.querySelector('[data-math-demo-badge]')).toBeNull();
     expect(container.querySelector('[data-math-demo-load]')).not.toBeNull();
@@ -184,11 +170,9 @@ describe('math workspace', () => {
     expect(container.querySelector('[data-math-unavailable]')).not.toBeNull();
   });
 
-  it('badges the demo everywhere it shows data, and can be exited', () => {
+  it('badges the demo everywhere it shows data, and can be exited', async () => {
     const { container, store } = renderScene('empty');
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
+    await enterMathMode(container, store);
     act(() => {
       fireEvent.click(container.querySelector('[data-math-demo-load]') as HTMLElement);
     });
@@ -207,11 +191,9 @@ describe('math workspace', () => {
     expect(container.querySelector('[data-math-demo-badge]')).toBeNull();
   });
 
-  it('leaves solve and export disabled with a stated reason', () => {
-    const { container } = renderScene('empty');
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
+  it('leaves solve and export disabled with a stated reason', async () => {
+    const { container, store } = renderScene('empty');
+    await enterMathMode(container, store);
     // Solve is always present in the stage strip, always disabled, always with a reason.
     const solve = container.querySelector('[data-math-solve-disabled]');
     expect(solve).not.toBeNull();
@@ -226,11 +208,9 @@ describe('math workspace', () => {
     expect(exportBtn!.getAttribute('title')).toBeTruthy();
   });
 
-  it('walks the stage sequence deterministically from the demo frames', () => {
-    const { container } = renderScene('empty');
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
+  it('walks the stage sequence deterministically from the demo frames', async () => {
+    const { container, store } = renderScene('empty');
+    await enterMathMode(container, store);
     act(() => {
       fireEvent.click(container.querySelector('[data-math-demo-load]') as HTMLElement);
     });
@@ -238,11 +218,9 @@ describe('math workspace', () => {
     expect(container.querySelector('[data-math-current="true"]')?.getAttribute('data-math-stage')).toBe('modeling');
   });
 
-  it('keeps math outputs in the artifacts drawer, not a separate model room', () => {
-    const { container } = renderScene('empty');
-    act(() => {
-      fireEvent.click(modeTab(container, 'math'));
-    });
+  it('keeps math outputs in the artifacts drawer, not a separate model room', async () => {
+    const { container, store } = renderScene('empty');
+    await enterMathMode(container, store);
     act(() => {
       fireEvent.click(container.querySelector('[data-math-demo-load]') as HTMLElement);
     });
@@ -263,12 +241,10 @@ describe('run controls are reachable from every mode', () => {
   // plan and math offered no way to intervene at all. They are one shared group now,
   // right-aligned in the run dock above the composer, with the lifecycle stepper centred
   // in the same dock — reachable no matter which mode is on screen.
-  it('draws one run dock above the composer in all three modes', () => {
+  it('draws one run dock above the composer in work and math', async () => {
     for (const mode of ['work', 'math'] as const) {
-      const { container, unmount } = renderScene('running');
-      act(() => {
-        fireEvent.click(modeTab(container, mode));
-      });
+      const { container, store, unmount } = renderScene('running');
+      if (mode === 'math') await enterMathMode(container, store);
       expect(container.querySelector(`[data-mode-shell="${mode}"]`)).not.toBeNull();
 
       // Exactly one dock, and the header is not where it lives — that strip keeps only
@@ -349,12 +325,10 @@ describe('run controls are reachable from every mode', () => {
     expect(pause.payload.taskId).toBe(taskId);
   });
 
-  it('opens the steering form from any mode, above the composer', () => {
+  it('opens the steering form from any mode, above the composer', async () => {
     for (const mode of ['work', 'math'] as const) {
-      const { container, unmount } = renderScene('running');
-      act(() => {
-        fireEvent.click(modeTab(container, mode));
-      });
+      const { container, store, unmount } = renderScene('running');
+      if (mode === 'math') await enterMathMode(container, store);
       expect(container.querySelector('[data-steering]')).toBeNull();
       act(() => {
         fireEvent.click(container.querySelector('[data-run-steer]') as HTMLElement);
@@ -364,15 +338,13 @@ describe('run controls are reachable from every mode', () => {
     }
   });
 
-  it('shows a failed command in every mode, not only in chat', () => {
+  it('shows a failed command in every mode, not only in chat', async () => {
     // The notice used to be drawn inside the chat transcript, which is why a pause
     // rejected in plan mode showed nothing at all: `{ ok: false }` was recorded and
     // never rendered anywhere the user was looking.
     for (const mode of ['work', 'math'] as const) {
       const { container, store, unmount } = renderScene('running');
-      act(() => {
-        fireEvent.click(modeTab(container, mode));
-      });
+      if (mode === 'math') await enterMathMode(container, store);
       act(() => {
         store.setState({ lastCommandError: { type: 'pause_task', error: '当前没有运行中的任务', at: 1 } });
       });

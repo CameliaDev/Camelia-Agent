@@ -17,6 +17,7 @@
 import { useCallback } from 'react';
 
 import { makeCommand } from '../state/store.js';
+import { shellModeInstalled } from '../state/shell-plugins.js';
 import { useUiStore, useUiStoreApi } from '../state/UiProvider.js';
 import { modeDefinition } from './ModeRegistry.js';
 import { projectionMatchesMode, sessionForMode } from './session-kind.js';
@@ -40,8 +41,10 @@ export function useMode(): ModeControls {
 
   const setMode = useCallback(
     (id: AppModeId) => {
-      const next = normalizeModeId(id);
+      let next = normalizeModeId(id);
       const state = store.getState();
+      if (next === 'math' && !shellModeInstalled(state.installedPlugins, 'math')) return;
+      if (next === 'term') return;
       setModeRaw(next);
       // Show this mode's own session when one already exists. Do not create one:
       // a tab click must not invent a conversation or disturb a running task.
@@ -55,12 +58,16 @@ export function useMode(): ModeControls {
 
   const setPreferredMode = useCallback(
     (id: AppModeId) => {
+      let next = normalizeModeId(id);
+      const state = store.getState();
+      if (next === 'math' && !shellModeInstalled(state.installedPlugins, 'math')) next = 'work';
+      if (next === 'term') next = 'work';
       // Persisting the preference also switches the window: a user who says "open in
       // plan mode" almost always means "and show me plan mode now".
-      setLocalPrefs({ preferredMode: id });
-      setModeRaw(normalizeModeId(id));
+      setLocalPrefs({ preferredMode: next });
+      setModeRaw(next);
     },
-    [setLocalPrefs, setModeRaw],
+    [setLocalPrefs, setModeRaw, store],
   );
 
   return {

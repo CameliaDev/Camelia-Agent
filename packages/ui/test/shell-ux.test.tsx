@@ -11,6 +11,7 @@ import { createUiStore } from '../src/state/store.js';
 import { UiProvider } from '../src/state/UiProvider.js';
 import { FixtureTransport } from '../src/transport/fixture.js';
 import type { SceneId } from '../src/transport/scenario.js';
+import { enterMathMode } from './math-plugin.js';
 
 function renderScene(scene: SceneId) {
   const transport = new FixtureTransport({ scene });
@@ -135,9 +136,7 @@ describe('mode isolation, math setup, and term', () => {
     const { container, store, transport } = renderScene('chat');
     const before = store.getState().snapshot;
     expect(container.querySelector('[data-chat-user]')).not.toBeNull();
-    act(() => {
-      fireEvent.click(container.querySelector('[data-mode-tab="math"]') as HTMLElement);
-    });
+    await enterMathMode(container, store);
     expect(store.getState().snapshot).toBe(before);
     expect(store.getState().lastCommand).toBeUndefined();
     expect(container.querySelector('[data-math-workspace] [data-chat-user]')).toBeNull();
@@ -153,8 +152,8 @@ describe('mode isolation, math setup, and term', () => {
     fireEvent.click(container.querySelector('[data-math-open-setup]') as HTMLElement);
     expect(container.querySelector('[data-math-setup]')).not.toBeNull();
 
-    act(() => {
-      fireEvent.click(container.querySelector('[data-mode-tab="work"]') as HTMLElement);
+    await act(async () => {
+      store.getState().setMode('work');
     });
     await waitFor(() => {
       expect(container.querySelector('[data-mode-shell="work"] [data-chat-user]')).not.toBeNull();
@@ -162,8 +161,10 @@ describe('mode isolation, math setup, and term', () => {
   });
 
   it('runs a term team from engine events, and done requires a worker', async () => {
-    const { container, transport } = renderScene('empty');
-    fireEvent.click(container.querySelector('[data-mode-tab="term"]') as HTMLElement);
+    const { container, store, transport } = renderScene('empty');
+    act(() => {
+      store.setState({ mode: 'term' });
+    });
     expect(container.textContent).not.toContain('界面占位');
     expect(container.querySelector('[data-term-timeline]')).not.toBeNull();
     const area = container.querySelector('[data-composer] textarea') as HTMLTextAreaElement;

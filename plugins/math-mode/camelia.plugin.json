@@ -1,0 +1,8 @@
+{
+  "name": "@camelia/plugin-math-mode",
+  "kind": "shell",
+  "entry": "shell.json",
+  "permissions": [],
+  "version": "0.1.0",
+  "description": "Math modeling workbench — adds a ∑ activity-bar entry and math sessions. Uninstall to hide it."
+}

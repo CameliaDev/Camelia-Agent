@@ -34,7 +34,6 @@ import {
   type SessionMarks,
 } from '../state/session-marks.js';
 import { useNewSession } from '../state/new-session.js';
-import { ModeTabs } from '../mode/ModeTabs.js';
 import { useMode } from '../mode/useMode.js';
 import { MODE_HEADER_H } from '../modes/ModeHeader.js';
 import { useUiState, useUiStore } from '../state/UiProvider.js';
@@ -79,7 +78,7 @@ export function SessionRail(): ReactNode {
   const showPendingSession = useUiStore((s) => s.showPendingSession);
   const patchSessionTitle = useUiStore((s) => s.patchSessionTitle);
   const queryEngine = useUiStore((s) => s.query);
-  const { mode, setMode } = useMode();
+  const { mode } = useMode();
   const [marks, setMarks] = useState<SessionMarks>(() => loadSessionMarks());
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -324,9 +323,6 @@ export function SessionRail(): ReactNode {
         <SkillsPanel />
       ) : (
         <>
-      <div className="shrink-0 px-2 pt-2 pb-1">
-        <ModeTabs mode={mode} language={lang} onSelect={setMode} />
-      </div>
       <div
         data-session-header
         className="flex shrink-0 items-center gap-1 px-2"
