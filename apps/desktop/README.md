@@ -69,6 +69,14 @@ pnpm --filter @camelia/desktop desktop:check    # cargo check
 
 不要在桌面新增 `Camelia-Agent-new.exe`，也不要再放一份 `Camelia.exe`。界面行为以 [`docs/SHELL-UX.md`](../../docs/SHELL-UX.md) 为准。
 
+一键同步（覆盖两处 exe + 合并为单个桌面快捷方式，去掉重复的 `Camelia*.lnk` 与旧版桌面 exe）：
+
+```powershell
+pnpm --filter @camelia/desktop desktop:install-local
+```
+
+NSIS 安装也会在桌面创建 `Camelia.lnk`（指向 `%LOCALAPPDATA%\Camelia`）。若你还在用 `D:\app\Camelia` 开发覆盖，请用上面的脚本合并，避免两个同名快捷方式、两个进程和多个托盘图标。
+
 ## 打包（NSIS）
 
 `desktop:bundle` 先构建 `packages/ui/dist`，再用 `cargo tauri build --bundles nsis` 产出 Windows 安装包：

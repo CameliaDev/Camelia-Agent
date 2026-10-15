@@ -189,3 +189,5 @@ pnpm --filter @camelia/desktop desktop:build
 | 桌面启动器 | **只有一个** `Camelia.lnk`，原地改掉。目标是 `D:\app\Camelia\camelia-desktop.exe`，工作目录 `WorkingDirectory` 是 `D:\app\Camelia` |
 
 不要在桌面新建 `Camelia-Agent-new.exe`，也不要再放一份 `Camelia.exe`。`desktop:bundle` 的 NSIS 安装目录仍是 `%LOCALAPPDATA%\Camelia\`，那条安装路径有效，和上面的免安装覆盖是两件事。细节见 [`apps/desktop/README.md`](../apps/desktop/README.md)。
+
+若桌面出现两个同名「Camelia」快捷方式，通常是 NSIS 安装器与手工复制到 `D:\app\Camelia` 各建了一个 `.lnk`。在 `desktop:build` 之后运行 `pnpm --filter @camelia/desktop desktop:install-local`，会合并为单个 `Camelia.lnk` 并删除多余的 `Camelia*.lnk`。

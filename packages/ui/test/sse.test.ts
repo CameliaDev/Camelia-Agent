@@ -87,6 +87,24 @@ describe('SseTransport — URL composition', () => {
   });
 });
 
+describe('SseTransport — session switch', () => {
+  it('re-opens the stream when force is set even if the session id is unchanged', () => {
+    const { instance, created } = transport();
+    const h = makeHandlers();
+    instance.start(h.handlers);
+    expect(created).toHaveLength(1);
+    instance.switchSession('ses_a');
+    expect(created).toHaveLength(2);
+    expect(created[1]!.url).toContain('sessionId=ses_a');
+    instance.switchSession('ses_a');
+    expect(created).toHaveLength(2);
+    instance.switchSession('ses_a', { force: true });
+    expect(created).toHaveLength(3);
+    expect(created[0]!.closed).toBe(true);
+    expect(created[1]!.closed).toBe(true);
+  });
+});
+
 describe('SseTransport — stream handling', () => {
   it('reports connecting, then live once the socket opens', () => {
     const { instance, created } = transport();

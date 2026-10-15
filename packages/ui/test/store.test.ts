@@ -7,7 +7,7 @@
  * @module
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Command } from '@camelia/core';
 
@@ -88,6 +88,24 @@ describe('createUiStore — session switch', () => {
     expect(state.snapshot.session?.id).toBe('ses_blank_work');
     expect(state.snapshot.session?.title).toBe('新会话');
     expect(state.snapshot.chat.turns).toHaveLength(0);
+  });
+
+  it('replays the stream when select_session targets the already-active id', () => {
+    const { transport, handlers } = manualTransport();
+    const switchSession = vi.fn();
+    (transport as { switchSession?: (id: string, opts?: { force?: boolean }) => void }).switchSession = switchSession;
+    const store = createUiStore(transport);
+    const session = {
+      id: 'ses_old',
+      title: 'long running task title',
+      workspace: 'C:/ws',
+      provider: 'ollama',
+      model: 'qwen',
+      kind: 'work' as const,
+    };
+    handlers().onBootstrap({ session, sessions: [session] });
+    store.getState().dispatch(makeCommand('select_session', { sessionId: session.id }));
+    expect(switchSession).toHaveBeenCalledWith(session.id, { force: true });
   });
 
   it('keeps the transcript when bootstrap is a reconnect of the same session', () => {

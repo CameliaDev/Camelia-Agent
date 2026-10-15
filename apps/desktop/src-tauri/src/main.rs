@@ -1421,12 +1421,14 @@ fn main() {
             });
             Ok(())
         })
-        .on_window_event(move |_window, event| {
+        .on_window_event(move |window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 if let Some(mut child) = engine_child.lock().unwrap().take() {
                     let _ = child.kill();
                     let _ = child.wait();
                 }
+                // Quit the process — do not leave a headless engine or a second tray icon.
+                window.app_handle().exit(0);
             }
         })
         .invoke_handler(tauri::generate_handler![

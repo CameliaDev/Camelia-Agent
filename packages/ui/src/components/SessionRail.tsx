@@ -157,7 +157,6 @@ export function SessionRail(): ReactNode {
         key={session.id}
         data-session={session.id}
         onClick={() => {
-          if (active) return;
           if (marks.hidden.includes(session.id)) {
             applyMarks(unhideSession(marks, session.id));
           }
