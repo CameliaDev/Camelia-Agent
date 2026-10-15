@@ -119,8 +119,8 @@ export class SseTransport implements Transport {
    * Used after `new_session` / `select_session` so the UI shows the chosen
    * session's event history instead of the process-level default.
    */
-  switchSession(sessionId: string): void {
-    if (this.options.sessionId === sessionId) return;
+  switchSession(sessionId: string, opts?: { force?: boolean }): void {
+    if (!opts?.force && this.options.sessionId === sessionId) return;
     this.options.sessionId = sessionId;
     if (!this.handlers) return;
     const handlers = this.handlers;

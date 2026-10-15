@@ -377,7 +377,9 @@ export function createUiStore(transport: Transport): UiStore {
       transport.send(command);
       set({ lastCommand: command });
       if (command.type === 'select_session' && typeof transport.switchSession === 'function') {
-        transport.switchSession(command.payload.sessionId);
+        // Always reconnect: a stale projection can keep the rail title while the centre
+        // shows the empty hero — switchSession used to no-op when the id matched.
+        transport.switchSession(command.payload.sessionId, { force: true });
       }
     },
     query: <T,>(command: Command): Promise<T> =>
