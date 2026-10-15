@@ -41,7 +41,7 @@ export function useMode(): ModeControls {
 
   const setMode = useCallback(
     (id: AppModeId) => {
-      let next = normalizeModeId(id);
+      const next = normalizeModeId(id);
       const state = store.getState();
       if (next === 'math' && !shellModeInstalled(state.installedPlugins, 'math')) return;
       if (next === 'term') return;
