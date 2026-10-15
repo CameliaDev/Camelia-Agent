@@ -22,6 +22,7 @@ import { ApprovalCard, FailureCard, NoticeBanner } from './Reliability.js';
 import { StepCard } from './StepCard.js';
 import { PlanReview } from './PlanReview.js';
 import { CollapsibleBlock } from './CollapsibleBlock.js';
+import { isNoisyAssistantText } from '../lib/noisy-text.js';
 import { Avatar, Chip, ErrorState, Icon, SkeletonRows, userAvatarSrc } from './primitives.js';
 import { providerAvatarSrc } from '../lib/provider-avatars.js';
 
@@ -171,12 +172,31 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
           {showAvatars ? <Avatar kind="agent" size={32} title={tr('avatar.agent')} src={providerAvatarSrc(activeProvider)} /> : null}
           <div className="max-w-[75%]">
             <div className="wf-bubble-agent px-3.5 py-2.5">
-              {introNarration.map((n) => (
-                <p key={n.id} className="text-[12.5px] leading-[1.7] text-ink">
-                  {n.text}
-                  {n.streaming ? <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" /> : null}
-                </p>
-              ))}
+              {introNarration.map((n) =>
+                isNoisyAssistantText(n.text) ? (
+                  <CollapsibleBlock
+                    key={n.id}
+                    summary={tr('events.collapse')}
+                    defaultOpen={false}
+                    preferOpen={false}
+                    data-collapsible="narration"
+                  >
+                    <p className="text-[12.5px] leading-[1.7] text-ink">
+                      {n.text}
+                      {n.streaming ? (
+                        <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
+                      ) : null}
+                    </p>
+                  </CollapsibleBlock>
+                ) : (
+                  <p key={n.id} className="text-[12.5px] leading-[1.7] text-ink">
+                    {n.text}
+                    {n.streaming ? (
+                      <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
+                    ) : null}
+                  </p>
+                ),
+              )}
             </div>
           </div>
         </div>
@@ -241,6 +261,36 @@ function TaskRecord({ task, onRollback }: { task: TaskView; onRollback: (stepIdx
       )}
 
       {task.summary ? <DeliveryCard task={task} /> : null}
+      {task.status === 'done' ? <TaskRating taskId={task.id} /> : null}
+    </div>
+  );
+}
+
+function TaskRating({ taskId }: { taskId: Id }): ReactNode {
+  const { dispatch } = useUiState();
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const [rated, setRated] = useState(false);
+  if (rated) return null;
+  return (
+    <div className="rounded-lg border border-line bg-elevated/60 px-3 py-2" data-task-rating>
+      <p className="text-[11.5px] text-ink-2">{tr('task.ratePrompt')}</p>
+      <div className="mt-1.5 flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            data-rating={star}
+            className="rounded-md px-2 py-1 text-[12px] text-ink-2 hover:bg-hover hover:text-accent"
+            onClick={() => {
+              dispatch(makeCommand('rate_task', { taskId, rating: star }));
+              setRated(true);
+            }}
+          >
+            {star}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

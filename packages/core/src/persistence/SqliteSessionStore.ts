@@ -282,7 +282,9 @@ export class SqliteSessionStore implements SessionStore {
     const existing = this.db.prepare('SELECT id FROM sessions WHERE id = ?').get(id);
     if (!existing) return false;
     this.transaction(() => {
+      // Tasks cascade from sessions; delete events first so replay cannot resurrect rows.
       this.db.prepare('DELETE FROM events WHERE session_id = ?').run(id);
+      this.db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id);
       this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     });
     return true;

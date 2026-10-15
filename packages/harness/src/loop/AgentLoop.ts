@@ -69,6 +69,7 @@ import type { SubAgentOrchestrator, SubAgentSpec } from '../subagent/SubAgentOrc
 import { TEAM_COORDINATOR_SYSTEM } from '../team/plan.js';
 import { TeamOrchestrator } from '../team/TeamOrchestrator.js';
 import type { Verifier } from '../verification/Verifier.js';
+import { doneGateFailurePrompt, runDoneGate, type DoneGateResult } from '../verification/done-gate.js';
 import { writeRunRecord } from '../replay/run-record.js';
 import path from 'node:path';
 
@@ -84,6 +85,8 @@ export interface AgentLoopDeps {
   drift: DriftDetector;
   subAgents?: SubAgentOrchestrator;
   config: HarnessConfig;
+  /** CLI/runtime override for the done gate (`--test-command`). */
+  defaultTestCommand?: string;
   /** Plan self-review — "think before acting" (Iteration 20). */
   selfReview: PlanSelfReview;
   /** Memory service — lifecycle, value-driven forgetting, reactivation (Iteration 20). */
@@ -469,6 +472,24 @@ export class AgentLoop {
 
     // ---- delivering --------------------------------------------------------
     this.transition('delivering', 'all steps complete');
+    const gate = await this.ensureDoneGate();
+    if (!gate.ok && !gate.skipped) {
+      this.ctx.infra.bus.emit(
+        'reliability.verification_gate_failed',
+        { command: gate.command ?? '', exitCode: gate.exitCode ?? 1, output: gate.output ?? '' },
+        meta,
+      );
+      return this.finish(
+        'failed',
+        startedAt,
+        artifacts,
+        verdicts,
+        plan,
+        stepsCompleted,
+        unverifiedSteps,
+        doneGateFailurePrompt(gate),
+      );
+    }
     const summary = this.buildSummary(intent, plan, stepsCompleted, unverifiedSteps, artifacts);
     this.ctx.infra.bus.emit('task.completed', { summary, artifacts }, meta);
 
@@ -486,7 +507,11 @@ export class AgentLoop {
    * a catalog model, and runs them through the existing sub-agent orchestrator.
    * `task.completed` is emitted only when at least one worker report is `ok`.
    */
-  async runTeam(intent: ClarifiedIntent, catalog: ModelInfo[] = []): Promise<TaskOutcome> {
+  async runTeam(
+    intent: ClarifiedIntent,
+    catalog: ModelInfo[] = [],
+    options: { resolveModel?: (role: string) => string | undefined } = {},
+  ): Promise<TaskOutcome> {
     const meta = runMeta(this.ctx);
     const startedAt = this.ctx.ports.clock.now();
     this.recalledMemoryIds = new Set();
@@ -520,6 +545,7 @@ export class AgentLoop {
       },
       transition: (to, reason) => this.transition(to, reason),
       approve: (plan) => this.approvePlan(plan, 'team plan ready'),
+      resolveModel: options.resolveModel,
     });
     const outcome = await team.run(intent.goal);
     await this.savePlan(outcome.plan);
@@ -715,6 +741,22 @@ export class AgentLoop {
     }
 
     this.transition('delivering', 'revised plan complete');
+    const gate = await this.ensureDoneGate();
+    if (!gate.ok && !gate.skipped) {
+      this.ctx.infra.bus.emit(
+        'reliability.verification_gate_failed',
+        { command: gate.command ?? '', exitCode: gate.exitCode ?? 1, output: gate.output ?? '' },
+        meta,
+      );
+      return {
+        status: 'failed',
+        artifacts,
+        verdicts,
+        stepsCompleted,
+        unverifiedSteps,
+        reason: doneGateFailurePrompt(gate),
+      };
+    }
     const summary = this.buildSummary(intent, plan, stepsCompleted, unverifiedSteps, artifacts);
     this.ctx.infra.bus.emit('task.completed', { summary, artifacts }, meta);
     this.transition('reflecting', 'capture lessons');
@@ -1344,6 +1386,19 @@ export class AgentLoop {
     } catch (error) {
       this.ctx.infra.logger.warn('failed to persist plan', { error: String(error) });
     }
+  }
+
+  private async ensureDoneGate(): Promise<DoneGateResult> {
+    return runDoneGate({
+      workspace: this.ctx.workspace,
+      shell: this.ctx.ports.shell,
+      journal: this.deps.journal,
+      config: {
+        testCommand: this.deps.defaultTestCommand,
+        onlyWhenDirty: this.deps.config.doneGateOnlyWhenDirty,
+      },
+      logger: this.ctx.infra.logger,
+    });
   }
 
   private pauseOutcome(

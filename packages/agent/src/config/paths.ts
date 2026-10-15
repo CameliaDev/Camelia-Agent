@@ -32,6 +32,8 @@ export const paths = {
   profiles: () => path.join(cameliaHome(), 'profiles'),
   /** Per-task offline run records (`<taskId>/record.json`) written at task end (Iteration 24). */
   runs: () => path.join(cameliaHome(), 'runs'),
+  /** User-defined team presets for Term / Team runs. */
+  teams: () => path.join(cameliaHome(), 'teams.json'),
   /** MCP server definitions (whitepaper §8.5). Data only, never executed. */
   mcp: () => path.join(cameliaHome(), 'mcp.json'),
   /** Extra CA bundle, used when the machine sits behind a TLS-inspecting proxy. */

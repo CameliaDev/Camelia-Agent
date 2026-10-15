@@ -65,6 +65,27 @@ describe('session commands', () => {
     expect(again.sessionId).toBe(created.sessionId);
   });
 
+  it('lists persisted session events after selectSession', async () => {
+    const workspace = tempDir('camelia-ses-events-');
+    const runtime = await boot(workspace);
+    const session = runtime.session;
+    await runtime.store.appendEvent(session.id, {
+      type: 'chat.received',
+      payload: { turnId: 'turn_1', text: 'hello' },
+      traceId: 'trc',
+      sessionId: session.id,
+      ts: Date.now(),
+      seq: 0,
+    });
+    const other = await runtime.newSession('work');
+    expect(other.sessionId).not.toBe(session.id);
+    const events = await runtime.store.listEvents({ sessionId: session.id, limit: 50 });
+    expect(events.some((event) => event.type === 'chat.received')).toBe(true);
+    const ok = await runtime.selectSession(session.id);
+    expect(ok).toBe(true);
+    expect(runtime.session.id).toBe(session.id);
+  });
+
   it('renames and deletes, then points the runtime at a remaining session', async () => {
     const workspace = tempDir('camelia-ses-del-');
     const runtime = await boot(workspace);

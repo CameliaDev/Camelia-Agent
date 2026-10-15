@@ -30,6 +30,8 @@ export interface TeamRunDeps {
    * moves the machine to `awaiting-approval` and, on reject, to `cancelled`.
    */
   approve: (plan: Plan) => Promise<{ ok: true; plan: Plan } | { ok: false; reason: string }>;
+  /** When set, pins worker models by role (user-defined team). */
+  resolveModel?: (role: string) => string | undefined;
 }
 
 export interface TeamRunOutcome {
@@ -67,6 +69,11 @@ export class TeamOrchestrator {
     const assigned: { spec: TeamWorkerSpec; modelId: string; reason: string }[] = [];
     const blocked: string[] = [];
     for (const spec of workers) {
+      const pinned = this.deps.resolveModel?.(spec.role);
+      if (pinned) {
+        assigned.push({ spec, modelId: pinned, reason: 'user team preset' });
+        continue;
+      }
       const pick = assignRoleModel(
         this.deps.catalog,
         {
@@ -174,6 +181,11 @@ export class TeamOrchestrator {
     const assigned: { spec: TeamWorkerSpec; modelId: string; reason: string }[] = [];
     const blocked: string[] = [];
     for (const spec of workers) {
+      const pinned = this.deps.resolveModel?.(spec.role);
+      if (pinned) {
+        assigned.push({ spec, modelId: pinned, reason: 'user team preset' });
+        continue;
+      }
       const pick = assignRoleModel(
         this.deps.catalog,
         {

@@ -103,6 +103,11 @@ export interface HarnessConfig {
   cognitionLevelSamples: number;
   /** Read-only probes allowed per task once `drive` exists. Unused in Phase 2. */
   cognitionMaxProbesPerTask: number;
+  /**
+   * When true (default), the done gate runs only after the workspace journal
+   * recorded at least one mutation this task/turn.
+   */
+  doneGateOnlyWhenDirty: boolean;
 }
 
 export const defaultApprovalPolicy: ApprovalPolicy = {
@@ -145,6 +150,7 @@ export const defaultHarnessConfig: HarnessConfig = {
   cognitionSurprisePercentile: 80,
   cognitionLevelSamples: 3,
   cognitionMaxProbesPerTask: 2,
+  doneGateOnlyWhenDirty: true,
 };
 
 /** Shallow-merge a partial config over the defaults, keeping nested approval policy intact. */

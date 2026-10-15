@@ -39,6 +39,7 @@ export * from './execution/Executor.js';
 
 // ---- verification ----------------------------------------------------------
 export * from './verification/Verifier.js';
+export * from './verification/done-gate.js';
 
 // ---- tools -----------------------------------------------------------------
 export * from './tools/types.js';

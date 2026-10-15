@@ -519,6 +519,18 @@ export class FixtureTransport implements Transport {
       case 'set_cognition_mode':
         this.answer(command.commandId, { mode: command.payload.mode });
         return;
+      case 'list_teams':
+        this.answer(command.commandId, [
+          {
+            id: 'team_demo',
+            name: 'Demo team',
+            members: [
+              { role: 'coordinator', model: 'alpha' },
+              { role: 'worker', model: 'beta' },
+            ],
+          },
+        ]);
+        return;
       case 'submit_term': {
         // Same events a live team run folds: plan, a worker, verify, then done.
         // Done is only honest here because the worker report is `ok`.
