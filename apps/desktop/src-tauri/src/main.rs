@@ -31,6 +31,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::Manager;
 
 /// `CREATE_NO_WINDOW` 鈥?Windows runs the child without allocating it a console.
 #[cfg(windows)]
