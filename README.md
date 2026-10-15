@@ -148,6 +148,18 @@ pnpm acceptance  # 生成 docs/ACCEPTANCE.md（数据来自真实测试产物）
 
 ## 隐私
 
+### 沙箱额外可写根（`extraAllowPaths`）
+
+权限 **完全放行 / FULL** 只跳过审批，**不会**扩大可写目录。若评测目录在 workspace 外（例如桌面上的 `camelia-bench`），在 `~/.camelia/config.json` 增加：
+
+```json
+{
+  "extraAllowPaths": ["C:/Users/你/Desktop/camelia-bench"]
+}
+```
+
+详见 [docs/SANDBOX-ALLOW-PATHS.md](docs/SANDBOX-ALLOW-PATHS.md)。
+
 API Key 只存于 `~/.camelia/`，**零遥测**，不在其他位置写入任何数据。
 
 ## 许可

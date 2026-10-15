@@ -108,6 +108,13 @@ export interface HarnessConfig {
    * recorded at least one mutation this task/turn.
    */
   doneGateOnlyWhenDirty: boolean;
+  /**
+   * Extra absolute directories `fs.*` / `shell.exec` cwd may touch besides the
+   * workspace root. FULL permission mode does not expand this list.
+   *
+   * Example: `["C:/Users/you/Desktop/camelia-bench"]`
+   */
+  extraAllowPaths?: string[];
 }
 
 export const defaultApprovalPolicy: ApprovalPolicy = {
@@ -151,6 +158,7 @@ export const defaultHarnessConfig: HarnessConfig = {
   cognitionLevelSamples: 3,
   cognitionMaxProbesPerTask: 2,
   doneGateOnlyWhenDirty: true,
+  extraAllowPaths: undefined,
 };
 
 /** Shallow-merge a partial config over the defaults, keeping nested approval policy intact. */

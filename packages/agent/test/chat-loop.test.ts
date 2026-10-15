@@ -38,7 +38,7 @@ import { createLogger } from '../src/adapters/logger.js';
 import { NodeFs } from '../src/adapters/NodeFs.js';
 import { NodeSearch } from '../src/adapters/NodeSearch.js';
 import { NodeShell } from '../src/adapters/NodeShell.js';
-import { ChatLoop } from '../src/runtime/ChatLoop.js';
+import { ChatLoop, workChatSystemPrompt } from '../src/runtime/ChatLoop.js';
 import { initialSnapshot, reduceEvents } from '../src/view/index.js';
 
 const roots: string[] = [];
@@ -494,5 +494,30 @@ describe('ChatLoop — think, then plan, then tools', () => {
     expect(received.text).toContain('Attached folders:');
     expect(received.text).toContain('notes (/workspace/notes)');
     expect(String(llm.requests[0]?.messages[1]?.content)).toContain('/workspace/notes');
+  });
+});
+
+
+describe('workChatSystemPrompt', () => {
+  it('states that FULL does not expand the sandbox and points at extraAllowPaths', () => {
+    const prompt = workChatSystemPrompt('full', 'C:/workspace', undefined, ['C:/bench']);
+    expect(prompt).toMatch(/does not expand the filesystem sandbox/i);
+    expect(prompt).toContain('C:/bench');
+    expect(prompt).toContain('Allowed roots');
+  });
+
+  it('tells the model to resume on 「继续」/continue instead of asking what to do', () => {
+    const prompt = workChatSystemPrompt('ask', 'C:/workspace');
+    expect(prompt).toMatch(/继续/);
+    expect(prompt).toMatch(/resume the last explicit goal/i);
+    expect(prompt).toMatch(/Do not ask what they want next/i);
+  });
+});
+
+describe('workChatSystemPrompt — web_search honesty', () => {
+  it('forbids inventing absence from empty web_search', () => {
+    const prompt = workChatSystemPrompt('full', 'C:/workspace');
+    expect(prompt).toMatch(/empty search is a tool failure/i);
+    expect(prompt).toMatch(/does not exist/);
   });
 });

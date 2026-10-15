@@ -403,6 +403,7 @@ export class Executor {
   private toolContext(): ToolContext {
     return {
       workspace: this.ctx.workspace,
+      extraAllowPaths: this.deps.config.extraAllowPaths,
       fs: this.ctx.ports.fs,
       shell: this.ctx.ports.shell,
       search: this.ctx.ports.search,

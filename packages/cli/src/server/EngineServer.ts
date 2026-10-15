@@ -554,7 +554,7 @@ export class EngineServer {
       case 'chat_message': {
         const { sessionId, text, policy, effort: rawEffort, images: rawImages, folders: rawFolders } = command.payload;
         if (this.activeRun) return { ok: false, error: '已有任务正在运行，聊天暂不可用' };
-        if (this.activeChat) return { ok: false, error: '已有对话正在处理，请稍候' };
+        if (this.activeChat) return { ok: false, error: '已有对话正在处理 — 请点停止后再发，或等当前回合结束' };
         const images = Array.isArray(rawImages) ? rawImages : undefined;
         const folders = Array.isArray(rawFolders) ? rawFolders : undefined;
         const hasImages = Boolean(images?.length);

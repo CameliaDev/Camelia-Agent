@@ -681,6 +681,12 @@ export class CameliaRuntime {
       ...(options.harnessConfig?.plannerMode || preset?.plannerMode
         ? { plannerMode: options.harnessConfig?.plannerMode ?? preset?.plannerMode }
         : {}),
+      // explicit harness override wins; otherwise pick up ~/.camelia/config.json
+      ...(options.harnessConfig?.extraAllowPaths
+        ? { extraAllowPaths: options.harnessConfig.extraAllowPaths }
+        : config.extraAllowPaths?.length
+          ? { extraAllowPaths: config.extraAllowPaths }
+          : {}),
       contextWindow: Math.min(
         options.harnessConfig?.contextWindow ?? defaultHarnessConfig.contextWindow,
         caps.maxContextWindow,

@@ -13,8 +13,13 @@ import type { ApprovalMode } from '../config.js';
 
 /** Everything a tool implementation may use. Deliberately minimal. */
 export interface ToolContext {
-  /** Absolute workspace root. Every path must be resolved against it. */
+  /** Absolute workspace root. Relative tool paths resolve against it. */
   workspace: string;
+  /**
+   * Extra absolute directories tools may read/write besides `workspace`.
+   * Permission mode FULL does not expand this list — configure roots explicitly.
+   */
+  extraAllowPaths?: readonly string[];
   fs: FsPort;
   shell: ShellPort;
   search: SearchPort;

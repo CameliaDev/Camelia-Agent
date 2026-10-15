@@ -144,6 +144,7 @@ export const webSearchTool: Tool<WebSearchInput, JsonValue> = {
     '- Default provider is DuckDuckGo via @agntk/search; Bing HTML is a last-resort fallback.',
     '- Set TAVILY_API_KEY or CAMELIA_TAVILY_API_KEY to prefer Tavily.',
     '- Cite URLs from results; never invent links.',
+    '- Empty results are an error — stop and tell the user; never conclude a page or contest "does not exist" from an empty hit list.',
   ].join('\n'),
   risk: 'network',
   reversible: true,
@@ -162,6 +163,13 @@ export const webSearchTool: Tool<WebSearchInput, JsonValue> = {
     const maxResults = Math.min(Math.max(input.maxResults ?? DEFAULT_MAX, 1), HARD_MAX);
 
     const response = await runSearch(query, maxResults, ctx.signal);
+    if (!response.results.length) {
+      throw new Error(
+        `web_search returned no results for ${JSON.stringify(query)} (provider=${response.provider}). ` +
+          'Do not invent facts, links, or conclusions such as "the contest/problem does not exist". ' +
+          'Report this empty result to the user, stop, and ask whether to retry with a different query or open a known URL directly.',
+      );
+    }
 
     return {
       provider: response.provider,

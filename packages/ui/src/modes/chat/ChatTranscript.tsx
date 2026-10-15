@@ -24,6 +24,7 @@ import { splitThinking } from '../../lib/thinking.js';
 import { TaskRunCard } from '../../components/TaskRunCard.js';
 import { TeamOrchestrationCard, taskShowsTeamOrchestration } from '../team/TeamOrchestrationCard.js';
 import { CollapsibleBlock } from '../../components/CollapsibleBlock.js';
+import { shouldCollapseAssistantText } from '../../lib/noisy-text.js';
 import { ms } from '../../lib/format.js';
 
 /** Dot colour per tool status, mirroring the conversation's step tones. */
@@ -174,7 +175,18 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
         ))}
         <ThinkingFold turn={turn} label={tr('chat.thinking')} />
         {visibleAnswer(turn) ? (
-          <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visibleAnswer(turn)}</p>
+          shouldCollapseAssistantText(visibleAnswer(turn)) && !turn.streaming ? (
+            <CollapsibleBlock
+              summary={tr('chat.collapseAnswer')}
+              defaultOpen={false}
+              preferOpen={false}
+              data-collapsible="answer"
+            >
+              <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visibleAnswer(turn)}</p>
+            </CollapsibleBlock>
+          ) : (
+            <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visibleAnswer(turn)}</p>
+          )
         ) : null}
         {turn.streaming && visibleAnswer(turn) ? (
           <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
@@ -191,6 +203,16 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
 }
 
 /** One tool call, inline in the assistant turn — name, risk, status. */
+function formatToolPayload(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 function ChatToolRow({ call }: { call: ToolCallView }): ReactNode {
   const summary = (
     <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -200,14 +222,26 @@ function ChatToolRow({ call }: { call: ToolCallView }): ReactNode {
       <span className="text-ink-3">{call.status}</span>
     </span>
   );
+  const detail = [formatToolPayload(call.input), call.error ? `ERROR: ${call.error}` : formatToolPayload(call.output)]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('\n\n---\n\n');
+  const clipped = detail.length > 4_000 ? `${detail.slice(0, 4_000)}\n…` : detail;
   return (
     <div data-chat-tool className="mb-1.5 last:mb-0">
-      <CollapsibleBlock summary={summary} data-collapsible="tool">
-        <div className="flex items-center gap-1.5 rounded-lg border border-line bg-base/60 px-2 py-1 text-[11.5px] text-ink-2">
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${toolDot(call.status)}`} />
-          <span className="min-w-0 flex-1 truncate font-mono">{call.name}</span>
-          <span className="shrink-0 rounded bg-hover px-1 py-0.5 text-[10px] text-ink-3">{call.risk}</span>
-          <span className="shrink-0 font-mono text-[10.5px] text-ink-3">{call.status}</span>
+      <CollapsibleBlock summary={summary} defaultOpen={false} data-collapsible="tool">
+        <div className="space-y-1.5 rounded-lg border border-line bg-base/60 px-2 py-1.5 text-[11.5px] text-ink-2">
+          <div className="flex items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${toolDot(call.status)}`} />
+            <span className="min-w-0 flex-1 truncate font-mono">{call.name}</span>
+            <span className="shrink-0 rounded bg-hover px-1 py-0.5 text-[10px] text-ink-3">{call.risk}</span>
+            <span className="shrink-0 font-mono text-[10.5px] text-ink-3">{call.status}</span>
+          </div>
+          {clipped ? (
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px] leading-4 text-ink-3">
+              {clipped}
+            </pre>
+          ) : null}
         </div>
       </CollapsibleBlock>
     </div>

@@ -90,7 +90,7 @@ export interface ChatFolderPayload {
   path?: string;
 }
 
-/** Work scaffold posture. `plan` and `goal` store notes; they are not the task machine. */
+/** Work scaffold posture. `plan`/`goal` save a readable note and run Work chat under read-only tools (not the task machine). */
 export type WorkPosture = 'chat' | 'plan' | 'goal';
 
 /** Envelope shared by every event travelling through the bus. */

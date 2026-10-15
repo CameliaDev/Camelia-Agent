@@ -3,7 +3,17 @@ import path from 'node:path';
 
 import { Err, Ok, unwrap } from '../src/types/common.js';
 import { fingerprint, newId, shortId } from '../src/utils/id.js';
-import { assertWithin, isWithin, relativeTo, stem, toPosix } from '../src/utils/paths.js';
+import {
+  assertWithin,
+  assertWithinAllowRoots,
+  displayPathForAllowRoots,
+  isWithin,
+  isWithinAllowRoots,
+  normalizeAllowRoots,
+  relativeTo,
+  stem,
+  toPosix,
+} from '../src/utils/paths.js';
 import { estimateTokens, estimateTotal, withSafetyMargin } from '../src/utils/tokens.js';
 
 describe('id utils', () => {
@@ -83,6 +93,34 @@ describe('path utils', () => {
     expect(stem('README')).toBe('README');
   });
 });
+
+
+  it('normalizeAllowRoots keeps workspace first and dedupes extras', () => {
+    const roots = normalizeAllowRoots('C:/workspace', ['C:/bench', 'C:/workspace', '  ', 'C:/bench/']);
+    expect(roots.map(toPosix)).toEqual(['C:/workspace', 'C:/bench']);
+  });
+
+  it('isWithinAllowRoots accepts an absolute path under an extra root', () => {
+    expect(isWithinAllowRoots('C:/workspace', 'C:/bench/work/a.xlsx', ['C:/bench'])).toBe(true);
+    expect(isWithinAllowRoots('C:/workspace', 'C:/other/a.xlsx', ['C:/bench'])).toBe(false);
+    expect(isWithinAllowRoots('C:/workspace', '../secret', ['C:/bench'])).toBe(false);
+  });
+
+  it('assertWithinAllowRoots resolves extras and explains FULL vs sandbox', () => {
+    expect(toPosix(assertWithinAllowRoots('C:/workspace', 'C:/bench/work/a.xlsx', ['C:/bench']))).toBe(
+      'C:/bench/work/a.xlsx',
+    );
+    expect(() => assertWithinAllowRoots('C:/workspace', 'C:/other/x', ['C:/bench'])).toThrow(
+      /extraAllowPaths|does not expand the sandbox|allowed roots/,
+    );
+  });
+
+  it('displayPathForAllowRoots stays relative inside the workspace', () => {
+    expect(displayPathForAllowRoots('C:/workspace', 'C:/workspace/src/a.ts')).toBe('src/a.ts');
+    expect(displayPathForAllowRoots('C:/workspace', 'C:/bench/work/a.xlsx', ['C:/bench'])).toContain(
+      'C:/bench',
+    );
+  });
 
 describe('Result', () => {
   it('Ok/Err/unwrap behave', () => {

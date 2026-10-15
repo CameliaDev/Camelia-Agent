@@ -23,9 +23,14 @@ import { WorkspaceJournal } from '../src/checkpoint/WorkspaceJournal.js';
 import type { Tool, ToolContext } from '../src/tools/types.js';
 import { makeHarness, FakeSearch, FakeShell, type Harness } from './helpers/context.js';
 
-function toolContext(h: Harness, journal = new WorkspaceJournal('/backups', 'task-1', h.fs, h.logger)): ToolContext {
+function toolContext(
+  h: Harness,
+  journal = new WorkspaceJournal('/backups', 'task-1', h.fs, h.logger),
+  extraAllowPaths?: readonly string[],
+): ToolContext {
   return {
     workspace: h.ctx.workspace,
+    extraAllowPaths,
     fs: h.ctx.ports.fs,
     shell: h.ctx.ports.shell,
     search: h.ctx.ports.search,
@@ -196,7 +201,27 @@ describe('fs tools', () => {
 
   it('refuses to read outside the workspace', async () => {
     const h = makeHarness();
-    await expect(fsReadTool.run({ path: '../secret' }, toolContext(h))).rejects.toThrow(/escapes workspace/);
+    await expect(fsReadTool.run({ path: '../secret' }, toolContext(h))).rejects.toThrow(/escapes/);
+  });
+
+  it('reads and writes under an extraAllowPaths root', async () => {
+    const h = makeHarness({ seed: { 'C:/bench/work/data.csv': 'a,b\n1,2\n' } });
+    const ctx = toolContext(h, undefined, ['C:/bench']);
+    const read = (await fsReadTool.run({ path: 'C:/bench/work/data.csv' }, ctx)) as Record<string, unknown>;
+    expect(String(read.content)).toContain('1,2');
+    const written = (await fsWriteTool.run(
+      { path: 'C:/bench/work/out.txt', content: 'ok\n' },
+      ctx,
+    )) as Record<string, unknown>;
+    expect(String(written.path)).toContain('C:/bench');
+    expect(await h.fs.readFile('C:/bench/work/out.txt')).toBe('ok\n');
+  });
+
+  it('still refuses paths outside workspace and extraAllowPaths', async () => {
+    const h = makeHarness();
+    await expect(
+      fsWriteTool.run({ path: 'C:/other/x.txt', content: 'no' }, toolContext(h, undefined, ['C:/bench'])),
+    ).rejects.toThrow(/extraAllowPaths|allowed roots|does not expand the sandbox/);
   });
 
   it('writes a file, creates parent dirs and journals the change', async () => {
@@ -303,7 +328,7 @@ describe('shell tools', () => {
   it('resolves a relative cwd against the workspace', async () => {
     const h = makeHarness();
     await shellExecTool.run({ command: 'ls', cwd: 'src' }, toolContext(h));
-    expect(h.shell.commands[0]!.options?.cwd).toBe('C:/workspace/src');
+    expect(h.shell.commands[0]!.options?.cwd?.replace(/\\/g, '/')).toBe('C:/workspace/src');
   });
 });
 
@@ -435,5 +460,38 @@ describe('three-layer tool knowledge', () => {
     expect(testRunTool.risk).toBe('privileged');
     expect(fsWriteTool.reversible).toBe(true);
     expect(fsReadTool.reversible).toBe(true);
+  });
+});
+
+describe('shell.exec allow roots', () => {
+  it('rejects a cwd outside allowed roots with guidance', async () => {
+    const h = makeHarness({ shell: new FakeShell() });
+    await expect(
+      shellExecTool.run({ command: 'echo hi', cwd: 'C:/other' }, toolContext(h, undefined, ['C:/bench'])),
+    ).rejects.toThrow(/extraAllowPaths|allowed roots|does not expand the sandbox/);
+  });
+
+  it('accepts an absolute cwd under extraAllowPaths', async () => {
+    const shell = new FakeShell();
+    const h = makeHarness({ shell });
+    await shellExecTool.run({ command: 'echo hi', cwd: 'C:/bench/work' }, toolContext(h, undefined, ['C:/bench']));
+    expect(shell.commands.at(-1)?.options?.cwd).toMatch(/bench/i);
+  });
+});
+
+describe('web_search empty results', () => {
+  afterEach(() => setWebSearchOverrideForTests(undefined));
+
+  it('errors on an empty hit list instead of returning count 0', async () => {
+    setWebSearchOverrideForTests(async () => ({
+      query: 'missing contest',
+      provider: 'test',
+      durationMs: 1,
+      results: [],
+    }));
+    const h = makeHarness();
+    await expect(webSearchTool.run({ query: 'missing contest' }, toolContext(h))).rejects.toThrow(
+      /no results|does not exist/i,
+    );
   });
 });
