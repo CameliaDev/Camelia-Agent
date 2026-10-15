@@ -32,6 +32,7 @@ import {
   missingPermissions,
   parseAgentPreset,
   parsePluginManifest,
+  parseShellPlugin,
   parseThemePlugin,
   type AgentPreset,
   type FsPort,
@@ -180,6 +181,21 @@ export class PluginLoader {
         return this.loadToolPlugin(plugin, entryPath, result);
       case 'provider':
         return this.loadProviderPlugin(plugin, entryPath, result);
+      case 'shell':
+        return this.loadShell(plugin, entryPath, result);
+    }
+  }
+
+  /** Shell plugins are data-only; validate the entry JSON and do not execute code. */
+  private loadShell(plugin: DiscoveredPlugin, entryPath: string, result: PluginLoadResult): void {
+    const raw = readJson(entryPath);
+    if (raw === undefined) {
+      result.rejected.push({ dir: plugin.dir, name: plugin.manifest.name, reason: 'shell entry is not valid JSON' });
+      return;
+    }
+    const parsed = parseShellPlugin(raw);
+    if (!parsed.ok) {
+      result.rejected.push({ dir: plugin.dir, name: plugin.manifest.name, reason: 'invalid shell plugin', issues: parsed.issues });
     }
   }
 

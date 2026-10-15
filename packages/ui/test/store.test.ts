@@ -117,7 +117,8 @@ describe('createUiStore — dispatch', () => {
     const transport = new FixtureTransport({ scene: 'running' });
     const store = createUiStore(transport);
     store.getState().dispatch(command('pause_task', { taskId: 'tsk_9c02af', reason: 'break' }));
-    expect(transport.sent).toHaveLength(1);
+    expect(transport.sent.some((c) => c.type === 'list_plugins')).toBe(true);
+    expect(transport.sent.filter((c) => c.type === 'pause_task')).toHaveLength(1);
     expect(store.getState().lastCommand?.type).toBe('pause_task');
   });
 

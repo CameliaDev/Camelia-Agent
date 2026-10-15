@@ -132,8 +132,8 @@ describe('App — layout contract', () => {
     expect(sessions.querySelector('[data-rail-active]')).not.toBeNull();
     expect(rail.querySelector('[data-rail-view="extensions"] [data-rail-active]')).toBeNull();
 
-    // The list is a sidebar, not a second set of labels on the activity bar.
-    expect(column.querySelector('[data-mode-tabs]')).not.toBeNull();
+    // The list is a sidebar — mode switching is not a tab strip above it.
+    expect(column.querySelector('[data-mode-tabs]')).toBeNull();
     expect(column.querySelector('[data-session-toolbar]')).not.toBeNull();
     expect(column.querySelector('[data-new-session]')).not.toBeNull();
     expect(rail.querySelector('[data-rail-action]')).toBeNull();
@@ -270,10 +270,11 @@ describe('App — layout contract', () => {
     expect(container.querySelector('[data-panel-deck]')).toBeNull();
   });
 
-  it('keeps secondary sections behind a menu and returns to artifacts', () => {
-    const { container } = renderScene('running');
+  it('keeps secondary sections behind a menu and returns to artifacts', async () => {
+    const { container, store } = renderScene('running');
+    const { enterMathMode } = await import('./math-plugin.js');
     for (const mode of ['work', 'math'] as const) {
-      fireEvent.click(container.querySelector(`[data-mode-tab="${mode}"]`) as HTMLElement);
+      if (mode === 'math') await enterMathMode(container, store);
       expect(container.querySelectorAll('[data-panel-drawer]')).toHaveLength(1);
       expect(container.querySelector('[data-mode-header] [data-panel-drawer]')).toBeNull();
       if (!container.querySelector('[data-panel-deck]')) {
@@ -281,7 +282,6 @@ describe('App — layout contract', () => {
       }
       expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
     }
-    fireEvent.click(container.querySelector('[data-mode-tab="work"]') as HTMLElement);
     expect(container.querySelector('[data-panel-tab]')).toBeNull();
     fireEvent.click(container.querySelector('[data-panel-more]') as HTMLElement);
     const tabs = [...container.querySelectorAll('[data-panel-tab]')].map((n) => n.getAttribute('data-panel-tab'));
@@ -326,14 +326,18 @@ describe('App — layout contract', () => {
     expect(container.querySelector('.camelia-topbar [data-panel-more]')).toBeNull();
   });
 
-  it('keeps artifacts open across modes and hides math outputs outside math', () => {
-    const { container } = renderScene('empty');
-    fireEvent.click(container.querySelector('[data-mode-tab="math"]') as HTMLElement);
+  it('keeps artifacts open across modes and hides math outputs outside math', async () => {
+    const { container, store } = renderScene('empty');
+    const { enterMathMode } = await import('./math-plugin.js');
+    await enterMathMode(container, store);
     fireEvent.click(container.querySelector('[data-math-demo-load]') as HTMLElement);
     expect(container.querySelector('[data-panel-deck="artifacts"] [data-math-panel="assumptions"]')).not.toBeNull();
     expect(container.querySelector('[data-math-workspace] [data-math-panel]')).toBeNull();
     expect(container.querySelector('[data-math-stages] button')).toBeNull();
-    fireEvent.click(container.querySelector('[data-mode-tab="work"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-rail-view="sessions"]') as HTMLElement);
+    await act(async () => {
+      store.getState().setMode('work');
+    });
     expect(container.querySelector('[data-panel-deck="artifacts"]')).not.toBeNull();
     expect(container.querySelector('[data-math-panel]')).toBeNull();
   });
@@ -665,17 +669,15 @@ describe('App — empty scene', () => {
     expect(transport.sent.some((c) => c.type === 'submit_task')).toBe(false);
   });
 
-  it('puts the mode selector above the session list, not in the top bar or the composer', () => {
+  it('does not put a mode tab strip in the top bar, session column, or composer', () => {
     const { container } = renderScene('empty');
     const top = container.querySelector('.camelia-topbar') as HTMLElement;
     expect(top.querySelector('[data-mode-tabs]')).toBeNull();
     expect(top.querySelector('[data-brand-slot]')?.textContent).toMatch(/Camelia/);
     const column = container.querySelector('[data-rail="left"]') as HTMLElement;
-    expect(column.querySelector('[data-mode-tabs]')).not.toBeNull();
-    expect(column.querySelector('[data-mode-tab="work"]')).not.toBeNull();
-    expect(column.querySelector('[data-mode-tab="math"]')).not.toBeNull();
-    expect(column.querySelector('[data-mode-tab="term"]')).not.toBeNull();
+    expect(column.querySelector('[data-mode-tabs]')).toBeNull();
     expect(container.querySelector('[data-composer] [data-mode-tabs]')).toBeNull();
+    expect(container.querySelector('[data-rail-view="math"]')).toBeNull();
   });
 
   it('keeps the model chip, effort, and attach control inside the composer card', () => {
@@ -734,7 +736,7 @@ describe('App — empty scene', () => {
     fireEvent.change(search, { target: { value: '不存在的插件zzz' } });
     expect(within(panel).getByText('目录和已安装列表里都没有匹配项。')).toBeInTheDocument();
     expect(within(panel).queryByText('Quiet activity bar')).toBeNull();
-    fireEvent.change(search, { target: { value: '' } });
+    fireEvent.change(search, { target: { value: 'quiet' } });
     fireEvent.click(within(panel).getByRole('button', { name: '安装' }));
     expect(await within(panel).findByText(/重新启动 Camelia/)).toBeInTheDocument();
     await waitFor(() => {

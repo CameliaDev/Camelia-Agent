@@ -2,6 +2,14 @@
   "version": 1,
   "plugins": [
     {
+      "id": "math-mode",
+      "name": "Math modeling",
+      "description": "Optional math modeling workbench with dedicated sessions and artifacts. Adds a ∑ icon to the activity bar when installed.",
+      "repo": "https://github.com/CameliaDev/Camelia-Agent",
+      "path": "plugins/math-mode",
+      "tags": ["shell", "math"]
+    },
+    {
       "id": "quiet-activity-bar",
       "name": "Quiet activity bar",
       "description": "Quieter ink tokens for the activity-bar direction. The 48px icon rail ships in the app; this theme does not draw or resize it.",

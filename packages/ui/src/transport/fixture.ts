@@ -402,8 +402,9 @@ export class FixtureTransport implements Transport {
           id,
           name: known.name,
           description: known.description,
-          kind: 'theme',
+          kind: id === 'math-mode' ? 'shell' : 'theme',
           dir: `/plugins/${id}`,
+          ...(id === 'math-mode' ? { shell: { mode: 'math' as const, icon: 'sigma' } } : {}),
         };
         this.installedPlugins = [...this.installedPlugins.filter((plugin) => plugin.id !== id), row];
         this.answer(command.commandId, { id, dir: row.dir, restartRequired: true });
@@ -613,6 +614,14 @@ const FIXTURE_CATALOG = {
   version: 1 as const,
   sourceUrl: 'https://raw.githubusercontent.com/CameliaDev/camelia-extensions/main/catalog.json',
   plugins: [
+    {
+      id: 'math-mode',
+      name: 'Math modeling',
+      description: 'Math workbench shell plugin',
+      repo: 'https://github.com/CameliaDev/Camelia-Agent',
+      path: 'plugins/math-mode',
+      tags: ['shell', 'math'],
+    },
     {
       id: 'quiet-activity-bar',
       name: 'Quiet activity bar',
