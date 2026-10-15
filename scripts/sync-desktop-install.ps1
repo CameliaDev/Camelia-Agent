@@ -44,17 +44,18 @@ function Update-Shortcut([string]$Path) {
   $link.Save()
 }
 
+# Windows PowerShell 5 Join-Path accepts only two path segments.
 $DesktopCandidates = @(
-  (Join-Path $env:USERPROFILE 'Desktop' $ShortcutName),
-  (Join-Path $env:PUBLIC 'Desktop' $ShortcutName)
+  (Join-Path (Join-Path $env:USERPROFILE 'Desktop') $ShortcutName),
+  (Join-Path (Join-Path $env:PUBLIC 'Desktop') $ShortcutName)
 )
 
 # Remove legacy duplicate launchers (exe-on-desktop, old names).
 $LegacyPatterns = @(
-  (Join-Path $env:USERPROFILE 'Desktop' 'Camelia-Agent-new.exe'),
-  (Join-Path $env:USERPROFILE 'Desktop' 'Camelia.exe'),
-  (Join-Path $env:PUBLIC 'Desktop' 'Camelia-Agent-new.exe'),
-  (Join-Path $env:PUBLIC 'Desktop' 'Camelia.exe')
+  (Join-Path (Join-Path $env:USERPROFILE 'Desktop') 'Camelia-Agent-new.exe'),
+  (Join-Path (Join-Path $env:USERPROFILE 'Desktop') 'Camelia.exe'),
+  (Join-Path (Join-Path $env:PUBLIC 'Desktop') 'Camelia-Agent-new.exe'),
+  (Join-Path (Join-Path $env:PUBLIC 'Desktop') 'Camelia.exe')
 )
 foreach ($legacy in $LegacyPatterns) {
   if (Test-Path -LiteralPath $legacy) {
