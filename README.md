@@ -9,13 +9,13 @@ Camelia 不是「会聊天的代码工具」，而是「能把任务做到尽善
 
 桌面是 **Tauri 2** 壳 + Work 聊天。输入框旁有与 Max 同款的力度芯片（Max / High / Low），以及 **聊天 / 计划 / 目标** 模式芯片；**团队**可选用自定义团队配置（多角色编排 MVP）。Math 等工作区由扩展提供（例如扩展目录里的 Math modeling），装上后才出现侧栏入口，不是写死在顶栏。
 
-会话从 ~/.camelia/camelia.db 持久化：侧栏可切换并恢复消息；删除会真正清库。任务结束可打分；引擎侧有 **done gate**（宣称完成前会跑探测到的测试/类型检查，失败则继续修）。冗长 system / 推理块在 UI 里可折叠。
+会话从 `~/.camelia/camelia.db` 持久化：侧栏可切换并恢复消息；删除会真正清库。任务结束可打分；引擎侧有 **done gate**（宣称完成前会跑探测到的测试/类型检查，失败则继续修）。冗长 system / 推理块在 UI 里可折叠。
 
-壳层细节见 [docs/SHELL-UX.md](docs/SHELL-UX.md)；桌面打包覆盖路径见 [pps/desktop/README.md](apps/desktop/README.md)。
+壳层细节见 [`docs/SHELL-UX.md`](docs/SHELL-UX.md)；桌面打包覆盖路径见 [`apps/desktop/README.md`](apps/desktop/README.md)。
 
 ### 相关仓库
 
-- 扩展与技能目录：[camelia-extensions](https://github.com/CameliaDev/camelia-extensions)（默认 catalog.json）
+- 扩展与技能目录：[camelia-extensions](https://github.com/CameliaDev/camelia-extensions)（默认 `catalog.json`）
 - 应用内反馈目标仓：[camelia-feedback](https://github.com/CameliaDev/camelia-feedback)
 
 ## 运行环境
