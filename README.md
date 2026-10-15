@@ -7,13 +7,16 @@ Camelia 不是「会聊天的代码工具」，而是「能把任务做到尽善
 
 ## 当前界面
 
-桌面壳是三种模式：**Work / Math / Term**。切换模式只显示该模式自己的会话。模式在左侧会话栏上方，不在顶栏，也不是 chat / plan。
+桌面是 **Tauri 2** 壳 + Work 聊天。输入框旁有与 Max 同款的力度芯片（Max / High / Low），以及 **聊天 / 计划 / 目标** 模式芯片；**团队**可选用自定义团队配置（多角色编排 MVP）。Math 等工作区由扩展提供（例如扩展目录里的 Math modeling），装上后才出现侧栏入口，不是写死在顶栏。
 
-齿轮先打开小菜单（主题 / 快捷方式配置 / 设置）。输入框上的模型芯片打开模型列表，不打开设置。力度是显示当前档位的按钮（默认 High），弹出 Max / High / Low，不会点一下轮换。
+会话从 ~/.camelia/camelia.db 持久化：侧栏可切换并恢复消息；删除会真正清库。任务结束可打分；引擎侧有 **done gate**（宣称完成前会跑探测到的测试/类型检查，失败则继续修）。冗长 system / 推理块在 UI 里可折叠。
 
-壳层快捷键、登录、插件栏、Math 新建、Term 的本地时间线，以及**不要**往桌面放 `Camelia-Agent-new.exe`，写在 [`docs/SHELL-UX.md`](docs/SHELL-UX.md)。打包覆盖路径写在 [`apps/desktop/README.md`](apps/desktop/README.md)。
+壳层细节见 [docs/SHELL-UX.md](docs/SHELL-UX.md)；桌面打包覆盖路径见 [pps/desktop/README.md](apps/desktop/README.md)。
 
-引擎仍是「规划 → 执行 → 验证」这条能力；Term 界面上的计划 / 执行 / 校验 / 完成**不是**已经接通的团队多智能体。下面的 Iteration 记录讲的是引擎与验收，不描述当前壳层。
+### 相关仓库
+
+- 扩展与技能目录：[camelia-extensions](https://github.com/CameliaDev/camelia-extensions)（默认 catalog.json）
+- 应用内反馈目标仓：[camelia-feedback](https://github.com/CameliaDev/camelia-feedback)
 
 ## 运行环境
 
