@@ -42,6 +42,15 @@ const STATUS_CLASS: Record<ChatRunStatus, string> = {
 };
 
 /**
+ * Status pill for the top bar — one line, quiet, sized for the 36px bar, so the
+ * title and its run status sit on the same line instead of a second strip below.
+ */
+export const CHAT_STATUS_PILL_CLASS =
+  'shrink-0 whitespace-nowrap rounded-full border border-line/70 bg-base px-2 py-px text-[11px] leading-4';
+
+export { STATUS_KEY, STATUS_CLASS };
+
+/**
  * One line, bold, and large enough to read as the column's status — still
  * inside the 33px strip that matches the artifacts header.
  */
