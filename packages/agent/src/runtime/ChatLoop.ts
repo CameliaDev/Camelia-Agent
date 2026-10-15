@@ -44,8 +44,10 @@ import { localNowPromptLine } from '@camelia/core';
 import {
   ApprovalGate,
   WorkspaceJournal,
+  doneGateFailurePrompt,
   isRetryableError,
   parseToolArguments,
+  runDoneGate,
   type ApprovalMode,
   type ApprovalResponder,
   type HarnessConfig,
@@ -177,6 +179,10 @@ export interface ChatLoopOptions {
    * sub-AIs are not configured and does not pretend the work ran.
    */
   delegate?: (input: { sessionId: Id; goal: string; constraints: string[]; signal: AbortSignal }) => Promise<string>;
+  /** Override for the done gate (`--test-command`). */
+  testCommand?: string;
+  /** When true, skip verification if this turn made no workspace edits. */
+  doneGateOnlyWhenDirty?: boolean;
 }
 
 export class ChatLoop {
@@ -337,6 +343,25 @@ export class ChatLoop {
         }
 
         if (calls.length === 0) {
+          const gate = await runDoneGate({
+            workspace: this.opts.workspace,
+            shell: this.opts.ports.shell,
+            journal,
+            config: {
+              testCommand: this.opts.testCommand,
+              onlyWhenDirty: this.opts.doneGateOnlyWhenDirty ?? true,
+            },
+            logger: this.opts.logger,
+          });
+          if (!gate.skipped && !gate.ok) {
+            const prompt = doneGateFailurePrompt(gate);
+            if (textOut) {
+              this.opts.bus.emit('chat.message', { turnId, role: 'assistant', text: textOut }, meta);
+              messages.push({ role: 'assistant', content: textOut });
+            }
+            messages.push({ role: 'user', content: prompt });
+            continue;
+          }
           // Final answer for the turn. This is the run's terminal message —
           // tool rounds above do not emit one, so the projection closes their
           // streaming flags here.

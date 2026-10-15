@@ -138,7 +138,7 @@ export interface ApprovalView {
 }
 
 export interface NoticeView {
-  kind: 'drift' | 'loop' | 'hallucination' | 'no-progress' | 'rollback';
+  kind: 'drift' | 'loop' | 'hallucination' | 'no-progress' | 'rollback' | 'verification';
   title: string;
   detail: string;
   action: string;
@@ -745,6 +745,10 @@ function summarise(event: DomainEvent): string {
       return `drift score ${String(p.score)} (${String(p.action)})`;
     case 'reliability.loop_detected':
       return `repeated ${String(p.repeats)}× (${String(p.action)})`;
+    case 'reliability.verification_gate_failed':
+      return `verification failed (${String(p.exitCode)})`;
+    case 'task.rated':
+      return `rated ${String(p.rating)}/5`;
     case 'memory.written':
       return `wrote ${String(p.count)} ${String(p.kind)} memory`;
     case 'selfreview.performed':
@@ -1749,6 +1753,21 @@ export function applyEvent(snapshot: ProjectionSnapshot, event: DomainEvent): Pr
 
     case 'work.delegated':
     case 'work.token':
+      return withTimeline(snapshot, event);
+
+    case 'reliability.verification_gate_failed':
+      return mutateTask(snapshot, event, (t) => ({
+        ...t,
+        notices: push(t.notices, {
+          kind: 'verification',
+          title: 'Project verification failed',
+          detail: event.payload.output?.slice(0, 280) || event.payload.command,
+          action: `exit ${event.payload.exitCode}`,
+          at: event.ts,
+        }),
+      }));
+
+    case 'task.rated':
       return withTimeline(snapshot, event);
 
     case 'metric':

@@ -691,6 +691,22 @@ describe('event log', () => {
     expect((await store.listEvents({ taskId: 'taskA' })).map((e) => e.type)).toEqual(['a']);
   });
 
+  it('deleteSession removes the session, its tasks, and its events', async () => {
+    const session = await store.createSession({ title: 's', workspace: 'w', provider: 'p', model: 'm' });
+    await store.createTask({ sessionId: session.id, intentRaw: 'x' });
+    await store.appendEvent(session.id, {
+      type: 'chat.received',
+      payload: { turnId: 't1', text: 'hi' },
+      traceId: 'trc',
+      ts: 1,
+      seq: 0,
+    });
+    expect(await store.deleteSession(session.id)).toBe(true);
+    expect(await store.getSession(session.id)).toBeUndefined();
+    expect(await store.listSessions()).toHaveLength(0);
+    expect(await store.listEvents({ sessionId: session.id })).toHaveLength(0);
+  });
+
   it('survives a payload that is not valid JSON', async () => {
     store.raw
       .prepare(

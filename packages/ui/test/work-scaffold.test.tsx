@@ -91,6 +91,8 @@ describe('Work plan / goal scaffold', () => {
     const { container, sent } = renderEmpty();
     fireEvent.click(container.querySelector('[data-work-posture-tab="plan"]') as HTMLElement);
     fireEvent.click(container.querySelector('[data-composer-team]') as HTMLElement);
+    await waitFor(() => expect(container.querySelector('[data-composer-teams]')).not.toBeNull());
+    fireEvent.click(container.querySelector('[data-composer-teams] [role="option"]') as HTMLElement);
     fireEvent.change(composer(container), { target: { value: 'ship the notes' } });
     fireEvent.keyDown(composer(container), { key: 'Enter' });
     await waitFor(() => {

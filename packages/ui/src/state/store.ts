@@ -328,9 +328,23 @@ export function createUiStore(transport: Transport): UiStore {
     },
     memoryActions: {} as MemoryPanelActions,
     dispatch: (command) => {
+      if (command.type === 'select_session') {
+        const sessionId = command.payload.sessionId;
+        set((state) => {
+          const row = state.sessions.find((session) => session.id === sessionId);
+          const session = row ?? (state.snapshot.session?.id === sessionId ? state.snapshot.session : undefined);
+          const base = initialSnapshot();
+          return {
+            activeSessionId: sessionId,
+            snapshot: {
+              ...withSession(base, session ?? state.snapshot.session!),
+              provider: state.snapshot.provider,
+            },
+          };
+        });
+      }
       transport.send(command);
       set({ lastCommand: command });
-      // Switch the SSE stream to the chosen session so its history replays.
       if (command.type === 'select_session' && typeof transport.switchSession === 'function') {
         transport.switchSession(command.payload.sessionId);
       }

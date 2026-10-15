@@ -207,7 +207,8 @@ export class EngineServer {
       'x-accel-buffering': 'no',
       ...this.cors(req),
     });
-    res.write(sseFrame(SSE_FRAME.bootstrap, await this.bootstrap()));
+    const bootstrapSessionId = url.searchParams.get('sessionId') ?? this.options.runtime.session.id;
+    res.write(sseFrame(SSE_FRAME.bootstrap, await this.bootstrap(bootstrapSessionId)));
     res.write(sseFrame(SSE_FRAME.status, { status: 'live' }));
 
     // Subscribe *before* replaying so an event emitted during the DB read is buffered,
@@ -275,12 +276,12 @@ export class EngineServer {
   }
 
   /** Re-send bootstrap after the working folder (and its session) changes. */
-  private async pushBootstrap(): Promise<void> {
-    const frame = sseFrame(SSE_FRAME.bootstrap, await this.bootstrap());
+  private async pushBootstrap(activeSessionId?: string): Promise<void> {
+    const frame = sseFrame(SSE_FRAME.bootstrap, await this.bootstrap(activeSessionId));
     for (const client of this.clients) this.write(client.res, frame);
   }
 
-  private async bootstrap(): Promise<{
+  private async bootstrap(activeSessionId?: string): Promise<{
     session: ReturnType<typeof toSessionView>;
     sessions: ReturnType<typeof toSessionView>[];
     provider: { activeProvider?: string; activeModel?: string };
@@ -300,8 +301,11 @@ export class EngineServer {
         return view;
       }),
     );
+    const id = activeSessionId ?? runtime.session.id;
+    const row = await runtime.store.getSession(id).catch(() => undefined);
+    const active = row ?? runtime.session;
     return {
-      session: toSessionView(runtime.session),
+      session: toSessionView(active),
       sessions: listed,
       provider: { activeProvider: providerStatus.id, activeModel: providerStatus.model },
       providerStatus,
@@ -352,7 +356,27 @@ export class EngineServer {
       case 'submit_term': {
         const effort = parseEffort(command.payload.effort);
         if (effort === null) return { ok: false, error: `无效的力度: ${String(command.payload.effort)}` };
-        return this.submit(command.payload.intent, command.payload.sessionId, effort, true);
+        return this.submit(command.payload.intent, command.payload.sessionId, effort, true, command.payload.teamId);
+      }
+      case 'rate_task': {
+        const { taskId, rating, comment } = command.payload;
+        if (!taskId) return { ok: false, error: '缺少 taskId 参数' };
+        const rated = await this.options.runtime.rateTask(taskId, rating, comment);
+        return rated.ok ? { ok: true } : rated;
+      }
+      case 'list_teams':
+        return { ok: true, data: this.options.runtime.listTeams() };
+      case 'save_team': {
+        try {
+          const team = this.options.runtime.saveTeam(command.payload);
+          return { ok: true, data: team };
+        } catch (error) {
+          return { ok: false, error: error instanceof Error ? error.message : String(error) };
+        }
+      }
+      case 'delete_team': {
+        const removed = this.options.runtime.deleteTeam(command.payload.id);
+        return removed ? { ok: true } : { ok: false, error: '团队不存在' };
       }
       case 'resume_task':
         return this.resume(command.payload.taskId);
@@ -434,9 +458,9 @@ export class EngineServer {
       }
       case 'select_session': {
         const ok = await this.options.runtime.selectSession(command.payload.sessionId);
-        return ok
-          ? { ok: true }
-          : { ok: false, error: `会话不存在: ${String(command.payload.sessionId)}` };
+        if (!ok) return { ok: false, error: `会话不存在: ${String(command.payload.sessionId)}` };
+        await this.pushBootstrap(command.payload.sessionId);
+        return { ok: true };
       }
       case 'set_workspace': {
         const dir = command.payload?.path;
@@ -642,12 +666,18 @@ export class EngineServer {
     }
   }
 
-  private submit(intent: string, sessionId?: string, effort?: EffortLevel, team = false): CommandAck {
+  private submit(
+    intent: string,
+    sessionId?: string,
+    effort?: EffortLevel,
+    team = false,
+    teamId?: string,
+  ): CommandAck {
     if (this.activeRun) return { ok: false, error: '已有任务正在运行' };
     const trimmed = intent.trim();
     if (!trimmed) return { ok: false, error: '任务描述不能为空' };
     this.activeRun = this.options.runtime
-      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId, effort, team })
+      .run(trimmed, { offlineClarify: this.options.offlineClarify ?? false, sessionId, effort, team, teamId })
       .catch((error: unknown) => {
         this.options.logger?.error('task run failed', { error: String(error) });
       })

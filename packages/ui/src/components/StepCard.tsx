@@ -12,6 +12,9 @@ import type { ReactNode } from 'react';
 
 import type { NarrationView, StepView, ToolCallView } from '@camelia/agent/view';
 
+import { CollapsibleBlock } from './CollapsibleBlock.js';
+import { isNoisyAssistantText } from '../lib/noisy-text.js';
+
 import { clock, ms } from '../lib/format.js';
 import { STEP_META, TONE_TEXT } from '../lib/status.js';
 import { useUiStore } from '../state/UiProvider.js';
@@ -138,12 +141,31 @@ export function StepCard({
           <div className="mt-2 flex items-start gap-2" data-message="agent">
             <Avatar kind="agent" size={24} title={tr('avatar.agent')} />
             <div className="min-w-0 flex-1 space-y-1.5 border-l-2 border-accent/30 pl-2.5">
-            {narration.map((n) => (
-              <p key={n.id} className="text-[12px] leading-[1.7] text-ink-2">
-                {n.text}
-                {n.streaming ? <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" /> : null}
-              </p>
-            ))}
+            {narration.map((n) =>
+              isNoisyAssistantText(n.text) ? (
+                <CollapsibleBlock
+                  key={n.id}
+                  summary={tr('events.collapse')}
+                  defaultOpen={false}
+                  preferOpen={false}
+                  data-collapsible="narration"
+                >
+                  <p className="text-[12px] leading-[1.7] text-ink-2">
+                    {n.text}
+                    {n.streaming ? (
+                      <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
+                    ) : null}
+                  </p>
+                </CollapsibleBlock>
+              ) : (
+                <p key={n.id} className="text-[12px] leading-[1.7] text-ink-2">
+                  {n.text}
+                  {n.streaming ? (
+                    <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
+                  ) : null}
+                </p>
+              ),
+            )}
             </div>
           </div>
         ) : null}

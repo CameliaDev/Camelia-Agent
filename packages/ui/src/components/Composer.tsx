@@ -149,8 +149,14 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const effort = useUiStore((s) => s.localPrefs.effort);
   const setLocalPrefs = useUiStore((s) => s.setLocalPrefs);
   const [policyOpen, setPolicyOpen] = useState(false);
-  const [teamRun, setTeamRun] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [teams, setTeams] = useState<{ id: string; name: string; members: { role: string; model: string }[] }[]>([]);
+  const teamRef = useRef<HTMLDivElement>(null);
   const policyRef = useRef<HTMLDivElement>(null);
+  const postureBox =
+    'inline-flex items-center rounded-full border border-line px-2 py-[3px] text-[10.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink';
+  const postureBoxActive = 'border-accent/35 bg-accent/12 text-accent';
 
   useEffect(() => {
     if (!policyOpen) return;
@@ -167,6 +173,22 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       document.removeEventListener('keydown', onKey);
     };
   }, [policyOpen]);
+
+  useEffect(() => {
+    if (!teamOpen) return;
+    const onDown = (event: MouseEvent): void => {
+      if (teamRef.current && !teamRef.current.contains(event.target as Node)) setTeamOpen(false);
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setTeamOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [teamOpen]);
 
   /**
    * Grow the field with the text rather than showing a scrollbar after the first line.
@@ -374,6 +396,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
           intent,
           workspace,
           effort,
+          ...(selectedTeamId ? { teamId: selectedTeamId } : {}),
         }),
       );
     };
@@ -406,7 +429,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
 
   const submit = (): void => {
     const intent = value.trim();
-    if (mode === 'work' && posture !== 'chat' && !running && !teamRun) {
+    if (mode === 'work' && posture !== 'chat' && !running && !selectedTeamId) {
       const body = `${intent}${folderNote}`.trim();
       if (!body) return;
       const parsed = splitPlanText(intent || pendingFolders[0]?.name || body);
@@ -424,7 +447,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       clearDraft();
       return;
     }
-    if (mode === 'work' && teamRun && !running) {
+    if (mode === 'work' && selectedTeamId && !running) {
       const teamIntent = `${intent}${folderNote}`.trim();
       if (!teamIntent) return;
       submitTermRun(teamIntent);
@@ -594,7 +617,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 ? 'math.composer.placeholder'
                 : mode === 'term'
                   ? 'term.composer'
-                  : mode === 'work' && teamRun
+                  : mode === 'work' && selectedTeamId
                     ? 'term.composer'
                   : mode === 'work' && posture === 'plan'
                     ? 'work.plan.placeholder'
@@ -647,9 +670,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                     data-work-posture-tab={id}
                     aria-pressed={posture === id}
                     onClick={() => dispatch(makeCommand('set_work_posture', { posture: id }))}
-                    className={`rounded-full px-2 py-1 text-[11.5px] ${
-                      posture === id ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
-                    }`}
+                    className={`${postureBox} ${posture === id ? postureBoxActive : ''}`}
                   >
                     {tr(`work.posture.${id}` as Parameters<typeof t>[1])}
                   </button>
@@ -657,19 +678,105 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               </div>
             ) : null}
             {mode === 'work' && !running ? (
-              <button
-                type="button"
-                data-composer-team
-                aria-pressed={teamRun}
-                title={tr('composer.team')}
-                onClick={() => setTeamRun((on) => !on)}
-                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11.5px] ${
-                  teamRun ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
-                }`}
-              >
-                <Icon name="bot" size={12} className="shrink-0" />
-                <span>{tr('composer.team')}</span>
-              </button>
+              <div ref={teamRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  data-composer-team
+                  aria-haspopup="listbox"
+                  aria-expanded={teamOpen}
+                  title={tr('composer.team')}
+                  onClick={() => {
+                    setTeamOpen((open) => !open);
+                    void store
+                      .getState()
+                      .query<{ id: string; name: string; members: { role: string; model: string }[] }[]>(
+                        makeCommand('list_teams', {}),
+                      )
+                      .then((rows) => setTeams(rows ?? []))
+                      .catch(() => setTeams([]));
+                  }}
+                  className={`${postureBox} gap-1 ${selectedTeamId ? postureBoxActive : ''}`}
+                >
+                  <Icon name="bot" size={12} className="shrink-0" />
+                  <span className="max-w-[96px] truncate">
+                    {teams.find((team) => team.id === selectedTeamId)?.name ?? tr('composer.team')}
+                  </span>
+                  <Icon name="chevron" size={11} className={`shrink-0 text-ink-3 ${teamOpen ? '-rotate-90' : 'rotate-90'}`} />
+                </button>
+                {teamOpen ? (
+                  <ul
+                    role="listbox"
+                    data-composer-teams
+                    className="absolute bottom-full left-0 z-30 mb-1 min-w-[200px] rounded-lg border border-line bg-elevated p-1 shadow-lg"
+                  >
+                    <li>
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11.5px] text-ink-2 hover:bg-hover"
+                        onClick={() => {
+                          setSelectedTeamId(null);
+                          setTeamOpen(false);
+                        }}
+                      >
+                        {tr('composer.teamOff')}
+                      </button>
+                    </li>
+                    {teams.map((team) => (
+                      <li key={team.id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={team.id === selectedTeamId}
+                          className={`flex w-full flex-col rounded-md px-2 py-1.5 text-left text-[11.5px] ${
+                            team.id === selectedTeamId ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover'
+                          }`}
+                          onClick={() => {
+                            setSelectedTeamId(team.id);
+                            setTeamOpen(false);
+                          }}
+                        >
+                          <span>{team.name}</span>
+                          <span className="text-[10px] text-ink-3">
+                            {team.members.map((member) => member.role).join(' · ')}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                    <li className="border-t border-line/80 pt-1">
+                      <button
+                        type="button"
+                        className="flex w-full rounded-md px-2 py-1.5 text-left text-[11.5px] text-ink-2 hover:bg-hover"
+                        onClick={() => {
+                          const name = window.prompt(tr('composer.teamNamePrompt'), tr('composer.teamDefaultName'));
+                          if (!name?.trim()) return;
+                          const modelA = window.prompt(tr('composer.teamModelPrompt'), 'model-a');
+                          const modelB = window.prompt(tr('composer.teamModelPrompt'), 'model-b');
+                          if (!modelA?.trim() || !modelB?.trim()) return;
+                          void store
+                            .getState()
+                            .query(makeCommand('save_team', {
+                              name: name.trim(),
+                              members: [
+                                { role: 'coordinator', model: modelA.trim() },
+                                { role: 'worker', model: modelB.trim() },
+                              ],
+                            }))
+                            .then((team) => {
+                              if (!team || typeof team !== 'object' || !('id' in team)) return;
+                              const id = String((team as { id: string }).id);
+                              setSelectedTeamId(id);
+                              setTeams((prev) => [{ id, name: name.trim(), members: [] }, ...prev]);
+                              setTeamOpen(false);
+                            })
+                            .catch(() => undefined);
+                        }}
+                      >
+                        {tr('composer.teamCreate')}
+                      </button>
+                    </li>
+                  </ul>
+                ) : null}
+              </div>
             ) : null}
             {conversational ? (
               <div ref={policyRef} className="relative shrink-0">

@@ -582,6 +582,13 @@ type StringKey =
   | 'health.trust'
   | 'team.title'
   | 'composer.team'
+  | 'composer.teamOff'
+  | 'composer.teamCreate'
+  | 'composer.teamNamePrompt'
+  | 'composer.teamDefaultName'
+  | 'composer.teamModelPrompt'
+  | 'task.rate'
+  | 'task.ratePrompt'
   | 'composer.dropFolder'
   | 'composer.removeFolder'
   | 'composer.folderLimit'
@@ -1160,6 +1167,13 @@ const en: Record<StringKey, string> = {
   'health.trust': 'Trust window',
   'team.title': 'Team orchestration',
   'composer.team': 'Team',
+  'composer.teamOff': 'Solo (no team)',
+  'composer.teamCreate': '+ New team…',
+  'composer.teamNamePrompt': 'Team name',
+  'composer.teamDefaultName': 'My team',
+  'composer.teamModelPrompt': 'Model id for this role',
+  'task.rate': 'Rate this run',
+  'task.ratePrompt': 'How did this task go?',
   'composer.dropFolder': 'Drop a folder to attach it',
   'composer.removeFolder': 'Remove folder',
   'composer.folderLimit': 'At most 8 folders',
@@ -1739,6 +1753,13 @@ const zh: Record<StringKey, string> = {
   'health.trust': '信任窗口',
   'team.title': '团队编排',
   'composer.team': '团队',
+  'composer.teamOff': '单人（不用团队）',
+  'composer.teamCreate': '+ 新建团队…',
+  'composer.teamNamePrompt': '团队名称',
+  'composer.teamDefaultName': '我的团队',
+  'composer.teamModelPrompt': '该角色的模型 ID',
+  'task.rate': '评价本次运行',
+  'task.ratePrompt': '这次任务怎么样？',
   'composer.dropFolder': '拖入文件夹即可附着',
   'composer.removeFolder': '移除文件夹',
   'composer.folderLimit': '最多附着 8 个文件夹',

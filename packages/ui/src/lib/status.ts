@@ -76,6 +76,7 @@ export const NOTICE_META: Record<NoticeView['kind'], { label: string; tone: Tone
   hallucination: { label: 'Unsupported claim', tone: 'bad', icon: 'shield' },
   'no-progress': { label: 'No progress', tone: 'warn', icon: 'pause' },
   rollback: { label: 'Recovery', tone: 'ok', icon: 'undo' },
+  verification: { label: 'Verification', tone: 'bad', icon: 'shield' },
 };
 
 export const CONNECTION_META: Record<'connecting' | 'live' | 'finished' | 'offline', Meta> = {

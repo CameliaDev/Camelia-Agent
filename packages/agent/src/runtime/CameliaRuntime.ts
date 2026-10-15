@@ -103,6 +103,7 @@ import { NodeShell } from '../adapters/NodeShell.js';
 import { createLogger } from '../adapters/logger.js';
 import { loadConfig, type CameliaConfig } from '../config/load.js';
 import { ensureCameliaHome, paths } from '../config/paths.js';
+import { deleteTeam, getTeam, listTeams, saveTeam, teamModelForRole } from '../config/teams.js';
 import { installSkillFolder, listSkillDirs, skillScanRoots, type SkillInfo } from '../skills/skills.js';
 import {
   fetchExtensionCatalog as fetchCatalogDocument,
@@ -223,6 +224,8 @@ export interface RunTaskOptions {
    * executes them. Ordinary Work tasks leave this unset.
    */
   team?: boolean;
+  /** User-defined team preset (`~/.camelia/teams.json`). */
+  teamId?: string;
 }
 
 export interface CameliaRunResult {
@@ -560,6 +563,8 @@ export class CameliaRuntime {
       responder: init.responder,
       allowedTools: init.preset?.allowedTools,
       delegate: (input) => this.delegateToSubAIs(input),
+      testCommand: init.testCommand,
+      doneGateOnlyWhenDirty: init.harnessConfig.doneGateOnlyWhenDirty,
     });
   }
 
@@ -1106,6 +1111,7 @@ export class CameliaRuntime {
         config: this.harnessConfig,
         planGate: this.planGate,
         selfReview: new PlanSelfReview(),
+        defaultTestCommand: this.testCommand,
         cognition:
           this.harnessConfig.cognitionMode === 'off'
             ? undefined
@@ -1149,8 +1155,12 @@ export class CameliaRuntime {
     await this.store.updateTask(task.id, { intentClarified: intent });
     this.bus.emit('task.clarified', { intent }, meta);
 
+    const teamPreset = options.teamId ? getTeam(options.teamId) : undefined;
+    const resolveModel = teamPreset
+      ? (role: string) => teamModelForRole(teamPreset, role)
+      : undefined;
     const outcome = options.team
-      ? await agentLoop.runTeam(intent, this.teamCatalog())
+      ? await agentLoop.runTeam(intent, this.teamCatalog(), { resolveModel })
       : await agentLoop.run(intent, { plan, startStepIdx: options.startStepIdx });
     this.activeLoop = undefined;
     await this.flush();
@@ -1478,6 +1488,45 @@ cancel(taskId: string, reason = 'cancelled'): boolean {
    * Remove one session. When it is the active row, point the runtime at another
    * remaining session if one exists. The caller creates a replacement blank.
    */
+  listTeams(): ReturnType<typeof listTeams> {
+    return listTeams();
+  }
+
+  saveTeam(input: { id?: string; name: string; members: { role: string; model: string }[] }): ReturnType<typeof saveTeam> {
+    return saveTeam(input);
+  }
+
+  deleteTeam(id: string): boolean {
+    return deleteTeam(id);
+  }
+
+  async rateTask(
+    taskId: Id,
+    rating: number,
+    comment?: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return { ok: false, error: '评分必须是 1 到 5 的整数' };
+    }
+    const task = await this.store.getTask(taskId).catch(() => undefined);
+    if (!task) return { ok: false, error: '任务不存在' };
+    const meta = { traceId: `rate-${taskId}`, sessionId: task.sessionId, taskId };
+    this.bus.emit('task.rated', { taskId, rating, ...(comment ? { comment } : {}) }, meta);
+    void this.panelMemory
+      .remember({
+        scope: 'session',
+        sessionId: task.sessionId,
+        kind: 'lesson',
+        content: `Task ${taskId} rated ${rating}/5${comment ? `: ${comment}` : ''}`,
+        keywords: `rating,reflection,${rating}`,
+        importance: 0.4,
+      })
+      .catch((error: unknown) => {
+        this.logger.warn('rating reflection write failed', { error: String(error) });
+      });
+    return { ok: true };
+  }
+
   async deleteSession(sessionId: string): Promise<{ ok: true } | { ok: false; error: string }> {
     const existing = await this.store.getSession(sessionId).catch(() => undefined);
     if (!existing) return { ok: false, error: '会话不存在' };

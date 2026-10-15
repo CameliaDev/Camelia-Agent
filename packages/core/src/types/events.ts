@@ -117,6 +117,7 @@ export interface DomainEventMap {
   'task.resumed': { fromStatus: TaskStatus };
   'task.intervened': { instruction: string; previousGoal: string; newGoal: string };
   'task.completed': { summary: string; artifacts: Artifact[] };
+  'task.rated': { taskId: Id; rating: number; comment?: string };
   'task.failed': { reason: string; recoverable: boolean };
   'task.cancelled': { reason: string };
 
@@ -168,6 +169,7 @@ export interface DomainEventMap {
   'reliability.loop_detected': { fingerprint: string; repeats: number; action: string };
   'reliability.hallucination_blocked': { claim: string; reason: string };
   'reliability.no_progress': { streak: number; action: string };
+  'reliability.verification_gate_failed': { command: string; exitCode: number; output: string };
 
   // ---- Recovery -------------------------------------------------------------
   'recovery.classified': { errorClass: string; message: string };
@@ -344,7 +346,18 @@ export interface CommandMap {
    * Term team run. The engine coordinates workers through the sub-agent
    * orchestrator. This is not a local timeline.
    */
-  'submit_term': { sessionId: Id; intent: string; workspace: string; effort?: EffortLevel };
+  'submit_term': {
+    sessionId: Id;
+    intent: string;
+    workspace: string;
+    effort?: EffortLevel;
+    /** User-defined team; members pin models to coordinator worker roles. */
+    teamId?: string;
+  };
+  'rate_task': { taskId: Id; rating: number; comment?: string };
+  'list_teams': Record<string, never>;
+  'save_team': { id?: string; name: string; members: { role: string; model: string }[] };
+  'delete_team': { id: string };
   'approve_tool': { callId: Id; scope: 'once' | 'session' };
   'deny_tool': { callId: Id; reason: string };
   /** `session` auto-approves later plans in this project, same shape as `approve_tool`. */
