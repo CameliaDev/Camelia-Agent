@@ -18,15 +18,23 @@ import { useUiState, useUiStore } from '../state/UiProvider.js';
 import { isTauri, windowClose, windowMinimize, windowStartDragging, windowToggleMaximize } from '../window/shell.js';
 import { LeftSidebarToggle, PanelDrawerToggle } from './PanelIcons.js';
 import { PanelSectionMenu } from './PanelSectionMenu.js';
+import { CHAT_STATUS_PILL_CLASS, chatRunStatus, STATUS_CLASS, STATUS_KEY } from './ChatReplyProgress.js';
+import { t } from '../i18n/strings.js';
 import { Icon, Mascot } from './primitives.js';
 
 export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
   const { snapshot, localPrefs } = useUiState();
   const { mode } = useMode();
   const panelId = useUiStore((s) => s.panelId);
+  const lastCommandError = useUiStore((s) => s.lastCommandError);
+  const language = useUiStore((s) => s.localPrefs.language);
   const desktop = isTauri();
   const title = projectionMatchesMode(snapshot, mode) ? snapshot.session?.title : undefined;
   const leftOpen = !localPrefs.leftCollapsed;
+  // The chat run status sits beside the title in the same line — work only, the
+  // only mode that owns a chat transcript. Plan/math keep their own strips.
+  const chatStatus = projectionMatchesMode(snapshot, 'work') ? chatRunStatus(snapshot.chat, lastCommandError) : null;
+  const statusLabel = chatStatus ? t(language, STATUS_KEY[chatStatus]) : null;
 
   const onMouseDown = (event: MouseEvent<HTMLElement>): void => {
     if ((event.target as HTMLElement).closest('button')) return;
@@ -48,11 +56,26 @@ export function TopBar({ revealed }: { revealed: boolean }): ReactNode {
         <span className="text-[13px] font-medium tracking-tight text-ink">{PRODUCT_NAME}</span>
       </span>
 
-      <div className="pointer-events-none absolute inset-y-0 left-36 right-28 flex items-center justify-center">
-        {title ? (
-          <span data-topbar-title className="max-w-[min(28rem,40vw)] truncate text-[15px] font-semibold text-ink" title={title}>
-            {title}
-          </span>
+      <div data-topbar-center className="pointer-events-none absolute inset-y-0 left-36 right-28 flex min-w-0 items-center justify-center gap-2">
+        {title || chatStatus ? (
+          <>
+            {title ? (
+              <span data-topbar-title className="max-w-[min(20rem,32vw)] truncate text-[15px] font-semibold text-ink" title={title}>
+                {title}
+              </span>
+            ) : null}
+            {chatStatus ? (
+              <span
+                data-topbar-chat-status
+                data-chat-status={chatStatus}
+                role="status"
+                aria-live="polite"
+                className={`${CHAT_STATUS_PILL_CLASS} ${STATUS_CLASS[chatStatus]}`}
+              >
+                {statusLabel}
+              </span>
+            ) : null}
+          </>
         ) : null}
       </div>
 

@@ -11,6 +11,7 @@ import type { ChatTurnView, ChatView, ToolCallView } from '@camelia/agent/view';
 
 import { App } from '../src/App.js';
 import {
+  CHAT_STATUS_PILL_CLASS,
   ChatReplyProgress,
   chatReplyProgressPhase,
   chatRunStatus,
@@ -286,6 +287,13 @@ describe('isChatReplyInFlight', () => {
   });
 });
 
+function topbarChatStatus(container: HTMLElement): HTMLElement {
+  const top = container.querySelector('.camelia-topbar') as HTMLElement;
+  const pill = top.querySelector('[data-topbar-chat-status]') as HTMLElement;
+  expect(pill).not.toBeNull();
+  return pill;
+}
+
 function setChat(store: ReturnType<typeof createUiStore>, turns: ChatTurnView[], pendingAsk?: ChatView['pendingAsk']): void {
   act(() => {
     store.setState((state) => ({
@@ -302,7 +310,7 @@ function setChat(store: ReturnType<typeof createUiStore>, turns: ChatTurnView[],
 }
 
 describe('ChatReplyProgress', () => {
-  it('centres a status line the same height as the artifacts header, with no progress rule', () => {
+  it('shows run status in the top bar pill, not a workspace strip, with no progress rule', () => {
     const transport = new FixtureTransport({ scene: 'empty' });
     const store = createUiStore(transport);
     act(() => store.getState().setLocalPrefs({ language: 'zh' }));
@@ -312,17 +320,12 @@ describe('ChatReplyProgress', () => {
       </UiProvider>,
     );
 
-    const idle = container.querySelector('[data-chat-status]') as HTMLElement;
-    expect(idle).not.toBeNull();
-    expect(idle.getAttribute('data-status')).toBe('idle');
-    expect(idle.getAttribute('data-phase')).toBe('hidden');
+    expect(container.querySelector('[data-chat-reply-progress]')).toBeNull();
+    const idle = topbarChatStatus(container);
+    expect(idle.getAttribute('data-chat-status')).toBe('idle');
     expect(idle.textContent).toBe('空闲');
-    expect(idle.className).toContain('justify-center');
-    expect(idle.style.height).toBe(`${MODE_HEADER_H}px`);
-    const idleLabel = idle.querySelector('[data-chat-status-label]') as HTMLElement;
-    expect(idleLabel.className).toContain('text-[16px]');
-    expect(idleLabel.className).toContain('font-bold');
-    expect(idleLabel.className).not.toContain('font-medium');
+    expect(idle.className).toContain(CHAT_STATUS_PILL_CLASS);
+    expect(idle.className).toContain('rounded-full');
     expect(idle.getAttribute('role')).toBe('status');
     expect(container.querySelector('[data-progress-line]')).toBeNull();
     expect(container.querySelector('[data-progress-dot]')).toBeNull();
@@ -330,9 +333,8 @@ describe('ChatReplyProgress', () => {
 
     fireEvent.click(container.querySelector('[data-panel-drawer]') as HTMLElement);
     const panel = container.querySelector('[data-panel-header]') as HTMLElement;
-    expect(panel.style.height).toBe(idle.style.height);
+    expect(panel.style.height).toBe(`${MODE_HEADER_H}px`);
     expect(panel.className).toContain('border-b');
-    expect(idle.className).toContain('border-b');
 
     setChat(store, [
       turn({ id: 'u1', role: 'user', text: 'hi', at: 1 }),
@@ -343,12 +345,12 @@ describe('ChatReplyProgress', () => {
         <App />
       </UiProvider>,
     );
-    let bar = container.querySelector('[data-chat-status]') as HTMLElement;
-    expect(bar.getAttribute('data-status')).toBe('replying');
-    expect(bar.getAttribute('data-phase')).toBe('running');
-    expect(bar.textContent).toBe('回复中…');
+    let pill = topbarChatStatus(container);
+    expect(pill.getAttribute('data-chat-status')).toBe('replying');
+    expect(pill.textContent).toBe('回复中…');
     expect(container.querySelector('[data-chat-running]')).toBeNull();
     expect(container.querySelector('[data-progress-line]')).toBeNull();
+    expect(container.querySelector('[data-chat-reply-progress]')).toBeNull();
 
     setChat(store, [
       turn({ id: 'u1', role: 'user', text: 'hi', at: 1 }),
@@ -359,10 +361,9 @@ describe('ChatReplyProgress', () => {
         <App />
       </UiProvider>,
     );
-    bar = container.querySelector('[data-chat-status]') as HTMLElement;
-    expect(bar.getAttribute('data-status')).toBe('done');
-    expect(bar.textContent).toBe('已完成');
-    expect(bar.querySelector('[data-chat-status-label]')!.className).toContain('font-bold');
+    pill = topbarChatStatus(container);
+    expect(pill.getAttribute('data-chat-status')).toBe('done');
+    expect(pill.textContent).toBe('已完成');
 
     setChat(store, [
       turn({ id: 'u1', role: 'user', text: '给当前仓库加一个小改动', at: 1 }),
@@ -381,10 +382,9 @@ describe('ChatReplyProgress', () => {
         <App />
       </UiProvider>,
     );
-    bar = container.querySelector('[data-chat-status]') as HTMLElement;
-    expect(bar.getAttribute('data-status')).toBe('done');
-    expect(bar.getAttribute('data-phase')).toBe('hidden');
-    expect(bar.textContent).toBe('已完成');
+    pill = topbarChatStatus(container);
+    expect(pill.getAttribute('data-chat-status')).toBe('done');
+    expect(pill.textContent).toBe('已完成');
     expect(container.querySelector('[data-progress-line]')).toBeNull();
     expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(3);
 
@@ -397,11 +397,10 @@ describe('ChatReplyProgress', () => {
         <App />
       </UiProvider>,
     );
-    bar = container.querySelector('[data-chat-status]') as HTMLElement;
-    expect(bar.getAttribute('data-status')).toBe('error');
-    expect(bar.getAttribute('data-phase')).toBe('error');
-    expect(bar.textContent).toBe('回复失败');
-    expect(bar.querySelector('[data-progress-line]')).toBeNull();
+    pill = topbarChatStatus(container);
+    expect(pill.getAttribute('data-chat-status')).toBe('error');
+    expect(pill.textContent).toBe('回复失败');
+    expect(container.querySelector('[data-progress-line]')).toBeNull();
   });
 
   it('keeps tool cards and drops empty thinking placeholders', () => {
@@ -420,7 +419,7 @@ describe('ChatReplyProgress', () => {
         <App />
       </UiProvider>,
     );
-    expect(container.querySelector('[data-chat-status]')!.textContent).toBe('思考中…');
+    expect(topbarChatStatus(container).textContent).toBe('思考中…');
     expect(container.querySelector('[data-chat-thinking="pending"]')).toBeNull();
     expect(container.querySelector('[data-chat-running]')).toBeNull();
 
@@ -452,7 +451,7 @@ describe('ChatReplyProgress', () => {
     expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(2);
     expect(container.querySelector('[data-chat-thinking]')).toBeNull();
     expect(container.querySelector('[data-chat-assistant] .camelia-pulse')).toBeNull();
-    expect(container.querySelector('[data-chat-status]')!.getAttribute('data-status')).toBe('thinking');
+    expect(topbarChatStatus(container).getAttribute('data-chat-status')).toBe('thinking');
 
     setChat(store, [
       turn({
@@ -491,7 +490,7 @@ describe('ChatReplyProgress', () => {
     expect(folds[0]!.querySelector('[data-collapsed]')!.getAttribute('data-collapsed')).toBe('false');
     expect(folds[0]!.textContent).toContain('check the header row');
     expect(folds[1]!.textContent).toContain('weigh the options');
-    expect(container.querySelector('[data-chat-status]')!.textContent).toBe('思考中…');
+    expect(topbarChatStatus(container).textContent).toBe('思考中…');
   });
 
   it('mounts the isolated component on the idle status', () => {

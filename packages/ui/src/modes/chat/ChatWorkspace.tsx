@@ -1,7 +1,7 @@
 /**
  * Conversation mode (Work).
  *
- * Thin wrapper: the status strip + ChatTranscript. When the session is fresh the
+ * Thin wrapper: ChatTranscript (run status lives in TopBar). When the session is fresh the
  * workspace shrinks to that strip — App centres the composer in the
  * remaining pane (ChatGPT-style empty state).
  * @module
@@ -13,7 +13,6 @@ import { projectionMatchesMode } from '../../mode/session-kind.js';
 import { useUiStore } from '../../state/UiProvider.js';
 import { isFreshChatSession } from '../../state/fresh-session.js';
 
-import { ChatReplyProgress } from '../../components/ChatReplyProgress.js';
 import { ChatTranscript } from './ChatTranscript.js';
 import { WorkPlanList } from './WorkPlanList.js';
 
@@ -31,7 +30,6 @@ export function ChatWorkspace(): ReactNode {
       data-chat-workspace
       data-chat-fresh={fresh || undefined}
     >
-      <ChatReplyProgress />
       {showPlans ? (
         <div className="shrink-0 px-4 pt-3">
           <WorkPlanList plans={plans} />
