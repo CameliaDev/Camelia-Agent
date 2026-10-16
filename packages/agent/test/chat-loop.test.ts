@@ -447,6 +447,7 @@ describe('ChatLoop — think, then plan, then tools', () => {
     const system = String(llm.requests[0]?.messages[0]?.content ?? '');
     expect(system).toContain('Think before you act');
     expect(system).toContain('short plan');
+    expect(system).toContain('skip that preamble');
     expect(system).toContain('constraints');
     expect(system.toLowerCase()).not.toContain('no plans');
     expect(system).not.toContain('No goal restatement');
