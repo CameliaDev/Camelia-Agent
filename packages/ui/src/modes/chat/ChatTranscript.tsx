@@ -2,11 +2,13 @@
  * ChatTranscript — the 对话 mode surface (direct conversation path).
  *
  * Renders `snapshot.chat` — the projection of the `chat.*` event family — as a
- * plain chat: user turns on the right, assistant turns on the left with inline
- * tool rows, a streaming caret while deltas are arriving, and an option picker
- * whenever the model asked a question (`chat.ask_user`). A chat turn never
- * creates a task, so nothing here touches the plan machinery; that is exactly
- * the difference from `Conversation`, which folds the task pipeline.
+ * plain chat: user turns on the right, assistant turns on the left.
+ *
+ * Mainstream pattern (Cursor / Claude / ChatGPT-Codex): one user ask → one
+ * assistant bubble. Tool rounds and thinking fold into a single collapsed
+ * “过程 / Process” disclosure; the final answer is the only primary body.
+ * ChatLoop still opens a new turnId per tool iteration — we coalesce those
+ * turns at render time so they never become separate avatars/bubbles.
  * @module
  */
 
@@ -26,7 +28,12 @@ import { TeamOrchestrationCard, taskShowsTeamOrchestration } from '../team/TeamO
 import { CollapsibleBlock } from '../../components/CollapsibleBlock.js';
 import { shouldCollapseAssistantText } from '../../lib/noisy-text.js';
 import { ms } from '../../lib/format.js';
-import { groupToolCalls, parseReplyStructure, toolGroupLabel, toolGroupStatus } from './reply-structure.js';
+import {
+  answerBody,
+  coalesceTranscript,
+  toolGroupLabel,
+  toolGroupStatus,
+} from './reply-structure.js';
 
 /** How close to the bottom (px) the transcript must stay to keep following new output. */
 const STICK_PX = 96;
@@ -40,6 +47,34 @@ function toolDot(status: ToolCallStatus): string {
   return 'bg-ink-3';
 }
 
+function visibleAnswer(turn: ChatTurnView): string {
+  return answerBody(splitThinking(turn.text).answer);
+}
+
+/**
+ * Reasoning text worth showing. A live turn with no text used to render the
+ * status label as both the summary and the body — an empty 「思考中…」 box
+ * under every tool card. The header already says that, so only real text
+ * earns a block.
+ */
+function reasoningText(turn: ChatTurnView): string {
+  const parts = splitThinking(turn.text);
+  return [turn.thinking, parts.thinking]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join('\n\n');
+}
+
+function assistantGroupHasContent(turns: readonly ChatTurnView[]): boolean {
+  return turns.some(
+    (turn) =>
+      turn.toolCalls.length > 0 ||
+      reasoningText(turn).length > 0 ||
+      visibleAnswer(turn).trim().length > 0 ||
+      Boolean(turn.error),
+  );
+}
+
 export function ChatTranscript(): ReactNode {
   const { snapshot, activeSessionId, dispatch } = useUiState();
   const lang = useUiStore((s) => s.localPrefs.language);
@@ -50,6 +85,7 @@ export function ChatTranscript(): ReactNode {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
 
+  const items = useMemo(() => coalesceTranscript(chat.turns), [chat.turns]);
   const lastTurn = chat.turns[chat.turns.length - 1];
   const streamingLen =
     lastTurn && lastTurn.role === 'assistant' && lastTurn.streaming
@@ -80,8 +116,11 @@ export function ChatTranscript(): ReactNode {
     );
   };
 
+  const lastAssistant = [...items].reverse().find((item) => item.kind === 'assistant');
   const awaitingFirstToken =
-    chat.inflight === true && !chat.pendingAsk && (!lastTurn || lastTurn.role === 'user');
+    chat.inflight === true &&
+    !chat.pendingAsk &&
+    (!lastAssistant || !assistantGroupHasContent(lastAssistant.turns));
 
   return (
     <div
@@ -96,9 +135,13 @@ export function ChatTranscript(): ReactNode {
             <p className="max-w-sm text-center text-[12.5px] leading-5 text-ink-3">{tr('chat.empty')}</p>
           </div>
         ) : null}
-        {chat.turns.map((turn) => (
-          <ChatBubble key={turn.id} turn={turn} />
-        ))}
+        {items.map((item) =>
+          item.kind === 'user' ? (
+            <UserBubble key={item.turn.id} turn={item.turn} />
+          ) : (
+            <AssistantBubble key={item.turns.map((turn) => turn.id).join('+')} turns={item.turns} />
+          ),
+        )}
         {awaitingFirstToken ? (
           <div className="flex items-center gap-2 py-0.5" data-chat-awaiting>
             <span className="camelia-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
@@ -123,97 +166,84 @@ export function ChatTranscript(): ReactNode {
   );
 }
 
-function visibleAnswer(turn: ChatTurnView): string {
-  return splitThinking(turn.text).answer;
-}
-
-/**
- * Reasoning text worth showing. A live turn with no text used to render the
- * status label as both the summary and the body — an empty 「思考中…」 box
- * under every tool card. The header already says that, so only real text
- * earns a block.
- */
-function reasoningText(turn: ChatTurnView): string {
-  const parts = splitThinking(turn.text);
-  return [turn.thinking, parts.thinking]
-    .map((part) => part?.trim() ?? '')
-    .filter((part) => part.length > 0)
-    .join('\n\n');
-}
-
-function ThinkingFold({ turn, label }: { turn: ChatTurnView; label: string }): ReactNode {
-  if (turn.role !== 'assistant') return null;
-  const parts = splitThinking(turn.text);
-  const thinking = reasoningText(turn);
-  if (!thinking) return null;
-  const live = Boolean(turn.streaming && !parts.answer.trim());
-  return (
-    <div className={parts.answer ? 'mb-2' : undefined} data-chat-thinking={live ? 'live' : 'folded'}>
-      {/*
-        Stay collapsed, including while tools are still running. Opening every
-        block as tokens arrive is what flooded the thread; the header carries
-        the live status, and the row stays expandable.
-      */}
-      <CollapsibleBlock summary={label} preferOpen={false} defaultOpen={false} data-collapsible="thinking">
-        <p className="whitespace-pre-wrap px-1 text-[12.5px] leading-5 text-ink-2">{thinking}</p>
-      </CollapsibleBlock>
-    </div>
-  );
-}
-
-const ChatBubble = memo(function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
+const UserBubble = memo(function UserBubble({ turn }: { turn: ChatTurnView }): ReactNode {
   const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
   const userAvatar = useUiStore((s) => s.localPrefs.userAvatar);
   const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
   const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+
+  return (
+    <div className="flex items-end justify-end gap-2" data-chat-user data-message="user">
+      <div className="wf-bubble-user max-w-[80%] px-3.5 py-2.5">
+        {turn.images?.length ? (
+          <div className="mb-2 flex flex-wrap gap-1.5" data-chat-images>
+            {turn.images.map((img, i) => (
+              <img
+                key={i}
+                src={`data:${img.mimeType};base64,${img.dataBase64}`}
+                alt=""
+                className="max-h-40 max-w-full rounded-lg border border-white/20 object-contain"
+              />
+            ))}
+          </div>
+        ) : null}
+        {turn.text ? <p className="whitespace-pre-wrap text-[13.5px] leading-6">{turn.text}</p> : null}
+      </div>
+      {showAvatars ? (
+        <Avatar kind="user" size={32} title={tr('avatar.user')} src={userAvatarSrc(userAvatar, githubAccount)} />
+      ) : null}
+    </div>
+  );
+});
+
+/**
+ * One assistant message for a whole user→reply cycle.
+ * Tools + thinking stay inside one collapsed process/thinking disclosure;
+ * the final answer is the only primary body. Empty shells (tool-round open
+ * with no text yet) render nothing so they never become orphan bubbles.
+ */
+const AssistantBubble = memo(function AssistantBubble({ turns }: { turns: ChatTurnView[] }): ReactNode {
+  const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
+  const lang = useUiStore((s) => s.localPrefs.language);
   const activeProvider = useUiStore((s) => s.snapshot.provider.activeProvider);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
 
-  if (turn.role === 'user') {
-    return (
-      <div className="flex items-end justify-end gap-2" data-chat-user data-message="user">
-        <div className="wf-bubble-user max-w-[80%] px-3.5 py-2.5">
-          {turn.images?.length ? (
-            <div className="mb-2 flex flex-wrap gap-1.5" data-chat-images>
-              {turn.images.map((img, i) => (
-                <img
-                  key={i}
-                  src={`data:${img.mimeType};base64,${img.dataBase64}`}
-                  alt=""
-                  className="max-h-40 max-w-full rounded-lg border border-white/20 object-contain"
-                />
-              ))}
-            </div>
-          ) : null}
-          {turn.text ? <p className="whitespace-pre-wrap text-[13.5px] leading-6">{turn.text}</p> : null}
-        </div>
-        {showAvatars ? (
-          <Avatar kind="user" size={32} title={tr('avatar.user')} src={userAvatarSrc(userAvatar, githubAccount)} />
-        ) : null}
-      </div>
-    );
-  }
+  if (!assistantGroupHasContent(turns)) return null;
+
+  const toolCalls = turns.flatMap((turn) => turn.toolCalls);
+  const thinking = turns
+    .map((turn) => reasoningText(turn))
+    .filter((part) => part.length > 0)
+    .join('\n\n');
+  const answerTurn =
+    [...turns].reverse().find((turn) => visibleAnswer(turn).trim().length > 0) ?? turns[turns.length - 1]!;
+  const streaming = turns.some((turn) => turn.streaming);
+  const error = [...turns].reverse().find((turn) => turn.error)?.error;
+  const answer = visibleAnswer(answerTurn);
+
   return (
     <div className="flex items-end justify-start gap-2" data-chat-assistant data-message="assistant">
       {showAvatars ? (
-        <Avatar
-          kind="agent"
-          size={32}
-          title={tr('avatar.agent')}
-          src={providerAvatarSrc(activeProvider)}
-        />
+        <Avatar kind="agent" size={32} title={tr('avatar.agent')} src={providerAvatarSrc(activeProvider)} />
       ) : null}
       <div className="wf-bubble-agent max-w-[85%] px-3.5 py-2.5">
-        <ToolRunRows calls={turn.toolCalls} />
-        <ThinkingFold turn={turn} label={tr('chat.thinking')} />
-        <ReplyBody turn={turn} />
-        {turn.streaming && visibleAnswer(turn) ? (
+        <ProcessFold key={toolCalls.map((call) => call.id).join("|")} calls={toolCalls} label={tr('chat.process')} />
+        {thinking ? (
+          <div className={answer ? 'mb-2' : undefined} data-chat-thinking={streaming && !answer ? 'live' : 'folded'}>
+            <CollapsibleBlock summary={tr('chat.thinking')} preferOpen={false} defaultOpen={false} data-collapsible="thinking">
+              <p className="whitespace-pre-wrap px-1 text-[12.5px] leading-5 text-ink-2">{thinking}</p>
+            </CollapsibleBlock>
+          </div>
+        ) : null}
+        <ReplyBody text={answer} />
+        {streaming && answer ? (
           <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
         ) : null}
-        {turn.error ? (
+        {error ? (
           <p className="mt-1 flex items-center gap-1 text-[12px] text-bad">
             <Icon name="alert" size={12} className="shrink-0" />
-            {turn.error}
+            {error}
           </p>
         ) : null}
       </div>
@@ -221,42 +251,28 @@ const ChatBubble = memo(function ChatBubble({ turn }: { turn: ChatTurnView }): R
   );
 });
 
-function ToolRunRows({ calls }: { calls: ChatTurnView['toolCalls'] }): ReactNode {
+/**
+ * Single collapsed process row for every tool in the coalesced assistant message.
+ * Errors + retries share one disclosure — never N standalone bubbles.
+ */
+function ProcessFold({ calls, label }: { calls: ToolCallView[]; label: string }): ReactNode {
   if (calls.length === 0) return null;
-  const groups = groupToolCalls(calls);
-  if (groups.length === 1 && groups[0]!.kind === 'single') {
-    return <ChatToolRow call={calls[0]!} />;
-  }
-  return (
-    <>
-      {groups.map((group, idx) =>
-        group.kind === 'single' ? (
-          <ChatToolRow key={group.call.id} call={group.call} />
-        ) : (
-          <ToolRunGroup key={`group-${idx}-${group.calls[0]!.id}`} calls={group.calls} />
-        ),
-      )}
-    </>
-  );
-}
-
-function ToolRunGroup({ calls }: { calls: ToolCallView[] }): ReactNode {
-  const lang = useUiStore((s) => s.localPrefs.language);
-  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const status = toolGroupStatus(calls);
+  const names = toolGroupLabel(calls);
   const summary = (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       <span
         className={`inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
-          status === 'error' ? 'bg-bad/15 text-bad' : 'bg-ok/15 text-ok'
+          status === 'error' ? 'bg-bad/15 text-bad' : status === 'running' ? 'bg-info/15 text-info' : 'bg-ok/15 text-ok'
         }`}
       >
-        <span className="text-[9px] leading-none">{status === 'error' ? '!' : 'ok'}</span>
+        <span className="text-[9px] leading-none">{status === 'error' ? '!' : status === 'running' ? '…' : 'ok'}</span>
       </span>
       <span className="shrink-0 font-medium text-ink-2">
-        {tr('chat.toolRun').replace('{n}', String(calls.length))}
+        {label}
+        {calls.length > 1 ? ` · ${calls.length}` : ''}
       </span>
-      <span className="truncate font-mono text-ink-3">{toolGroupLabel(calls)}</span>
+      <span className="truncate font-mono text-ink-3">{names}</span>
     </span>
   );
   return (
@@ -272,37 +288,27 @@ function ToolRunGroup({ calls }: { calls: ToolCallView[] }): ReactNode {
   );
 }
 
-function ReplyBody({ turn }: { turn: ChatTurnView }): ReactNode {
+function ReplyBody({ text }: { text: string }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
-  const answer = visibleAnswer(turn);
-  // Goal / Constraints / Plan belong to the model's scratchpad, not the bubble.
-  // Strip them when present so the card shows the final answer only.
-  const structure = parseReplyStructure(answer);
-  let visible = answer;
-  if (structure) visible = structure.body;
-  else if (turn.streaming && /^\**\s*goal\s*\**/im.test(answer.trimStart())) {
-    // Preamble still streaming — hold the bubble empty until the answer body arrives.
-    visible = '';
-  }
-  if (!visible) return null;
-  return shouldCollapseAssistantText(visible) ? (
+  if (!text) return null;
+  return shouldCollapseAssistantText(text) ? (
     <CollapsibleBlock
       summary={tr('chat.collapseAnswer')}
       defaultOpen={false}
       preferOpen={false}
       data-collapsible="answer"
     >
-      <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visible}</p>
+      <p className="whitespace-pre-wrap text-[13.5px] leading-6">{text}</p>
     </CollapsibleBlock>
   ) : (
     <p className="whitespace-pre-wrap text-[13.5px] leading-6" data-chat-reply-answer>
-      {visible}
+      {text}
     </p>
   );
 }
 
-/** One tool call, inline in the assistant turn — name, risk, status. */
+/** One tool call detail row inside the process disclosure. */
 function formatToolPayload(value: unknown): string {
   if (value === undefined || value === null) return '';
   if (typeof value === 'string') return value;

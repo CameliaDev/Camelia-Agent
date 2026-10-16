@@ -141,6 +141,7 @@ type StringKey =
   | 'chat.askTitle'
   | 'chat.collapseAnswer'
   | 'chat.toolRun'
+  | 'chat.process'
   | 'chat.replyGoal'
   | 'chat.replyConstraints'
   | 'chat.replyPlan'
@@ -760,6 +761,7 @@ const en: Record<StringKey, string> = {
   'chat.askTitle': 'Camelia needs your choice',
   'chat.collapseAnswer': 'Long reply — expand',
   'chat.toolRun': '{n} tools',
+  'chat.process': 'Process',
   'chat.replyGoal': 'Goal',
   'chat.replyConstraints': 'Constraints · {n}',
   'chat.replyPlan': 'Plan · {n}',
@@ -1370,6 +1372,7 @@ const zh: Record<StringKey, string> = {
   'chat.askTitle': 'Camelia 需要你的选择',
   'chat.collapseAnswer': '长回复 — 展开',
   'chat.toolRun': '{n} 个工具',
+  'chat.process': '过程',
   'chat.replyGoal': '目标',
   'chat.replyConstraints': '约束 · {n}',
   'chat.replyPlan': '计划 · {n}',
