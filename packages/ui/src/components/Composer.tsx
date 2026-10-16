@@ -100,13 +100,79 @@ function hostPath(file: File | null): string | undefined {
   return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : undefined;
 }
 
+/** Basename of a host path, tolerant of Windows and POSIX separators. */
+
+/** FileList.item is missing on some test doubles — fall back to index access. */
+function fileAt(files: FileList | ArrayLike<File> | null | undefined, index: number): File | null {
+  if (!files || index < 0 || index >= files.length) return null;
+  const list = files as FileList & ArrayLike<File>;
+  if (typeof list.item === 'function') return list.item(index);
+  return list[index] ?? null;
+}
+
+function basenamePath(path: string): string {
+  const cleaned = path.replace(/[/\\]+$/, '');
+  const parts = cleaned.split(/[/\\]/);
+  return parts[parts.length - 1] || cleaned;
+}
+
+/**
+ * True when a dropped File looks like a directory rather than a regular file.
+ *
+ * Tauri/WebView2 often exposes a folder as a File with an absolute `.path`, empty
+ * MIME type, and size 0 — `webkitGetAsEntry()` is frequently null for Explorer
+ * drops, which is why drag-folder used to silently do nothing.
+ */
+function looksLikeDirectoryFile(file: File): boolean {
+  if (file.type && !file.type.startsWith('inode/')) return false;
+  // A real image/pdf/etc. with a MIME is never a folder.
+  if (file.size > 0 && file.type) return false;
+  const path = hostPath(file);
+  if (!path) return false;
+  // Prefer path without a final file extension segment after the last separator.
+  const base = basenamePath(path);
+  if (!base || base === '.' || base === '..') return false;
+  // Heuristic: no dotted extension, or ends with a trailing slash in the raw path.
+  if (/[/\\]$/.test(path.trim())) return true;
+  if (!base.includes('.')) return true;
+  // Common archive/doc extensions → treat as file; otherwise still accept as folder
+  // when size is 0 and type is empty (WebView folder drop signature).
+  if (file.size === 0 && !file.type) return true;
+  return false;
+}
+
 function folderFromItem(item: DataTransferItem): { name: string; path?: string } | undefined {
   const entry = (item as DataTransferItem & { webkitGetAsEntry?: () => DirectoryEntryLike | null }).webkitGetAsEntry?.();
-  if (!entry?.isDirectory) return undefined;
-  const name = entry.name?.trim();
+  if (entry?.isDirectory) {
+    const name = entry.name?.trim();
+    if (!name || name === '.' || name === '..') return undefined;
+    const path = hostPath(item.getAsFile()) ?? (entry.fullPath?.trim() || undefined);
+    return path ? { name, path } : { name };
+  }
+  // Fallback: Tauri Absolute File.path without a DirectoryEntry.
+  const file = item.getAsFile();
+  if (!file || !looksLikeDirectoryFile(file)) return undefined;
+  const path = hostPath(file);
+  if (!path) return undefined;
+  const name = basenamePath(path);
   if (!name || name === '.' || name === '..') return undefined;
-  const path = hostPath(item.getAsFile()) ?? (entry.fullPath?.trim() || undefined);
-  return path ? { name, path } : { name };
+  return { name, path };
+}
+
+/** Folders from `dataTransfer.files` when items/webkitGetAsEntry are empty. */
+function foldersFromFileList(files: FileList | null | undefined): { name: string; path?: string }[] {
+  if (!files?.length) return [];
+  const found: { name: string; path?: string }[] = [];
+  for (let i = 0; i < files.length; i += 1) {
+    const file = fileAt(files, i);
+    if (!file || !looksLikeDirectoryFile(file)) continue;
+    const path = hostPath(file);
+    if (!path) continue;
+    const name = basenamePath(path);
+    if (!name || name === '.' || name === '..') continue;
+    found.push({ name, path });
+  }
+  return found;
 }
 
 function splitPlanText(text: string): { goal: string; constraints: string[]; body: string } {
@@ -384,7 +450,8 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   };
 
   const addDroppedFolders = (data: DataTransfer | null): void => {
-    if (!data || mode !== 'work') return;
+    // Work and math both use the chat composer; folder paths are useful in either.
+    if (!data || !conversational) return;
     const found: { name: string; path?: string }[] = [];
     const items = data.items;
     for (let index = 0; index < items.length; index += 1) {
@@ -393,7 +460,22 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       const folder = folderFromItem(item);
       if (folder) found.push(folder);
     }
+    if (found.length === 0) {
+      for (const folder of foldersFromFileList(data.files)) found.push(folder);
+    }
     if (found.length === 0) return;
+    // User-acceptable fallback: leave absolute folder paths in the textarea so the
+    // model sees them even when chips are stripped. Prefer path when present.
+    const pathLines = found
+      .map((folder) => folder.path?.trim() || folder.name)
+      .filter(Boolean);
+    if (pathLines.length) {
+      setValue((prev) => {
+        const trimmed = prev.trimEnd();
+        const block = pathLines.join('\n');
+        return trimmed ? `${trimmed}\n${block}` : block;
+      });
+    }
     setPendingFolders((prev) => {
       const next = [...prev];
       for (const folder of found) {
@@ -408,8 +490,65 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
     });
   };
 
+
+  /** Non-image files: insert absolute paths (or names) into the composer text. */
+  const addDroppedFiles = (data: DataTransfer | null): void => {
+    if (!data || !conversational) return;
+    const paths: string[] = [];
+    const files = data.files;
+    if (files?.length) {
+      for (let i = 0; i < files.length; i += 1) {
+        const file = fileAt(files, i);
+        if (!file) continue;
+        if (looksLikeDirectoryFile(file)) continue;
+        const mime = normalizeMime(file.type || '');
+        if (ALLOWED_MIME.has(mime) || (file.type && file.type.startsWith('image/'))) continue;
+        const p = hostPath(file);
+        paths.push(p || file.name);
+      }
+    }
+    // Also walk items for File.path when files list was empty
+    if (paths.length === 0 && data.items) {
+      for (let index = 0; index < data.items.length; index += 1) {
+        const item = data.items[index];
+        if (!item || item.kind !== 'file') continue;
+        const entry = (item as DataTransferItem & { webkitGetAsEntry?: () => { isDirectory?: boolean; isFile?: boolean; name?: string } | null }).webkitGetAsEntry?.();
+        if (entry?.isDirectory) continue;
+        const file = item.getAsFile();
+        if (!file) continue;
+        if (looksLikeDirectoryFile(file)) continue;
+        const mime = normalizeMime(file.type || '');
+        if (ALLOWED_MIME.has(mime) || (file.type && file.type.startsWith('image/'))) continue;
+        const p = hostPath(file);
+        paths.push(p || file.name);
+      }
+    }
+    if (!paths.length) return;
+    setValue((prev) => {
+      const trimmed = prev.trimEnd();
+      const block = paths.join('\n');
+      return trimmed ? `${trimmed}\n${block}` : block;
+    });
+  };
+
+  /** Images from a drop land as pending attachments (same as paste / +). */
+  const addDroppedImages = (data: DataTransfer | null): void => {
+    if (!data || !conversational) return;
+    const files: File[] = [];
+    const list = data.files;
+    if (list?.length) {
+      for (let i = 0; i < list.length; i += 1) {
+        const file = fileAt(list, i);
+        if (!file) continue;
+        const mime = normalizeMime(file.type || '');
+        if (ALLOWED_MIME.has(mime) || file.type.startsWith('image/')) files.push(file);
+      }
+    }
+    if (files.length) void addImageFiles(files);
+  };
+
   const onFolderDragOver = (event: DragEvent<HTMLDivElement>): void => {
-    if (mode !== 'work') return;
+    if (!conversational) return;
     const types = event.dataTransfer?.types;
     const hasFiles = types ? Array.from(types).includes('Files') : false;
     if (!hasFiles) return;
@@ -418,10 +557,12 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   };
 
   const onFolderDrop = (event: DragEvent<HTMLDivElement>): void => {
-    if (mode !== 'work') return;
+    if (!conversational) return;
     event.preventDefault();
     setDropActive(false);
     addDroppedFolders(event.dataTransfer);
+    addDroppedImages(event.dataTransfer);
+    addDroppedFiles(event.dataTransfer);
   };
 
   const submitTermRun = (intent: string): void => {
@@ -875,7 +1016,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                     role="listbox"
                     data-composer-policies
                     aria-label={tr('composer.policy')}
-                    className="absolute bottom-full left-0 z-30 mb-1 min-w-[190px] rounded-lg border border-line bg-elevated p-1 shadow-lg"
+                    className="absolute bottom-full left-0 z-30 mb-1 min-w-[240px] max-w-[320px] rounded-lg border border-line bg-elevated p-1 shadow-lg"
                   >
                     {CHAT_POLICIES.map((policy) => {
                       const selected = policy === chatPolicy;
@@ -894,7 +1035,18 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                               selected ? 'bg-accent/12 font-medium text-accent' : 'text-ink-2 hover:bg-hover hover:text-ink'
                             }`}
                           >
-                            <span className="min-w-0 flex-1 truncate">{tr(policyLabelKey(policy))}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{tr(policyLabelKey(policy))}</span>
+                              <span className="mt-0.5 block text-[10px] font-normal text-ink-3">
+                                {tr(
+                                  policy === 'full'
+                                    ? 'composer.policy.fullHint'
+                                    : policy === 'ask'
+                                      ? 'composer.policy.askHint'
+                                      : 'composer.policy.readonlyHint',
+                                )}
+                              </span>
+                            </span>
                             {selected ? <Icon name="check" size={11} className="shrink-0" /> : null}
                           </button>
                         </li>
@@ -907,7 +1059,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
 
             <span className="flex-1" />
 
-            <div ref={pickerRef} className="relative min-w-0 max-w-[42%]">
+            <div ref={pickerRef} className="relative min-w-0 max-w-[min(40%,14rem)] shrink">
               <button
                 type="button"
                 data-composer-model
@@ -1044,6 +1196,10 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
               ) : null}
             </div>
 
+            <div
+              data-composer-actions
+              className="ml-1 flex shrink-0 items-center gap-1.5"
+            >
             <div ref={effortRef} className="relative shrink-0">
               <button
                 type="button"
@@ -1054,10 +1210,10 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 title={tr('composer.effort')}
                 aria-label={`${tr('composer.effort')}: ${tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}`}
                 onClick={() => setEffortOpen((open) => !open)}
-                className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[10.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink"
+                className="inline-flex h-8 min-w-[3.5rem] shrink-0 items-center justify-center gap-1 rounded-lg px-2.5 text-[11.5px] font-medium text-ink-2 hover:bg-hover hover:text-ink"
               >
                 {tr(`composer.effort.${effort}` as Parameters<typeof t>[1])}
-                <Icon name="chevron" size={11} className={`text-ink-3 ${effortOpen ? '-rotate-90' : 'rotate-90'}`} />
+                <Icon name="chevron" size={11} className={`shrink-0 text-ink-3 ${effortOpen ? '-rotate-90' : 'rotate-90'}`} />
               </button>
               {effortOpen ? (
                 <ul
@@ -1132,6 +1288,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 <Icon name="arrowUp" size={15} />
               </button>
             )}
+            </div>
           </div>
         </div>
 

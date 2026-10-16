@@ -162,7 +162,7 @@ function WorkspaceCell({
           data-workspace-picker
           role="dialog"
           aria-label={tr('workspace.change')}
-          className="absolute bottom-full left-1 z-40 mb-1 w-[280px] rounded-lg border border-line bg-elevated p-2 shadow-lg"
+          className="absolute bottom-full left-1 z-40 mb-1 w-[min(420px,92vw)] rounded-lg border border-line bg-elevated p-2 shadow-lg"
         >
           <p className="px-0.5 text-[12px] font-medium text-ink">{tr('workspace.change')}</p>
           <label className="mt-2 block text-[11px] text-ink-3">
@@ -194,6 +194,7 @@ function WorkspaceCell({
                     return;
                   }
                   if (picked.reason === 'failed') setNote(tr('workspace.browseFailed'));
+                  else if (picked.reason === 'unavailable') setNote(tr('workspace.browseFailed'));
                 });
               }}
             >

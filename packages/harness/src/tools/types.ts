@@ -17,9 +17,13 @@ export interface ToolContext {
   workspace: string;
   /**
    * Extra absolute directories tools may read/write besides `workspace`.
-   * Permission mode FULL does not expand this list — configure roots explicitly.
+   * Ignored when `unrestrictedFs` is true (chat policy FULL).
    */
   extraAllowPaths?: readonly string[];
+  /**
+   * Chat policy `full` (完全放行): no workspace/extraAllowPaths path deny.
+   */
+  unrestrictedFs?: boolean;
   fs: FsPort;
   shell: ShellPort;
   search: SearchPort;

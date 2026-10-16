@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import type { DirEntry, FileStat, FsPort, ListOptions } from '@camelia/core';
+import { decodeBytes, type DirEntry, type FileStat, type FsPort, type ListOptions } from '@camelia/core';
 import { toPosix } from '@camelia/core';
 
 const DEFAULT_MAX_ENTRIES = 2_000;
@@ -25,7 +25,8 @@ export class NodeFs implements FsPort {
   }
 
   async readFile(filePath: string): Promise<string> {
-    return fs.readFile(filePath, 'utf8');
+    const buf = await fs.readFile(filePath);
+    return decodeBytes(buf);
   }
 
   async writeFile(filePath: string, content: string): Promise<void> {

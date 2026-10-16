@@ -374,6 +374,26 @@ export function createUiStore(transport: Transport): UiStore {
           };
         });
       }
+      // Optimistic Stop: clear busy immediately so the red button yields before the
+      // engine's sealing chat.message arrives. Without this, Stop felt broken while
+      // a tool or stream drained — the button stayed red for seconds after the click.
+      if (command.type === 'chat_cancel') {
+        set((state) => {
+          const chat = state.snapshot.chat;
+          if (!chat.inflight && !chat.turns.some((turn) => turn.role === 'assistant' && turn.streaming)) {
+            return state;
+          }
+          const turns = chat.turns.map((turn) =>
+            turn.role === 'assistant' && turn.streaming ? { ...turn, streaming: false } : turn,
+          );
+          return {
+            snapshot: {
+              ...state.snapshot,
+              chat: { ...chat, inflight: false, turns },
+            },
+          };
+        });
+      }
       transport.send(command);
       set({ lastCommand: command });
       if (command.type === 'select_session' && typeof transport.switchSession === 'function') {

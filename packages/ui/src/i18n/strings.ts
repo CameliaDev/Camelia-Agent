@@ -140,6 +140,16 @@ type StringKey =
   | 'chat.failed'
   | 'chat.askTitle'
   | 'chat.collapseAnswer'
+  | 'chat.toolRun'
+  | 'chat.replyGoal'
+  | 'chat.replyConstraints'
+  | 'chat.replyPlan'
+  | 'events.hideDeltas'
+  | 'events.showDeltas'
+  | 'events.toggleDeltas'
+  | 'composer.policy.readonlyHint'
+  | 'composer.policy.askHint'
+  | 'composer.policy.fullHint'
   | 'composer.noActiveRun'
   | 'composer.enterToSend'
   | 'composer.shiftEnter'
@@ -738,6 +748,9 @@ const en: Record<StringKey, string> = {
   'composer.policy.readonly': 'Read-only sandbox',
   'composer.policy.ask': 'Ask before writes',
   'composer.policy.full': 'Full access',
+  'composer.policy.fullHint': 'Whole PC — fs & shell anywhere; no path sandbox',
+  'composer.policy.askHint': 'Confirm writes; paths stay in workspace / allow list',
+  'composer.policy.readonlyHint': 'Read-only tools; paths stay sandboxed',
   'chat.running': 'Replying…',
   'chat.thinking': 'Thinking…',
   'chat.idle': 'Idle',
@@ -746,6 +759,10 @@ const en: Record<StringKey, string> = {
   'chat.empty': 'Say what you want done. Camelia can answer in the conversation, or turn the goal into a task it plans, runs, and checks.',
   'chat.askTitle': 'Camelia needs your choice',
   'chat.collapseAnswer': 'Long reply — expand',
+  'chat.toolRun': '{n} tools',
+  'chat.replyGoal': 'Goal',
+  'chat.replyConstraints': 'Constraints · {n}',
+  'chat.replyPlan': 'Plan · {n}',
   'composer.noActiveRun': 'no active run',
   'composer.enterToSend': 'Enter to send',
   'composer.shiftEnter': 'Shift + Enter for a new line',
@@ -1029,6 +1046,9 @@ const en: Record<StringKey, string> = {
   'events.copy': 'copy',
   'events.copyEvent': 'Copy event JSON',
   'events.copyRecordPath': 'Copy record.json path',
+  'events.toggleDeltas': 'Show or hide stream deltas',
+  'events.showDeltas': 'Show deltas',
+  'events.hideDeltas': 'Hide deltas',
   'events.copied': 'copied',
   'events.expand': 'Expand events',
   'events.collapse': 'Collapse events',
@@ -1338,6 +1358,9 @@ const zh: Record<StringKey, string> = {
   'composer.policy.readonly': '只读沙箱',
   'composer.policy.ask': '写入前询问',
   'composer.policy.full': '完全放行',
+  'composer.policy.fullHint': '整机权限 — 任意路径读写与 shell，不限工作区',
+  'composer.policy.askHint': '写入需确认；路径限于工作区 / 允许列表',
+  'composer.policy.readonlyHint': '只读工具；路径保持沙箱',
   'chat.running': '回复中…',
   'chat.thinking': '思考中…',
   'chat.idle': '空闲',
@@ -1346,6 +1369,10 @@ const zh: Record<StringKey, string> = {
   'chat.empty': '直接说出你要做的事。Camelia 可以当场回答，也可以把目标做成任务：规划、执行、再校验。',
   'chat.askTitle': 'Camelia 需要你的选择',
   'chat.collapseAnswer': '长回复 — 展开',
+  'chat.toolRun': '{n} 个工具',
+  'chat.replyGoal': '目标',
+  'chat.replyConstraints': '约束 · {n}',
+  'chat.replyPlan': '计划 · {n}',
   'composer.noActiveRun': '无运行中任务',
   'composer.enterToSend': '回车发送',
   'composer.shiftEnter': 'Shift+回车换行',
@@ -1628,6 +1655,9 @@ const zh: Record<StringKey, string> = {
   'events.copy': '复制',
   'events.copyEvent': '复制事件 JSON',
   'events.copyRecordPath': '复制 record.json 路径',
+  'events.toggleDeltas': '显示或隐藏流式 delta',
+  'events.showDeltas': '显示 delta',
+  'events.hideDeltas': '隐藏 delta',
   'events.copied': '已复制',
   'events.expand': '展开事件',
   'events.collapse': '收起事件',

@@ -14,12 +14,13 @@
  * - `readonly-sandbox` — read tools run, everything else is denied (V1 sandbox:
  *   denial is fed back to the model, no directory redirection).
  * - `ask` — read tools run, the rest open the shared approval broker.
- * - `full` — everything runs.
+ * - `full` — everything runs; unrestrictedFs unlocks whole-machine paths (not just skip confirms).
  * @module
  */
 
 import {
   newId,
+  repairMojibake,
   type ChatFolderPayload,
   type ChatImagePayload,
   type ChatPolicy,
@@ -127,22 +128,28 @@ export function workChatSystemPrompt(
 ): string {
   const posture =
     policy === 'full'
-      ? 'Permission mode: FULL — every tool runs without an approval prompt. FULL does not expand the filesystem sandbox; tools may only touch the workspace and configured extraAllowPaths.'
+      ? 'Permission mode: FULL (完全放行) — full machine control: fs read/write/list/edit and shell may use any path on this computer; approval prompts are also skipped. This is not limited to the workspace.'
       : policy === 'ask'
-        ? 'Permission mode: ASK — read-only tools run directly; any tool that writes, executes or reaches the network opens an approval prompt the user must answer. ASK does not expand the filesystem sandbox.'
-        : 'Permission mode: READ-ONLY SANDBOX — only read-only tools run; anything else is denied by policy.';
+        ? 'Permission mode: ASK — read-only tools run directly; any tool that writes, executes or reaches the network opens an approval prompt. Paths stay inside the workspace and extraAllowPaths.'
+        : 'Permission mode: READ-ONLY SANDBOX — only read-only tools run; anything else is denied. Paths stay inside the workspace and extraAllowPaths.';
   const allowRoots =
-    extraAllowPaths && extraAllowPaths.length > 0
-      ? `Allowed roots: ${[workspace, ...extraAllowPaths].join(' | ')}`
-      : `Workspace root (sandbox): ${workspace}. To write outside it, the user adds absolute paths to extraAllowPaths in ~/.camelia/config.json — do not invent synthetic deliverables or ask A/B/C just to escape the sandbox.`;
+    policy === 'full'
+      ? `Filesystem: unrestricted (FULL). Workspace cwd default: ${workspace}. Absolute paths anywhere on the machine are allowed.`
+      : extraAllowPaths && extraAllowPaths.length > 0
+        ? `Allowed roots: ${[workspace, ...extraAllowPaths].join(' | ')}`
+        : `Workspace root (sandbox): ${workspace}. Outside paths need extraAllowPaths in ~/.camelia/config.json, or switch to FULL (完全放行) for whole-machine access.`;
   const lines = [
     'You are Camelia in Work mode.',
     'Think before you act. Do not call a tool until the goal, the constraints, and a short plan are clear.',
-    'For each request:',
-    '1. Name the goal in one sentence.',
-    '2. Name the constraints that bound the work (permission mode, the workspace / allow roots, and anything the user said must not change).',
-    '3. Write a short plan: a few ordered steps. If the answer needs no tools, the plan is one step: answer.',
-    '4. Then call tools, and only for steps that need the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',
+    'For each request open with exactly these labelled lines (so the UI can card them), then the answer:',
+    'Goal: <one sentence>',
+    'Constraints:',
+    '- <permission mode / allow roots / user must-nots>',
+    'Short plan:',
+    '1. <step>',
+    '2. <step>',
+    'Then do the work. Keep the preamble short — no essay meta, no framework diagnoses, no evidence chains about Camelia itself unless the user asked.',
+    'Call tools only for steps that need the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',
     'If web_search returns empty or errors, stop and report the failure. Do not invent that a contest, dataset, or page "does not exist" — empty search is a tool failure, not evidence of absence.',
     'If the user says 「继续」, "continue", "keep going", or similar without stating a new goal, resume the last explicit goal and constraints from this conversation. Do not ask what they want next.',
     'The short plan is part of the reply. It does not open the task state machine and it does not wait on a separate approval ritual.',
@@ -150,7 +157,7 @@ export function workChatSystemPrompt(
     localNowPromptLine(),
     allowRoots,
     posture,
-    'If a tool is denied or fails, say plainly what you were trying to do and what you need — do not retry silently. Path-escape errors mean the path is outside allowed roots; explain extraAllowPaths rather than synthesizing files.',
+    'If a tool is denied or fails, say plainly what you were trying to do and what you need — do not retry silently. Under ASK/readonly, path-escape errors mean the path is outside allowed roots (use FULL for whole-machine access, or add extraAllowPaths). Under FULL, path errors are real IO failures — do not invent files.',
     'When you cannot proceed without the user\'s input, call ask_user with one short question and 2-4 concrete options.',
   ];
   if (effort) lines.push(effortInstruction(effort));
@@ -198,6 +205,8 @@ export interface ChatLoopOptions {
 
 export class ChatLoop {
   private readonly active: { current?: AbortController } = {};
+  /** Policy of the in-flight chat turn — drives unrestrictedFs on tools. */
+  private activePolicy: ChatPolicy = 'ask';
   /** Per-session conversation history (capped). */
   private readonly history = new Map<Id, LLMMessage[]>();
   /** Sessions whose first message already set the title. */
@@ -246,6 +255,7 @@ export class ChatLoop {
     const traceId = `c-${Date.now().toString(36)}`;
     const meta: EmitMeta = { traceId, sessionId };
     const journal = new WorkspaceJournal(paths.backups(), userTurnId, this.opts.ports.fs, this.opts.logger);
+    this.activePolicy = policy;
     const gate = this.gateFor(policy);
     let turnId = '';
     let textOut = '';
@@ -613,6 +623,7 @@ export class ChatLoop {
     const ctx: ToolContext = {
       workspace: this.opts.workspace,
       extraAllowPaths: this.opts.config.extraAllowPaths,
+      unrestrictedFs: this.activePolicy === 'full',
       fs: this.opts.ports.fs,
       shell: this.opts.ports.shell,
       search: this.opts.ports.search,
@@ -622,13 +633,17 @@ export class ChatLoop {
       signal,
     };
     try {
-      const invocation = await withTimeout(this.opts.tools.invoke(call.name, input, ctx), this.opts.config.toolTimeoutMs);
+      const invocation = await withTimeout(
+        this.opts.tools.invoke(call.name, input, ctx),
+        this.opts.config.toolTimeoutMs,
+        signal,
+      );
       if (invocation.ok) {
         record.status = 'ok';
         record.output = invocation.output;
         record.durationMs = invocation.durationMs;
         this.opts.bus.emit('chat.tool', { call: record }, meta);
-        return stringifyOutput(invocation.output);
+        return repairToolText(stringifyOutput(invocation.output));
       }
       record.status = 'error';
       record.error = invocation.error;
@@ -647,17 +662,30 @@ export class ChatLoop {
   }
 }
 
-/** Per-tool wall clock, mirroring the executor. */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+/**
+ * Per-tool wall clock, mirroring the executor — also races the chat AbortSignal.
+ *
+ * Without the signal arm, Stop during a long shell.exec / web_search waited out
+ * the full toolTimeoutMs (or the tool itself), so the red button looked dead.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, signal?: AbortSignal): Promise<T> {
+  if (signal?.aborted) return Promise.reject(new Error('aborted'));
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`tool timed out after ${ms}ms`)), ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new Error('aborted'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
     promise.then(
       (value) => {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
         resolve(value);
       },
       (error) => {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
         reject(error);
       },
     );
@@ -723,6 +751,7 @@ function buildUserContent(text: string, images: ChatImagePayload[]): string | LL
 }
 
 /** Bounded JSON feedback, mirroring the executor. */
+// repaired at call sites via repairToolText
 function stringifyOutput(output: JsonValue): string {
   let text: string;
   try {
@@ -731,4 +760,12 @@ function stringifyOutput(output: JsonValue): string {
     text = String(output);
   }
   return text.length > FEEDBACK_CAP ? `${text.slice(0, FEEDBACK_CAP)}…[truncated]` : text;
+}
+
+function repairToolText(text: string): string {
+  try {
+    return repairMojibake(text);
+  } catch {
+    return text;
+  }
 }
