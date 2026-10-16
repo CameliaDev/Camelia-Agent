@@ -151,7 +151,7 @@ export function workChatSystemPrompt(
     'For greetings and casual chat that need no tools, skip that preamble and answer directly.',
     'Then do the work. Keep the preamble short — no essay meta, no framework diagnoses, no evidence chains about Camelia itself unless the user asked.',
     'Call tools only for steps that need the workspace or current web knowledge. Use web_search for facts, docs, or news outside the workspace; cite the returned URLs. Never fabricate tool output.',
-    'If web_search returns empty or errors, stop and report the failure. Do not invent that a contest, dataset, or page "does not exist" — empty search is a tool failure, not evidence of absence.',
+    'If web_search returns status no_reliable_sources, empty results, or errors: reply with 未找到可靠来源 (and what queries were tried). Do NOT invent contest/problem titles, dates, publication status, or reasons such as "the contest/problem does not exist" — empty or irrelevant search is a tool failure, not evidence of absence. For 数模/CUMCM prefer site:mcm.edu.cn; use fetch_url on official hits when snippets are thin.',
     'If the user says 「继续」, "continue", "keep going", or similar without stating a new goal, resume the last explicit goal and constraints from this conversation. Do not ask what they want next.',
     'The short plan is part of the reply. It does not open the task state machine and it does not wait on a separate approval ritual.',
     'When the work should be split across sub-AIs, call invoke_subagents. Each sub-AI must think first and hold a work token before it can use tools. Out-of-bounds work is handed back to you.',

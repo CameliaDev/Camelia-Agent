@@ -421,7 +421,7 @@ describe('builtin tool registry', () => {
   it('ships every core tool exactly once', () => {
     const names = builtinTools.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names).toEqual(expect.arrayContaining(['fs.read', 'fs.write', 'fs.edit', 'fs.list', 'search.glob', 'search.grep', 'web_search', 'shell.exec', 'test.run', 'math.exec']));
+    expect(names).toEqual(expect.arrayContaining(['fs.read', 'fs.write', 'fs.edit', 'fs.list', 'search.glob', 'search.grep', 'web_search', 'fetch_url', 'shell.exec', 'test.run', 'math.exec']));
   });
 
   it('has a stable id for a fresh journal entry key', () => {
@@ -482,7 +482,7 @@ describe('shell.exec allow roots', () => {
 describe('web_search empty results', () => {
   afterEach(() => setWebSearchOverrideForTests(undefined));
 
-  it('errors on an empty hit list instead of returning count 0', async () => {
+  it('returns no_reliable_sources on an empty hit list (no invented titles)', async () => {
     setWebSearchOverrideForTests(async () => ({
       query: 'missing contest',
       provider: 'test',
@@ -490,8 +490,13 @@ describe('web_search empty results', () => {
       results: [],
     }));
     const h = makeHarness();
-    await expect(webSearchTool.run({ query: 'missing contest' }, toolContext(h))).rejects.toThrow(
-      /no results|does not exist/i,
-    );
+    const result = (await webSearchTool.run({ query: 'missing contest' }, toolContext(h))) as {
+      status: string;
+      message: string;
+      results: unknown[];
+    };
+    expect(result.status).toBe('no_reliable_sources');
+    expect(result.message).toBe('未找到可靠来源');
+    expect(result.results).toEqual([]);
   });
 });

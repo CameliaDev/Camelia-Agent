@@ -518,7 +518,9 @@ describe('workChatSystemPrompt', () => {
 describe('workChatSystemPrompt — web_search honesty', () => {
   it('forbids inventing absence from empty web_search', () => {
     const prompt = workChatSystemPrompt('full', 'C:/workspace');
-    expect(prompt).toMatch(/empty search is a tool failure/i);
+    expect(prompt).toMatch(/未找到可靠来源/);
+    expect(prompt).toMatch(/no_reliable_sources|empty or irrelevant search/i);
     expect(prompt).toMatch(/does not exist/);
+    expect(prompt).toMatch(/mcm\.edu\.cn|fetch_url/);
   });
 });
