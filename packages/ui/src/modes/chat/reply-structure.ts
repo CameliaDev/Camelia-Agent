@@ -5,10 +5,10 @@
  *
  * 1. `parseReplyStructure` — the Work-chat system prompt makes every assistant reply
  *    open with `Goal:` / `Constraints:` / `Short plan:`. Rendering those as plain
- *    paragraphs buries the answer under three walls of machine-readable text.
- *    Parsing is deliberately all-or-nothing: unless all three markers are present
- *    the text renders as one block, so a reply that merely mentions "goal" never
- *    gets half-cardised.
+ *    paragraphs. The chat bubble strips the preamble and shows only the answer
+ *    body. Parsing is deliberately all-or-nothing: unless all three markers are
+ *    present the text renders as one block, so a reply that merely mentions
+ *    "goal" is never half-stripped.
  *
  * 2. `groupToolCalls` — consecutive finished tools collapse into one summary card
  *    that expands on click; a running or approval-waiting call always stands alone.
@@ -75,7 +75,8 @@ function splitPlan(text: string): { plan: string[]; body: string } {
  * Parse the `Goal / Constraints / Short plan` preamble out of an assistant reply.
  *
  * Returns `undefined` when the reply does not carry all three markers — the caller
- * then renders the text as one block, exactly as before.
+ * then shows the full text as the answer. When present, only `body` is shown in
+ * the chat bubble; Goal / Constraints / Plan stay out of the message card.
  */
 export function parseReplyStructure(text: string): ReplyStructure | undefined {
   const goalMatch = GOAL_RE.exec(text);

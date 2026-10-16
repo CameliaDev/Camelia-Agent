@@ -276,59 +276,29 @@ function ReplyBody({ turn }: { turn: ChatTurnView }): ReactNode {
   const lang = useUiStore((s) => s.localPrefs.language);
   const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
   const answer = visibleAnswer(turn);
-  const structure = turn.streaming ? undefined : parseReplyStructure(answer);
-  if (!structure) {
-    if (!answer) return null;
-    return shouldCollapseAssistantText(answer) ? (
-      <CollapsibleBlock
-        summary={tr('chat.collapseAnswer')}
-        defaultOpen={false}
-        preferOpen={false}
-        data-collapsible="answer"
-      >
-        <p className="whitespace-pre-wrap text-[13.5px] leading-6">{answer}</p>
-      </CollapsibleBlock>
-    ) : (
-      <p className="whitespace-pre-wrap text-[13.5px] leading-6">{answer}</p>
-    );
+  // Goal / Constraints / Plan belong to the model's scratchpad, not the bubble.
+  // Strip them when present so the card shows the final answer only.
+  const structure = parseReplyStructure(answer);
+  let visible = answer;
+  if (structure) visible = structure.body;
+  else if (turn.streaming && /^\**\s*goal\s*\**/im.test(answer.trimStart())) {
+    // Preamble still streaming — hold the bubble empty until the answer body arrives.
+    visible = '';
   }
-
-  return (
-    <div className="space-y-2" data-chat-reply-structure>
-      <div className="rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
-        <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-3">{tr('chat.replyGoal')}</p>
-        <p className="mt-0.5 text-[13px] leading-5 text-ink">{structure.goal}</p>
-      </div>
-      <div className="rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
-        <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-3">
-          {tr('chat.replyConstraints').replace('{n}', String(structure.constraints.length))}
-        </p>
-        <ul className="mt-1 space-y-0.5">
-          {structure.constraints.map((line, idx) => (
-            <li key={idx} className="flex gap-1.5 text-[12.5px] leading-5 text-ink-2">
-              <span className="shrink-0 text-ink-3">-</span>
-              <span className="min-w-0">{line}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
-        <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-3">
-          {tr('chat.replyPlan').replace('{n}', String(structure.plan.length))}
-        </p>
-        <ol className="mt-1 space-y-0.5">
-          {structure.plan.map((step, idx) => (
-            <li key={idx} className="flex gap-1.5 text-[12.5px] leading-5 text-ink-2">
-              <span className="shrink-0 font-mono text-ink-3">{idx + 1}.</span>
-              <span className="min-w-0">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-      {structure.body ? (
-        <p className="whitespace-pre-wrap px-0.5 text-[13.5px] leading-6 text-ink">{structure.body}</p>
-      ) : null}
-    </div>
+  if (!visible) return null;
+  return shouldCollapseAssistantText(visible) ? (
+    <CollapsibleBlock
+      summary={tr('chat.collapseAnswer')}
+      defaultOpen={false}
+      preferOpen={false}
+      data-collapsible="answer"
+    >
+      <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visible}</p>
+    </CollapsibleBlock>
+  ) : (
+    <p className="whitespace-pre-wrap text-[13.5px] leading-6" data-chat-reply-answer>
+      {visible}
+    </p>
   );
 }
 
