@@ -386,6 +386,9 @@ describe('ChatReplyProgress', () => {
     expect(pill.getAttribute('data-chat-status')).toBe('done');
     expect(pill.textContent).toBe('已完成');
     expect(container.querySelector('[data-progress-line]')).toBeNull();
+    expect(container.querySelectorAll('[data-chat-tool-run]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(0);
+    fireEvent.click(container.querySelector('[data-chat-tool-run] [data-collapsible-toggle]') as HTMLElement);
     expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(3);
 
     setChat(store, [
