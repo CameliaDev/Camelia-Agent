@@ -276,19 +276,16 @@ async function runSearch(
 export const webSearchTool: Tool<WebSearchInput, JsonValue> = {
   name: 'web_search',
   description:
-    'Search the public web for current facts, docs, or news outside the workspace. ' +
-    'Supports site shortcuts (Douyin, Bilibili, Zhihu, GitHub, forums, …) via `sites` or query hints. Network risk.',
+    'Search the public web for facts, docs, or news. Site shortcuts: Douyin, Bilibili, Zhihu, GitHub, forums (sites param or query hints). Network risk.',
   usage: [
     'web_search(query, maxResults?, sites?)',
-    '- query: natural-language search string (Chinese or English).',
+    '- query: natural-language search (zh/en).',
     '- maxResults: 1-10 (default 5).',
-    '- sites: optional list of shortcuts — douyin, bilibili, zhihu, github, forum, v2ex, reddit, stackoverflow, juejin, csdn, sspai, youtube, x.',
-    '- Query text that mentions 抖音/B站/知乎/GitHub/论坛 also auto-adds matching site: filters.',
+    '- sites: douyin, bilibili, zhihu, github, forum, v2ex, reddit, stackoverflow, juejin, csdn, sspai, youtube, x.',
+    '- Mentions of 抖音/B站/知乎/GitHub/论坛 auto-add site: filters.',
     '- Returns { provider, query, queries, count, results: [{ title, url, snippet }] }.',
-    '- Default provider is DuckDuckGo via @agntk/search; Bing HTML is a last-resort fallback.',
-    '- Set TAVILY_API_KEY or CAMELIA_TAVILY_API_KEY to prefer Tavily.',
-    '- Cite URLs from results; never invent links.',
-    '- Empty results are an error — stop and tell the user; never conclude a page or contest "does not exist" from an empty hit list.',
+    '- DuckDuckGo via @agntk/search; Bing HTML last-resort; TAVILY_API_KEY / CAMELIA_TAVILY_API_KEY prefers Tavily.',
+    '- Cite result URLs; never invent links. Empty results are an error — stop and tell the user.',
   ].join('\n'),
   risk: 'network',
   reversible: true,
