@@ -499,11 +499,11 @@ describe('ChatLoop — think, then plan, then tools', () => {
 
 
 describe('workChatSystemPrompt', () => {
-  it('states that FULL does not expand the sandbox and points at extraAllowPaths', () => {
+  it('states that FULL unlocks whole-machine paths (unrestrictedFs)', () => {
     const prompt = workChatSystemPrompt('full', 'C:/workspace', undefined, ['C:/bench']);
-    expect(prompt).toMatch(/does not expand the filesystem sandbox/i);
-    expect(prompt).toContain('C:/bench');
-    expect(prompt).toContain('Allowed roots');
+    expect(prompt).toMatch(/unrestricted|whole-machine|full machine control/i);
+    expect(prompt).toContain('C:/workspace');
+    expect(prompt).not.toMatch(/does not expand the filesystem sandbox/i);
   });
 
   it('tells the model to resume on 「继续」/continue instead of asking what to do', () => {
