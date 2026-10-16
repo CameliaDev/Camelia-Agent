@@ -1,0 +1,8 @@
+{
+  "version": "0.1.0",
+  "notes": "Portable hot-update feed stub. Publishers replace version/url/sha256 when shipping a new camelia-desktop.exe.",
+  "portable": {
+    "url": "https://github.com/CameliaDev/Camelia-Agent/releases/download/v0.1.0/camelia-desktop.exe",
+    "sha256": ""
+  }
+}

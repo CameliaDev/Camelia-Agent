@@ -2,3 +2,8 @@
 identifier = "allow-download-update"
 description = "Download a Camelia GitHub Release NSIS installer and start it. The URL is allowlisted."
 commands.allow = ["download_update"]
+
+[[permission]]
+identifier = "allow-portable-update"
+description = "Check the portable update feed, apply a checksum-verified exe swap, and read/set the feed URL."
+commands.allow = ["current_version", "update_feed_url", "set_update_feed", "check_update", "apply_update"]

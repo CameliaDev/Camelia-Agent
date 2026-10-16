@@ -395,6 +395,17 @@ type StringKey =
   | 'updates.openRelease'
   | 'updates.desktopOnly'
   | 'updates.signing'
+  | 'updates.apply'
+  | 'updates.applying'
+  | 'updates.applyFailed'
+  | 'updates.restartHint'
+  | 'composer.teamFormTitle'
+  | 'composer.teamNameLabel'
+  | 'composer.teamModelALabel'
+  | 'composer.teamModelBLabel'
+  | 'composer.teamCreateSubmit'
+  | 'composer.teamCreateCancel'
+  | 'work.posture.goalMenu'
   | 'welcome.check.workspace'
   | 'welcome.check.doctor'
   | 'welcome.check.model'
@@ -987,6 +998,17 @@ const en: Record<StringKey, string> = {
   'updates.failed': 'Could not check for updates',
   'updates.openRelease': 'Open release page',
   'updates.desktopOnly': 'Downloading the installer needs the desktop app. In a browser, open the release page.',
+  'updates.apply': 'Download and restart',
+  'updates.applying': 'Downloading and swapping the build…',
+  'updates.applyFailed': 'In-app update failed',
+  'updates.restartHint': 'Camelia will quit and reopen on the new build. No installer wizard.',
+  'composer.teamFormTitle': 'New team',
+  'composer.teamNameLabel': 'Team name',
+  'composer.teamModelALabel': 'Coordinator model id',
+  'composer.teamModelBLabel': 'Worker model id',
+  'composer.teamCreateSubmit': 'Create team',
+  'composer.teamCreateCancel': 'Cancel',
+  'work.posture.goalMenu': 'Goal (clarify)',
   'updates.signing': 'The installer is not signature-checked. Silent updates still need a GitHub Release asset named *-setup.exe, plus a Tauri updater signing key and latest.json. The existing overwrite install is unchanged.',
   'welcome.check.workspace': 'Pick or confirm the workspace path for this session.',
   'welcome.check.doctor': 'Run camelia doctor if the engine will not connect.',
@@ -1575,6 +1597,17 @@ const zh: Record<StringKey, string> = {
   'updates.failed': '检查更新失败',
   'updates.openRelease': '打开发布页',
   'updates.desktopOnly': '下载安装包需要桌面端。浏览器里只能打开发布页。',
+  'updates.apply': '下载并重启',
+  'updates.applying': '正在下载并热替换…',
+  'updates.applyFailed': '热更新失败',
+  'updates.restartHint': 'Camelia 会退出并用新版本自动重启，无需安装向导。',
+  'composer.teamFormTitle': '新建团队',
+  'composer.teamNameLabel': '团队名称',
+  'composer.teamModelALabel': '协调者模型 ID',
+  'composer.teamModelBLabel': '执行者模型 ID',
+  'composer.teamCreateSubmit': '创建团队',
+  'composer.teamCreateCancel': '取消',
+  'work.posture.goalMenu': '目标（澄清）',
   'updates.signing': '尚未校验安装包签名。静默更新还需要 GitHub Release 上的 *-setup.exe，以及 Tauri updater 的签名密钥和 latest.json。现有的覆盖安装不会改变。',
   'welcome.check.workspace': '确认本会话的工作区路径。',
   'welcome.check.doctor': '若引擎连不上，运行 camelia doctor。',

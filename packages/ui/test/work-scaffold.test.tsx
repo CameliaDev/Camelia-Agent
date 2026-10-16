@@ -1,5 +1,5 @@
 /**
- * Work scaffold: plan/goal switch, saved notes, folder drop.
+ * Work scaffold: goal via composer +, saved notes, folder drop.
  * The empty plan surface must not claim that no plans exist.
  * @module
  */
@@ -35,11 +35,18 @@ function composer(container: HTMLElement): HTMLTextAreaElement {
   return el as HTMLTextAreaElement;
 }
 
+/** Open the + menu and pick Goal (plan/goal tabs were removed from the composer). */
+function enterGoalPosture(container: HTMLElement): void {
+  fireEvent.click(container.querySelector('[data-composer-attach]') as HTMLElement);
+  fireEvent.click(container.querySelector('[data-work-posture-goal]') as HTMLElement);
+}
+
 describe('Work plan / goal scaffold', () => {
-  it('switches to plan, saves a note, and does not claim there are no plans', () => {
+  it('switches to goal, saves a note, and does not claim there are no plans', () => {
     const { container, sent } = renderEmpty();
-    fireEvent.click(container.querySelector('[data-work-posture-tab="plan"]') as HTMLElement);
-    expect(container.querySelector('[data-work-posture="plan"]')).not.toBeNull();
+    enterGoalPosture(container);
+    expect(container.querySelector('[data-work-posture="goal"]')).not.toBeNull();
+    expect(container.querySelector('[data-work-posture-tab="goal"]')).not.toBeNull();
     expect(container.querySelector('[data-composer-team]')).not.toBeNull();
     const empty = container.querySelector('[data-work-plan-empty]');
     expect(empty).not.toBeNull();
@@ -51,7 +58,7 @@ describe('Work plan / goal scaffold', () => {
 
     const saved = sent.find((command) => command.type === 'save_work_plan');
     expect(saved?.payload).toMatchObject({
-      mode: 'plan',
+      mode: 'goal',
       goal: 'ship the gate',
       constraints: ['stay in docs/'],
     });
@@ -87,9 +94,9 @@ describe('Work plan / goal scaffold', () => {
     expect(sent.some((command) => command.type === 'submit_task')).toBe(false);
   });
 
-  it('keeps the team toggle in plan posture and still starts a team run', async () => {
+  it('keeps the team toggle in goal posture and still starts a team run', async () => {
     const { container, sent } = renderEmpty();
-    fireEvent.click(container.querySelector('[data-work-posture-tab="plan"]') as HTMLElement);
+    enterGoalPosture(container);
     fireEvent.click(container.querySelector('[data-composer-team]') as HTMLElement);
     await waitFor(() => expect(container.querySelector('[data-composer-teams]')).not.toBeNull());
     fireEvent.click(container.querySelector('[data-composer-teams] [role="option"]') as HTMLElement);

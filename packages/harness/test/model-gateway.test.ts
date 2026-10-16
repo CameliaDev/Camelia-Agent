@@ -29,6 +29,11 @@ describe('parseToolArguments', () => {
   it('surfaces malformed JSON so the schema validator can reject it', () => {
     expect(parseToolArguments('not json')).toEqual({ __raw: 'not json' });
   });
+
+  it('repairs fenced JSON and trailing commas', () => {
+    expect(parseToolArguments('```json\n{"q":"a"}\n```')).toEqual({ q: 'a' });
+    expect(parseToolArguments('{"q":"a",}')).toEqual({ q: 'a' });
+  });
 });
 
 describe('backoffMs', () => {

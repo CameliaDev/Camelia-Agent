@@ -23,12 +23,14 @@ export function ChatWorkspace(): ReactNode {
   const fresh = aligned && isFreshChatSession(snapshot) && !transportError;
   const plans = snapshot.work?.plans ?? [];
   const posture = snapshot.work?.posture ?? 'chat';
-  const showPlans = aligned && !fresh && (posture !== 'chat' || plans.length > 0);
+  // Goal/plan posture always shows the saved-notes strip (empty invite or list).
+  const showPlans = aligned && (posture !== 'chat' || (!fresh && plans.length > 0));
   return (
     <div
       className={fresh ? 'flex shrink-0 flex-col' : 'flex min-h-0 flex-1 flex-col'}
       data-chat-workspace
       data-chat-fresh={fresh || undefined}
+      data-work-posture={posture}
     >
       {showPlans ? (
         <div className="shrink-0 px-4 pt-3">

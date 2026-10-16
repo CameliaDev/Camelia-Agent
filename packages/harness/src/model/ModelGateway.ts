@@ -66,13 +66,44 @@ export function parseToolArguments(args: JsonValue | string): JsonValue {
   if (typeof args !== 'string') return args;
   const trimmed = args.trim();
   if (trimmed === '') return {};
-  try {
-    return JSON.parse(trimmed) as JsonValue;
-  } catch {
-    // A weak model may emit a bare string or malformed JSON. Surface it verbatim
-    // so the schema validator can reject it with a useful message.
-    return { __raw: args };
+  const candidates = [trimmed, ...repairToolArgumentCandidates(trimmed)];
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as JsonValue;
+    } catch {
+      // try next
+    }
   }
+  // A weak model may emit a bare string or malformed JSON. Surface it verbatim
+  // so the schema validator can reject it with a useful message.
+  return { __raw: args };
+}
+
+/**
+ * Best-effort repairs for common tool-call JSON mistakes (fences, trailing commas,
+ * smart quotes). Keeps tool-calling reliable on weaker models without inventing keys.
+ */
+function repairToolArgumentCandidates(raw: string): string[] {
+  const out: string[] = [];
+  let s = raw.trim();
+  // Strip ```json ... ``` fences.
+  const fence = s.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
+  if (fence?.[1]) {
+    s = fence[1].trim();
+    out.push(s);
+  }
+  // Extract the outermost { ... } or [ ... ] if prose surrounds it.
+  const obj = s.match(/\{[\s\S]*\}/);
+  const arr = s.match(/\[[\s\S]*\]/);
+  if (obj) out.push(obj[0]);
+  if (arr) out.push(arr[0]);
+  // Trailing commas before } or ].
+  const noTrail = s.replace(/,(\s*[}\]])/g, '$1');
+  if (noTrail !== s) out.push(noTrail);
+  // Smart quotes → ASCII.
+  const unsmart = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  if (unsmart !== s) out.push(unsmart);
+  return [...new Set(out.filter(Boolean))];
 }
 
 export class ModelGateway {

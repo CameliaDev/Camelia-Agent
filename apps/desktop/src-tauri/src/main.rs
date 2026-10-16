@@ -30,6 +30,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
 
+mod updater;
+
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri::Manager;
 
@@ -1361,6 +1363,63 @@ fn read_engine_log(tail: Option<usize>) -> Result<String, String> {
     Ok(lines[start..].join("\n"))
 }
 
+
+/// Shell package version (from Cargo.toml / tauri.conf).
+#[tauri::command]
+fn current_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Configured update feed URL (or the built-in default).
+#[tauri::command]
+fn update_feed_url() -> String {
+    updater::feed_url_from_config()
+}
+
+/// Persist a new feed URL (allowlist-checked).
+#[tauri::command]
+fn set_update_feed(url: String) -> Result<(), String> {
+    updater::set_feed_url(&url)
+}
+
+/// Ask the portable feed whether a newer build exists.
+#[tauri::command]
+fn check_update() -> Result<Option<serde_json::Value>, String> {
+    let current = env!("CARGO_PKG_VERSION");
+    match updater::check_update(current) {
+        Ok(Some(info)) => Ok(Some(serde_json::json!({
+            "version": info.version,
+            "notes": info.notes,
+            "url": info.url,
+            "sha256": info.sha256,
+        }))),
+        Ok(None) => Ok(None),
+        Err(_) => Ok(None),
+    }
+}
+
+/// Download, verify sha256, swap the running exe, and exit so the swap script can finish.
+#[tauri::command]
+fn apply_update(
+    app: tauri::AppHandle,
+    version: String,
+    url: String,
+    sha256: String,
+) -> Result<(), String> {
+    let info = updater::UpdateInfo {
+        version,
+        notes: String::new(),
+        url,
+        sha256,
+    };
+    updater::apply_portable_update(&info)?;
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        app.exit(0);
+    });
+    Ok(())
+}
+
 fn main() {
     // If the user explicitly passed an engine URL or scene, don't spawn.
     let explicit_url = boot_value("engine-url", "CAMELIA_ENGINE_URL");
@@ -1448,7 +1507,12 @@ fn main() {
             read_provider_key,
             write_provider_key,
             relaunch_app,
-            download_update
+            download_update,
+            current_version,
+            update_feed_url,
+            set_update_feed,
+            check_update,
+            apply_update
         ])
         .run(tauri::generate_context!())
         .expect("failed to run the Camelia desktop shell");

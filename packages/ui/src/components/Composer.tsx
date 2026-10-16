@@ -158,6 +158,13 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   const [teamOpen, setTeamOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [teams, setTeams] = useState<{ id: string; name: string; members: { role: string; model: string }[] }[]>([]);
+  const [teamFormOpen, setTeamFormOpen] = useState(false);
+  const [teamFormName, setTeamFormName] = useState('');
+  const [teamFormModelA, setTeamFormModelA] = useState('model-a');
+  const [teamFormModelB, setTeamFormModelB] = useState('model-b');
+  const [teamFormError, setTeamFormError] = useState<string | null>(null);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const plusRef = useRef<HTMLDivElement>(null);
   const teamRef = useRef<HTMLDivElement>(null);
   const policyRef = useRef<HTMLDivElement>(null);
   const postureBox =
@@ -195,6 +202,31 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
       document.removeEventListener('keydown', onKey);
     };
   }, [teamOpen]);
+
+  useEffect(() => {
+    if (!plusOpen) return;
+    const onDown = (event: MouseEvent): void => {
+      if (plusRef.current && !plusRef.current.contains(event.target as Node)) setPlusOpen(false);
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setPlusOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [plusOpen]);
+
+  useEffect(() => {
+    if (!teamFormOpen) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setTeamFormOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [teamFormOpen]);
 
   /**
    * Grow the field with the text rather than showing a scrollbar after the first line.
@@ -540,6 +572,7 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
   };
 
   return (
+    <>
     <footer
       data-composer-placement={centered ? 'centered' : 'docked'}
       className={centered ? 'w-full shrink-0 bg-transparent px-0 pb-0 pt-0' : 'shrink-0 bg-base px-4 pb-2.5 pt-3'}
@@ -667,36 +700,72 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                 void addImageFiles(files);
               }}
             />
-            <button
-              type="button"
-              data-composer-attach
-              aria-label={tr('composer.attach')}
-              title={tr('composer.attach')}
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-2 hover:bg-hover hover:text-ink"
-              onClick={() => fileRef.current?.click()}
-            >
-              <Icon name="plus" size={15} />
-            </button>
+            <div ref={plusRef} className="relative shrink-0">
+              <button
+                type="button"
+                data-composer-attach
+                aria-label={tr('composer.attach')}
+                title={tr('composer.attach')}
+                aria-haspopup="menu"
+                aria-expanded={plusOpen}
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-2 hover:bg-hover hover:text-ink"
+                onClick={() => setPlusOpen((o) => !o)}
+              >
+                <Icon name="plus" size={15} />
+              </button>
+              {plusOpen ? (
+                <ul
+                  role="menu"
+                  data-composer-plus-menu
+                  className="absolute bottom-full left-0 z-30 mb-1 min-w-[160px] rounded-lg border border-line bg-elevated p-1 shadow-lg"
+                >
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full rounded-md px-2 py-1.5 text-left text-[11.5px] text-ink-2 hover:bg-hover"
+                      onClick={() => {
+                        setPlusOpen(false);
+                        fileRef.current?.click();
+                      }}
+                    >
+                      {tr('composer.attach')}
+                    </button>
+                  </li>
+                  {mode === 'work' ? (
+                    <li role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-work-posture-goal
+                        className="flex w-full rounded-md px-2 py-1.5 text-left text-[11.5px] text-ink-2 hover:bg-hover"
+                        onClick={() => {
+                          setPlusOpen(false);
+                          dispatch(makeCommand('set_work_posture', { posture: 'goal' }));
+                        }}
+                      >
+                        {tr('work.posture.goalMenu')}
+                      </button>
+                    </li>
+                  ) : null}
+                </ul>
+              ) : null}
+            </div>
             {/*
               The chat permission picker, only in 对话 mode: it decides what a tool call
               inside a chat turn may do. Same listbox shape as the model chip, same
               outside-click contract, and the choice persists window-locally.
             */}
-            {mode === 'work' ? (
-              <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={tr('work.posture.plan')} data-work-posture={posture}>
-                {(['chat', 'plan', 'goal'] as const).map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    data-work-posture-tab={id}
-                    aria-pressed={posture === id}
-                    onClick={() => dispatch(makeCommand('set_work_posture', { posture: id }))}
-                    className={`${postureBox} ${posture === id ? postureBoxActive : ''}`}
-                  >
-                    {tr(`work.posture.${id}` as Parameters<typeof t>[1])}
-                  </button>
-                ))}
-              </div>
+            {mode === 'work' && posture !== 'chat' ? (
+              <button
+                type="button"
+                data-work-posture-tab={posture}
+                className={`${postureBox} ${postureBoxActive}`}
+                onClick={() => dispatch(makeCommand('set_work_posture', { posture: 'chat' }))}
+                title={tr('work.posture.chat')}
+              >
+                {tr(`work.posture.${posture}` as Parameters<typeof t>[1])}
+              </button>
             ) : null}
             {mode === 'work' && !running ? (
               <div ref={teamRef} className="relative shrink-0">
@@ -768,28 +837,12 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
                         type="button"
                         className="flex w-full rounded-md px-2 py-1.5 text-left text-[11.5px] text-ink-2 hover:bg-hover"
                         onClick={() => {
-                          const name = window.prompt(tr('composer.teamNamePrompt'), tr('composer.teamDefaultName'));
-                          if (!name?.trim()) return;
-                          const modelA = window.prompt(tr('composer.teamModelPrompt'), 'model-a');
-                          const modelB = window.prompt(tr('composer.teamModelPrompt'), 'model-b');
-                          if (!modelA?.trim() || !modelB?.trim()) return;
-                          void store
-                            .getState()
-                            .query(makeCommand('save_team', {
-                              name: name.trim(),
-                              members: [
-                                { role: 'coordinator', model: modelA.trim() },
-                                { role: 'worker', model: modelB.trim() },
-                              ],
-                            }))
-                            .then((team) => {
-                              if (!team || typeof team !== 'object' || !('id' in team)) return;
-                              const id = String((team as { id: string }).id);
-                              setSelectedTeamId(id);
-                              setTeams((prev) => [{ id, name: name.trim(), members: [] }, ...prev]);
-                              setTeamOpen(false);
-                            })
-                            .catch(() => undefined);
+                          setTeamOpen(false);
+                          setTeamFormName(tr('composer.teamDefaultName'));
+                          setTeamFormModelA('model-a');
+                          setTeamFormModelB('model-b');
+                          setTeamFormError(null);
+                          setTeamFormOpen(true);
                         }}
                       >
                         {tr('composer.teamCreate')}
@@ -1092,5 +1145,102 @@ export function Composer({ centered = false }: { centered?: boolean } = {}): Rea
         </p>
       </form>
     </footer>
+
+      {teamFormOpen ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4"
+          data-team-create-modal
+          role="dialog"
+          aria-modal="true"
+          aria-label={tr('composer.teamFormTitle')}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setTeamFormOpen(false);
+          }}
+        >
+          <form
+            className="w-full max-w-md space-y-3 rounded-xl border border-line bg-elevated p-4 shadow-xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = teamFormName.trim();
+              const modelA = teamFormModelA.trim();
+              const modelB = teamFormModelB.trim();
+              if (!name || !modelA || !modelB) {
+                setTeamFormError(tr('composer.teamNamePrompt'));
+                return;
+              }
+              setTeamFormError(null);
+              void store
+                .getState()
+                .query(
+                  makeCommand('save_team', {
+                    name,
+                    members: [
+                      { role: 'coordinator', model: modelA },
+                      { role: 'worker', model: modelB },
+                    ],
+                  }),
+                )
+                .then((team) => {
+                  if (!team || typeof team !== 'object' || !('id' in team)) return;
+                  const id = String((team as { id: string }).id);
+                  setSelectedTeamId(id);
+                  setTeams((prev) => [{ id, name, members: [] }, ...prev]);
+                  setTeamFormOpen(false);
+                })
+                .catch((err) => {
+                  setTeamFormError(err instanceof Error ? err.message : String(err));
+                });
+            }}
+          >
+            <h3 className="text-[14px] font-semibold text-ink">{tr('composer.teamFormTitle')}</h3>
+            <label className="block space-y-1 text-[12px] text-ink-2">
+              <span>{tr('composer.teamNameLabel')}</span>
+              <input
+                data-team-name
+                className="w-full rounded-md border border-line bg-base px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-accent/50"
+                value={teamFormName}
+                onChange={(e) => setTeamFormName(e.target.value)}
+                autoFocus
+              />
+            </label>
+            <label className="block space-y-1 text-[12px] text-ink-2">
+              <span>{tr('composer.teamModelALabel')}</span>
+              <input
+                data-team-model-a
+                className="w-full rounded-md border border-line bg-base px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-accent/50"
+                value={teamFormModelA}
+                onChange={(e) => setTeamFormModelA(e.target.value)}
+              />
+            </label>
+            <label className="block space-y-1 text-[12px] text-ink-2">
+              <span>{tr('composer.teamModelBLabel')}</span>
+              <input
+                data-team-model-b
+                className="w-full rounded-md border border-line bg-base px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-accent/50"
+                value={teamFormModelB}
+                onChange={(e) => setTeamFormModelB(e.target.value)}
+              />
+            </label>
+            {teamFormError ? <p className="text-[12px] text-bad">{teamFormError}</p> : null}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-ink-2 hover:text-ink"
+                onClick={() => setTeamFormOpen(false)}
+              >
+                {tr('composer.teamCreateCancel')}
+              </button>
+              <button
+                type="submit"
+                data-team-create-submit
+                className="rounded-md bg-accent px-2.5 py-1.5 text-[12px] font-medium text-white hover:bg-accent-2"
+              >
+                {tr('composer.teamCreateSubmit')}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </>
   );
 }
