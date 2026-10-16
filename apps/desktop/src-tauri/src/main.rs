@@ -745,46 +745,33 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Native folder dialog. The UI also accepts a typed path when this fails.
+/// Native folder dialog via `rfd` (IFileDialog on Windows).
+///
+/// The previous PowerShell `FolderBrowserDialog` spawn used redirected stdout and
+/// often failed to surface a window from the Tauri WebView host — the UI then
+/// showed 「文件夹选择框没有打开」. Typed paths still work when this returns Err.
 #[tauri::command]
 fn pick_folder() -> Result<String, String> {
-    let output = pick_folder_command()
-        .output()
-        .map_err(|err| format!("folder dialog failed: {err}"))?;
-    if !output.status.success() {
-        return Err("cancelled".into());
+    // `rfd` must run off the async runtime; spawn_blocking keeps the UI responsive.
+    let picked = std::thread::spawn(|| {
+        rfd::FileDialog::new()
+            .set_title("Select folder")
+            .pick_folder()
+    })
+    .join()
+    .map_err(|_| "folder dialog failed: thread panicked".to_string())?;
+
+    match picked {
+        Some(path) => {
+            let s = path.to_string_lossy().trim().to_string();
+            if s.is_empty() {
+                Err("cancelled".into())
+            } else {
+                Ok(s)
+            }
+        }
+        None => Err("cancelled".into()),
     }
-    let path = String::from_utf8_lossy(&output.stdout).trim().trim_matches('"').to_string();
-    if path.is_empty() {
-        return Err("cancelled".into());
-    }
-    Ok(path)
-}
-
-#[cfg(target_os = "windows")]
-fn pick_folder_command() -> std::process::Command {
-    let mut cmd = std::process::Command::new("powershell");
-    cmd.args([
-        "-NoProfile",
-        "-STA",
-        "-Command",
-        "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }",
-    ]);
-    cmd
-}
-
-#[cfg(target_os = "macos")]
-fn pick_folder_command() -> std::process::Command {
-    let mut cmd = std::process::Command::new("osascript");
-    cmd.args(["-e", "POSIX path of (choose folder)"]);
-    cmd
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-fn pick_folder_command() -> std::process::Command {
-    let mut cmd = std::process::Command::new("zenity");
-    cmd.args(["--file-selection", "--directory"]);
-    cmd
 }
 
 #[tauri::command]

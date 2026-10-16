@@ -104,6 +104,11 @@ export class OpenAICompatibleProvider implements LLMPort {
     signal?.addEventListener('abort', onAbort, { once: true });
 
     try {
+      // Already cancelled before we even dial — do not open a request.
+      if (signal?.aborted) {
+        yield { type: 'error', message: 'aborted', retryable: false };
+        return;
+      }
       const response = await fetch(`${this.config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -125,13 +130,21 @@ export class OpenAICompatibleProvider implements LLMPort {
         return;
       }
 
-      yield* this.parseStream(response.body);
+      // Pass the user signal so mid-stream Stop cancels the body reader, not
+      // only the initial fetch. Without this, Stop looked dead while tokens
+      // kept arriving until the provider finished the response.
+      yield* this.parseStream(response.body, signal);
     } catch (error) {
+      // User cancel is not a transient network blip — ChatLoop must not retry it.
+      if (signal?.aborted) {
+        yield { type: 'error', message: 'aborted', retryable: false };
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
-      const aborted = controller.signal.aborted && !signal?.aborted;
+      const timedOut = controller.signal.aborted;
       yield {
         type: 'error',
-        message: aborted ? `Request to ${this.config.id} timed out` : message,
+        message: timedOut ? `Request to ${this.config.id} timed out` : message,
         retryable: true,
       };
     } finally {
@@ -180,15 +193,25 @@ export class OpenAICompatibleProvider implements LLMPort {
   }
 
   /** Parse an OpenAI-style SSE body into Camelia chunks. */
-  private async *parseStream(body: ReadableStream<Uint8Array>): AsyncIterable<ChatChunk> {
+  private async *parseStream(body: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncIterable<ChatChunk> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let finishReason: ChatChunk & { type: 'done' } = { type: 'done', finishReason: 'stop' };
     const toolAccumulator = new Map<number, { id: string; name: string; args: string }>();
     let sawUsage = false;
+    const onAbortRead = (): void => {
+      void reader.cancel().catch(() => undefined);
+    };
+    signal?.addEventListener('abort', onAbortRead, { once: true });
+    if (signal?.aborted) onAbortRead();
 
+    try {
     while (true) {
+      if (signal?.aborted) {
+        yield { type: 'error', message: 'aborted', retryable: false };
+        return;
+      }
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -260,6 +283,15 @@ export class OpenAICompatibleProvider implements LLMPort {
       yield { type: 'usage', promptTokens: 0, completionTokens: 0 };
     }
     yield finishReason;
+    } catch (error) {
+      if (signal?.aborted) {
+        yield { type: 'error', message: 'aborted', retryable: false };
+        return;
+      }
+      throw error;
+    } finally {
+      signal?.removeEventListener('abort', onAbortRead);
+    }
   }
 }
 

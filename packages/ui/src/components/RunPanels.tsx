@@ -32,6 +32,7 @@ import { useState, type ReactNode } from 'react';
 
 import type { DroppedMessage } from '@camelia/core';
 import type { SubAgentView, TaskView, TimelineEntry } from '@camelia/agent/view';
+import { buildEventTimeline, nodeMatchesFilter, type TimelineNode } from '../lib/event-timeline.js';
 import { contextUsage } from '@camelia/agent/view';
 
 import { bytes, clock, count, ms, pct } from '../lib/format.js';
@@ -540,15 +541,13 @@ export function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; 
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
-  const shown = timeline
-    .filter((entry) => {
-      if (!filter.trim()) return true;
-      const q = filter.trim().toLowerCase();
-      return entry.type.toLowerCase().includes(q) || (entry.summary ?? '').toLowerCase().includes(q);
-    })
+  const [showDeltas, setShowDeltas] = useState(false);
+  const nodes = buildEventTimeline(timeline, { includeDeltas: showDeltas })
+    .filter((node) => nodeMatchesFilter(node, filter))
     .slice(-80)
     .reverse();
   const recordHint = taskId ? `~/.camelia/runs/${taskId}/record.json` : undefined;
+  const hiddenDeltas = timeline.filter((e) => e.type === 'chat.delta').length;
 
   async function copyText(label: string, text: string): Promise<void> {
     try {
@@ -567,7 +566,7 @@ export function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; 
         title={tr('events.title')}
         right={
           <span className="flex items-center gap-1.5">
-            <span className="font-mono text-[10.5px] text-ink-3">{timeline.length}</span>
+            <span className="font-mono text-[10.5px] text-ink-3">{nodes.length}/{timeline.length}</span>
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
@@ -589,6 +588,16 @@ export function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; 
               placeholder={tr('events.filter')}
               className="min-w-0 flex-1 rounded-md border border-line bg-base px-2 py-1 font-mono text-[11px] text-ink outline-none placeholder:text-ink-3"
             />
+            <button
+              type="button"
+              data-events-toggle-deltas
+              className="rounded-md border border-line px-2 py-1 text-[10.5px] text-ink-2 hover:border-accent/40 hover:text-accent"
+              onClick={() => setShowDeltas((v) => !v)}
+              title={tr('events.toggleDeltas')}
+            >
+              {showDeltas ? tr('events.hideDeltas') : tr('events.showDeltas')}
+              {!showDeltas && hiddenDeltas > 0 ? ` (${hiddenDeltas})` : ''}
+            </button>
             {recordHint ? (
               <button
                 type="button"
@@ -600,33 +609,66 @@ export function EventSection({ timeline, taskId }: { timeline: TimelineEntry[]; 
               </button>
             ) : null}
           </div>
-          {shown.length === 0 ? (
+          {nodes.length === 0 ? (
             <p className="text-[11.5px] text-ink-3">{tr('events.quiet')}</p>
           ) : (
-            <ul className="space-y-[3px]">
-              {shown.map((entry, i) => {
-                const payload = JSON.stringify({ type: entry.type, summary: entry.summary, at: entry.at, traceId: entry.traceId });
-                return (
-                  <li key={`${entry.at}-${i}`} className="flex items-baseline gap-2 font-mono text-[10.5px]">
-                    <span className="shrink-0 text-ink-3/70">{clock(entry.at)}</span>
-                    <span className="shrink-0 text-accent-2">{entry.type}</span>
-                    {entry.summary ? <span className="min-w-0 flex-1 truncate text-ink-3">{entry.summary}</span> : <span className="flex-1" />}
-                    <button
-                      type="button"
-                      className="shrink-0 text-ink-3 hover:text-accent"
-                      title={tr('events.copyEvent')}
-                      onClick={() => void copyText(`${entry.at}-${i}`, payload)}
-                    >
-                      {copied === `${entry.at}-${i}` ? tr('events.copied') : tr('events.copy')}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <ol data-event-graph className="relative ml-1 space-y-0 border-l border-line/80 pl-3">
+              {nodes.map((node, i) => (
+                <EventGraphRow
+                  key={node.kind === 'event' ? `${node.entry.at}-${node.entry.type}-${i}` : `delta-${node.at}-${i}`}
+                  node={node}
+                  copied={copied}
+                  onCopy={copyText}
+                  tr={tr}
+                />
+              ))}
+            </ol>
           )}
         </div>
       ) : null}
     </section>
+  );
+}
+
+function EventGraphRow({
+  node,
+  copied,
+  onCopy,
+  tr,
+}: {
+  node: TimelineNode;
+  copied: string | null;
+  onCopy: (label: string, text: string) => void;
+  tr: (k: Parameters<typeof t>[1]) => string;
+}): ReactNode {
+  const at = node.kind === 'event' ? node.entry.at : node.at;
+  const type = node.kind === 'event' ? node.entry.type : 'chat.delta*';
+  const summary = node.kind === 'event' ? node.entry.summary : node.summary;
+  const key = `${at}-${type}`;
+  const payload =
+    node.kind === 'event'
+      ? JSON.stringify({ type: node.entry.type, summary: node.entry.summary, at: node.entry.at, traceId: node.entry.traceId })
+      : JSON.stringify({ type: 'chat.delta.group', count: node.count, chars: node.chars, at: node.at });
+  return (
+    <li data-event-node={type} className="relative flex items-baseline gap-2 py-[3px] font-mono text-[10.5px]">
+      <span
+        aria-hidden
+        className={`absolute -left-[15px] top-[7px] h-[7px] w-[7px] rounded-full border border-line ${
+          node.kind === 'delta-group' ? 'bg-base' : 'bg-accent'
+        }`}
+      />
+      <span className="shrink-0 text-ink-3/70">{clock(at)}</span>
+      <span className={`shrink-0 ${node.kind === 'delta-group' ? 'text-ink-3' : 'text-accent-2'}`}>{type}</span>
+      {summary ? <span className="min-w-0 flex-1 truncate text-ink-3">{summary}</span> : <span className="flex-1" />}
+      <button
+        type="button"
+        className="shrink-0 text-ink-3 hover:text-accent"
+        title={tr('events.copyEvent')}
+        onClick={() => onCopy(key, payload)}
+      >
+        {copied === key ? tr('events.copied') : tr('events.copy')}
+      </button>
+    </li>
   );
 }
 

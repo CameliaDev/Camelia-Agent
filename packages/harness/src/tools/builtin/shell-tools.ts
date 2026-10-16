@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 /**
  * Built-in shell tools.
  *
@@ -41,7 +43,7 @@ export const shellExecTool: Tool<ExecInput, JsonValue> = {
     '- command: the full command line, e.g. "npm run build".',
     '- cwd: workspace-relative or absolute path under workspace / extraAllowPaths (default workspace root).',
     '- Output is truncated at 20000 chars; timedOut/truncated flags tell you if it was cut.',
-    '- cwd must stay inside allowed roots; FULL mode does not expand those roots. Destructive system commands are blocked by policy.',
+    '- cwd must stay inside allowed roots unless chat policy is FULL (unrestrictedFs). Destructive system commands are still blocked by policy.',
   ].join('\n'),
   risk: 'privileged',
   reversible: false,
@@ -57,7 +59,13 @@ export const shellExecTool: Tool<ExecInput, JsonValue> = {
   },
   async run(input, ctx: ToolContext) {
     const extras = ctx.extraAllowPaths ?? [];
-    const cwd = assertWithinAllowRoots(ctx.workspace, input.cwd ?? '.', extras);
+    const cwd = ctx.unrestrictedFs
+      ? input.cwd
+        ? path.isAbsolute(input.cwd)
+          ? path.normalize(input.cwd)
+          : path.resolve(ctx.workspace, input.cwd)
+        : ctx.workspace
+      : assertWithinAllowRoots(ctx.workspace, input.cwd ?? '.', extras);
     const result = await ctx.shell.exec(input.command, {
       cwd,
       timeoutMs: input.timeoutMs,

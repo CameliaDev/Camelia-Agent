@@ -9,7 +9,7 @@
 
 import { spawn } from 'node:child_process';
 
-import type { ShellOptions, ShellPort, ShellResult } from '@camelia/core';
+import { decodeBytes, type ShellOptions, type ShellPort, type ShellResult } from '@camelia/core';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_OUTPUT = 200_000;
@@ -29,13 +29,17 @@ export class NodeShell implements ShellPort {
 
       const child = spawn(command, {
         cwd: options.cwd,
-        env: { ...process.env, ...options.env },
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: process.env.PYTHONIOENCODING ?? 'utf-8',
+          ...options.env,
+        },
         shell: true,
         windowsHide: true,
       });
 
       const capture = (chunk: Buffer, target: 'out' | 'err'): void => {
-        const text = chunk.toString('utf8');
+        const text = decodeBytes(chunk);
         if (target === 'out') {
           if (stdout.length + text.length > maxOutput) {
             stdout += text.slice(0, Math.max(0, maxOutput - stdout.length));

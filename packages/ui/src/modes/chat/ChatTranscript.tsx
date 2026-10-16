@@ -10,7 +10,7 @@
  * @module
  */
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 import type { ToolCallStatus } from '@camelia/core';
 import type { ChatTurnView, ToolCallView } from '@camelia/agent/view';
@@ -26,6 +26,10 @@ import { TeamOrchestrationCard, taskShowsTeamOrchestration } from '../team/TeamO
 import { CollapsibleBlock } from '../../components/CollapsibleBlock.js';
 import { shouldCollapseAssistantText } from '../../lib/noisy-text.js';
 import { ms } from '../../lib/format.js';
+import { groupToolCalls, parseReplyStructure, toolGroupLabel, toolGroupStatus } from './reply-structure.js';
+
+/** How close to the bottom (px) the transcript must stay to keep following new output. */
+const STICK_PX = 96;
 
 /** Dot colour per tool status, mirroring the conversation's step tones. */
 function toolDot(status: ToolCallStatus): string {
@@ -43,11 +47,27 @@ export function ChatTranscript(): ReactNode {
   const chat = snapshot.chat;
   const task = snapshot.task;
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+
+  const lastTurn = chat.turns[chat.turns.length - 1];
+  const streamingLen =
+    lastTurn && lastTurn.role === 'assistant' && lastTurn.streaming
+      ? lastTurn.text.length + (lastTurn.thinking?.length ?? 0)
+      : 0;
+  const userJustSpoke = lastTurn?.role === 'user';
+
+  const onScroll = (): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_PX;
+  };
 
   useEffect(() => {
     // jsdom (tests) has no layout engine — the optional call keeps tests honest.
+    if (!stickRef.current && !userJustSpoke) return;
     endRef.current?.scrollIntoView?.({ block: 'end' });
-  }, [chat.turns.length, chat.pendingAsk?.askId, task?.id, task?.status]);
+  }, [chat.turns.length, chat.pendingAsk?.askId, task?.id, task?.status, streamingLen, userJustSpoke]);
 
   const answer = (idx: number): void => {
     if (!chat.pendingAsk) return;
@@ -60,8 +80,16 @@ export function ChatTranscript(): ReactNode {
     );
   };
 
+  const awaitingFirstToken =
+    chat.inflight === true && !chat.pendingAsk && (!lastTurn || lastTurn.role === 'user');
+
   return (
-    <div data-chat-transcript className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      data-chat-transcript
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+    >
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-4 py-4">
         {chat.turns.length === 0 && !chat.pendingAsk && !task ? (
           <div className="flex flex-1 items-center justify-center px-6" data-chat-empty>
@@ -71,6 +99,12 @@ export function ChatTranscript(): ReactNode {
         {chat.turns.map((turn) => (
           <ChatBubble key={turn.id} turn={turn} />
         ))}
+        {awaitingFirstToken ? (
+          <div className="flex items-center gap-2 py-0.5" data-chat-awaiting>
+            <span className="camelia-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+            <span className="text-[12.5px] text-ink-3">{tr('chat.thinking')}</span>
+          </div>
+        ) : null}
         {taskShowsTeamOrchestration(task, snapshot.session?.kind) ? (
           <TeamOrchestrationCard task={task!} />
         ) : null}
@@ -127,7 +161,7 @@ function ThinkingFold({ turn, label }: { turn: ChatTurnView; label: string }): R
   );
 }
 
-function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
+const ChatBubble = memo(function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
   const showAvatars = useUiStore((s) => s.localPrefs.showAvatars);
   const userAvatar = useUiStore((s) => s.localPrefs.userAvatar);
   const githubAccount = useUiStore((s) => s.localPrefs.githubAccount);
@@ -170,24 +204,9 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
         />
       ) : null}
       <div className="wf-bubble-agent max-w-[85%] px-3.5 py-2.5">
-        {turn.toolCalls.map((call) => (
-          <ChatToolRow key={call.id} call={call} />
-        ))}
+        <ToolRunRows calls={turn.toolCalls} />
         <ThinkingFold turn={turn} label={tr('chat.thinking')} />
-        {visibleAnswer(turn) ? (
-          shouldCollapseAssistantText(visibleAnswer(turn)) && !turn.streaming ? (
-            <CollapsibleBlock
-              summary={tr('chat.collapseAnswer')}
-              defaultOpen={false}
-              preferOpen={false}
-              data-collapsible="answer"
-            >
-              <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visibleAnswer(turn)}</p>
-            </CollapsibleBlock>
-          ) : (
-            <p className="whitespace-pre-wrap text-[13.5px] leading-6">{visibleAnswer(turn)}</p>
-          )
-        ) : null}
+        <ReplyBody turn={turn} />
         {turn.streaming && visibleAnswer(turn) ? (
           <span className="camelia-pulse ml-0.5 inline-block h-3 w-1.5 translate-y-[1px] bg-accent align-middle" />
         ) : null}
@@ -198,6 +217,117 @@ function ChatBubble({ turn }: { turn: ChatTurnView }): ReactNode {
           </p>
         ) : null}
       </div>
+    </div>
+  );
+});
+
+function ToolRunRows({ calls }: { calls: ChatTurnView['toolCalls'] }): ReactNode {
+  if (calls.length === 0) return null;
+  const groups = groupToolCalls(calls);
+  if (groups.length === 1 && groups[0]!.kind === 'single') {
+    return <ChatToolRow call={calls[0]!} />;
+  }
+  return (
+    <>
+      {groups.map((group, idx) =>
+        group.kind === 'single' ? (
+          <ChatToolRow key={group.call.id} call={group.call} />
+        ) : (
+          <ToolRunGroup key={`group-${idx}-${group.calls[0]!.id}`} calls={group.calls} />
+        ),
+      )}
+    </>
+  );
+}
+
+function ToolRunGroup({ calls }: { calls: ToolCallView[] }): ReactNode {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const status = toolGroupStatus(calls);
+  const summary = (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span
+        className={`inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
+          status === 'error' ? 'bg-bad/15 text-bad' : 'bg-ok/15 text-ok'
+        }`}
+      >
+        <span className="text-[9px] leading-none">{status === 'error' ? '!' : 'ok'}</span>
+      </span>
+      <span className="shrink-0 font-medium text-ink-2">
+        {tr('chat.toolRun').replace('{n}', String(calls.length))}
+      </span>
+      <span className="truncate font-mono text-ink-3">{toolGroupLabel(calls)}</span>
+    </span>
+  );
+  return (
+    <div data-chat-tool-run className="mb-1.5 last:mb-0">
+      <CollapsibleBlock summary={summary} defaultOpen={false} data-collapsible="tool-run">
+        <div className="space-y-1.5">
+          {calls.map((call) => (
+            <ChatToolRow key={call.id} call={call} />
+          ))}
+        </div>
+      </CollapsibleBlock>
+    </div>
+  );
+}
+
+function ReplyBody({ turn }: { turn: ChatTurnView }): ReactNode {
+  const lang = useUiStore((s) => s.localPrefs.language);
+  const tr = (k: Parameters<typeof t>[1]) => t(lang, k);
+  const answer = visibleAnswer(turn);
+  const structure = turn.streaming ? undefined : parseReplyStructure(answer);
+  if (!structure) {
+    if (!answer) return null;
+    return shouldCollapseAssistantText(answer) ? (
+      <CollapsibleBlock
+        summary={tr('chat.collapseAnswer')}
+        defaultOpen={false}
+        preferOpen={false}
+        data-collapsible="answer"
+      >
+        <p className="whitespace-pre-wrap text-[13.5px] leading-6">{answer}</p>
+      </CollapsibleBlock>
+    ) : (
+      <p className="whitespace-pre-wrap text-[13.5px] leading-6">{answer}</p>
+    );
+  }
+
+  return (
+    <div className="space-y-2" data-chat-reply-structure>
+      <div className="rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
+        <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-3">{tr('chat.replyGoal')}</p>
+        <p className="mt-0.5 text-[13px] leading-5 text-ink">{structure.goal}</p>
+      </div>
+      <div className="rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
+        <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-3">
+          {tr('chat.replyConstraints').replace('{n}', String(structure.constraints.length))}
+        </p>
+        <ul className="mt-1 space-y-0.5">
+          {structure.constraints.map((line, idx) => (
+            <li key={idx} className="flex gap-1.5 text-[12.5px] leading-5 text-ink-2">
+              <span className="shrink-0 text-ink-3">-</span>
+              <span className="min-w-0">{line}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
+        <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-3">
+          {tr('chat.replyPlan').replace('{n}', String(structure.plan.length))}
+        </p>
+        <ol className="mt-1 space-y-0.5">
+          {structure.plan.map((step, idx) => (
+            <li key={idx} className="flex gap-1.5 text-[12.5px] leading-5 text-ink-2">
+              <span className="shrink-0 font-mono text-ink-3">{idx + 1}.</span>
+              <span className="min-w-0">{step}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      {structure.body ? (
+        <p className="whitespace-pre-wrap px-0.5 text-[13.5px] leading-6 text-ink">{structure.body}</p>
+      ) : null}
     </div>
   );
 }
@@ -213,7 +343,7 @@ function formatToolPayload(value: unknown): string {
   }
 }
 
-function ChatToolRow({ call }: { call: ToolCallView }): ReactNode {
+const ChatToolRow = memo(function ChatToolRow({ call }: { call: ToolCallView }): ReactNode {
   const summary = (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${toolDot(call.status)}`} />
@@ -222,11 +352,16 @@ function ChatToolRow({ call }: { call: ToolCallView }): ReactNode {
       <span className="text-ink-3">{call.status}</span>
     </span>
   );
-  const detail = [formatToolPayload(call.input), call.error ? `ERROR: ${call.error}` : formatToolPayload(call.output)]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join('\n\n---\n\n');
-  const clipped = detail.length > 4_000 ? `${detail.slice(0, 4_000)}\n…` : detail;
+  const clipped = useMemo(() => {
+    const detail = [
+      formatToolPayload(call.input),
+      call.error ? `ERROR: ${call.error}` : formatToolPayload(call.output),
+    ]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join('\n\n---\n\n');
+    return detail.length > 4_000 ? `${detail.slice(0, 4_000)}\n...` : detail;
+  }, [call.input, call.output, call.error]);
   return (
     <div data-chat-tool className="mb-1.5 last:mb-0">
       <CollapsibleBlock summary={summary} defaultOpen={false} data-collapsible="tool">
@@ -246,7 +381,7 @@ function ChatToolRow({ call }: { call: ToolCallView }): ReactNode {
       </CollapsibleBlock>
     </div>
   );
-}
+});
 
 /** The `chat.ask_user` picker: one question, fixed options, one tap to answer. */
 function AskUserCard({
