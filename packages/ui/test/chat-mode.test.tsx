@@ -108,7 +108,8 @@ describe('chat transcript surface', () => {
     expect(container.querySelector('[data-chat-transcript]')).not.toBeNull();
     expect(container.querySelector('[data-chat-user]')).not.toBeNull();
     expect(container.querySelector('[data-chat-assistant]')).not.toBeNull();
-    expect(container.querySelector('[data-chat-tool]')).not.toBeNull();
+    expect(container.querySelector('[data-chat-tool-run]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-chat-assistant]')).toHaveLength(1);
 
     // The pending ask_user renders as a picker with clickable options.
     const ask = container.querySelector('[data-chat-ask]');

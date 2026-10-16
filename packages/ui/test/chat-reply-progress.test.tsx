@@ -451,6 +451,10 @@ describe('ChatReplyProgress', () => {
         <App />
       </UiProvider>,
     );
+    expect(container.querySelectorAll('[data-chat-assistant]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-chat-tool-run]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(0);
+    fireEvent.click(container.querySelector('[data-chat-tool-run] [data-collapsible-toggle]') as HTMLElement);
     expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(2);
     expect(container.querySelector('[data-chat-thinking]')).toBeNull();
     expect(container.querySelector('[data-chat-assistant] .camelia-pulse')).toBeNull();
@@ -480,20 +484,19 @@ describe('ChatReplyProgress', () => {
         <App />
       </UiProvider>,
     );
-    const folds = container.querySelectorAll('[data-chat-thinking]');
-    expect(folds).toHaveLength(2);
-    expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(2);
-    for (const fold of folds) {
-      expect(fold.querySelector('[data-collapsed]')!.getAttribute('data-collapsed')).toBe('true');
-      expect(fold.textContent).not.toContain('check the header row');
-      expect(fold.textContent).not.toContain('weigh the options');
-    }
+        const folds = container.querySelectorAll('[data-chat-thinking]');
+    expect(container.querySelectorAll('[data-chat-assistant]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-chat-tool-run]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-chat-tool]')).toHaveLength(0);
+    expect(folds).toHaveLength(1);
+    expect(folds[0]!.querySelector('[data-collapsed]')!.getAttribute('data-collapsed')).toBe('true');
+    expect(folds[0]!.textContent).not.toContain('check the header row');
+    expect(folds[0]!.textContent).not.toContain('weigh the options');
     fireEvent.click(folds[0]!.querySelector('[data-collapsible-toggle]') as HTMLElement);
-    fireEvent.click(folds[1]!.querySelector('[data-collapsible-toggle]') as HTMLElement);
     expect(folds[0]!.querySelector('[data-collapsed]')!.getAttribute('data-collapsed')).toBe('false');
     expect(folds[0]!.textContent).toContain('check the header row');
-    expect(folds[1]!.textContent).toContain('weigh the options');
-    expect(topbarChatStatus(container).textContent).toBe('思考中…');
+    expect(folds[0]!.textContent).toContain('weigh the options');
+    expect(topbarChatStatus(container).getAttribute('data-chat-status')).toBe('thinking');
   });
 
   it('mounts the isolated component on the idle status', () => {

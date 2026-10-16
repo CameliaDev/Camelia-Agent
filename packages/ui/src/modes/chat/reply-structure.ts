@@ -1,21 +1,16 @@
 /**
  * Reply structure parsing and tool-run grouping — borrowed from Hermes-style UIs.
  *
- * Two presentation problems, two pure functions:
+ * Presentation helpers (pure):
  *
- * 1. `parseReplyStructure` — the Work-chat system prompt makes every assistant reply
- *    open with `Goal:` / `Constraints:` / `Short plan:`. Rendering those as plain
- *    paragraphs. The chat bubble strips the preamble and shows only the answer
- *    body. Parsing is deliberately all-or-nothing: unless all three markers are
- *    present the text renders as one block, so a reply that merely mentions
- *    "goal" is never half-stripped.
- *
- * 2. `groupToolCalls` — consecutive finished tools collapse into one summary card
- *    that expands on click; a running or approval-waiting call always stands alone.
+ * 1. `parseReplyStructure` — strip Goal / Constraints / Plan preamble; bubble shows body.
+ * 2. `groupToolCalls` — consecutive finished tools collapse into one summary card.
+ * 3. `coalesceTranscript` — merge consecutive assistant turns into one visual message
+ *    (ChatLoop opens a new turnId per tool round; Cursor/Claude/Codex keep one bubble).
  * @module
  */
 
-import type { ToolCallView } from '@camelia/agent/view';
+import type { ChatTurnView, ToolCallView } from '@camelia/agent/view';
 
 /** The three sections the system prompt asks every Work-chat reply to open with. */
 export interface ReplyStructure {
@@ -25,6 +20,14 @@ export interface ReplyStructure {
   /** What follows the plan — the actual answer. */
   body: string;
 }
+
+/**
+ * One row in the chat transcript after coalescing.
+ * User turns stay alone; consecutive assistant turns (tool rounds) become one item.
+ */
+export type TranscriptItem =
+  | { kind: 'user'; turn: ChatTurnView }
+  | { kind: 'assistant'; turns: ChatTurnView[] };
 
 /**
  * `Goal: …`, optionally markdown-bolded (`**Goal:**`). The trailing `\**\s*` after
@@ -109,7 +112,8 @@ function isFinished(call: ToolCallView): boolean {
  * Group a turn's tool calls for display.
  *
  * Two or more *consecutive* finished calls become one group; everything else
- * stands alone.
+ * stands alone. Prefer `ProcessFold` over this when rendering a whole assistant
+ * message — one disclosure for every tool in the coalesced turn.
  */
 export function groupToolCalls(
   calls: readonly ToolCallView[],
@@ -146,4 +150,42 @@ export function toolGroupStatus(calls: readonly ToolCallView[]): 'ok' | 'error' 
   if (calls.some((call) => call.status === 'error' || call.status === 'denied')) return 'error';
   if (calls.some((call) => call.status === 'running' || call.status === 'awaiting-approval')) return 'running';
   return 'ok';
+}
+
+/**
+ * Fold consecutive assistant turns into one transcript item.
+ *
+ * ChatLoop allocates a fresh turnId every tool iteration, so the projection
+ * stores N assistant turns for one user ask. Mainstream chat UIs (Cursor,
+ * Claude, ChatGPT/Codex) render that as a single assistant message with tools
+ * inside a collapsed process disclosure — not N bubbles with N avatars.
+ */
+export function coalesceTranscript(turns: readonly ChatTurnView[]): TranscriptItem[] {
+  const items: TranscriptItem[] = [];
+  let buf: ChatTurnView[] = [];
+
+  const flush = (): void => {
+    if (buf.length === 0) return;
+    items.push({ kind: 'assistant', turns: buf });
+    buf = [];
+  };
+
+  for (const turn of turns) {
+    if (turn.role === 'user') {
+      flush();
+      items.push({ kind: 'user', turn });
+    } else {
+      buf.push(turn);
+    }
+  }
+  flush();
+  return items;
+}
+
+/** Visible answer text after stripping Goal/Constraints/Plan scratchpad. */
+export function answerBody(text: string): string {
+  const structure = parseReplyStructure(text);
+  if (structure) return structure.body;
+  if (/^\**\s*goal\s*\**/im.test(text.trimStart())) return '';
+  return text;
 }
